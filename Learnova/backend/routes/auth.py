@@ -4,13 +4,15 @@ from backend.models.user import (
     UserCreate, UserLogin, UserResponse,
     TokenResponse, UserUpdate, PasswordChange
 )
-from backend.database.db import users_collection
-from backend.middleware.auth_middleware import get_current_user
+from backend.database.db import users_collection, token_blocklist_collection
+from backend.middleware.auth_middleware import get_current_user, security
+from fastapi.security import HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from jose import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from bson import ObjectId
 import os
+import uuid
 
 router = APIRouter()
 
@@ -33,7 +35,10 @@ def create_access_token(data: dict) -> str:
     expire = datetime.utcnow() + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    payload.update({"exp": expire})
+    payload.update({
+        "exp": expire,
+        "jti": str(uuid.uuid4())  # unique token ID for blocklist
+    })
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 @router.get("/health")
@@ -99,6 +104,26 @@ async def login(credentials: UserLogin):
             "tier": user.get("tier", "free")
         }
     }
+
+@router.post("/logout")
+async def logout(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    current_user: dict = Depends(get_current_user)
+):
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        jti = payload.get("jti")
+        exp = payload.get("exp")
+        if jti and exp:
+            expire_at = datetime.fromtimestamp(exp, tz=timezone.utc)
+            await token_blocklist_collection.insert_one({
+                "jti": jti,
+                "expireAt": expire_at
+            })
+    except Exception:
+        pass  # token already invalid — logout succeeds anyway
+    return {"message": "Logged out successfully"}
 
 @router.get("/profile")
 async def get_profile(

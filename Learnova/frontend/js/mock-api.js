@@ -304,50 +304,14 @@
   // Override fetch
   const originalFetch = window.fetch;
   window.fetch = function(url, options) {
-    // Let real auth routes reach the backend — do not intercept them
-    if (typeof url === 'string' && url.startsWith('/api/auth/')) {
-      return originalFetch.apply(this, arguments);
-    }
+    // All /api/ routes now go to the real backend
     if (typeof url === 'string' && url.startsWith('/api/')) {
-      const method = (options && options.method || 'GET').toUpperCase();
-      const routeKey = method + ' ' + url.split('?')[0];
-      const handler = routes[routeKey];
-
-      if (handler) {
-        // Simulate network delay
-        return new Promise(function(resolve) {
-          setTimeout(function() {
-            let body = {};
-            if (options && options.body) {
-              try { body = JSON.parse(options.body); } catch(e) {}
-            }
-            let headers = {};
-            if (options && options.headers) {
-              headers = options.headers;
-            }
-            const result = handler(body, headers, url);
-            console.log('[Mock API]', routeKey, '→', result.status);
-            resolve({
-              ok: result.status >= 200 && result.status < 300,
-              status: result.status,
-              json: function() { return Promise.resolve(result.data); }
-            });
-          }, 400); // 400ms fake latency
-        });
-      }
-
-      // Unhandled API route
-      console.warn('[Mock API] No handler for:', routeKey);
-      return Promise.resolve({
-        ok: false,
-        status: 404,
-        json: function() { return Promise.resolve({ message: 'Endpoint not found' }); }
-      });
+      return originalFetch.apply(this, arguments);
     }
 
     // Non-API calls pass through to real fetch
     return originalFetch.apply(this, arguments);
   };
 
-  console.log('[Mock API] Active — default user: kunal@university.ac.nz / learnova123');
+  console.log('[Mock API] Passthrough mode — all /api/ routes go to real backend');
 })();

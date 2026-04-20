@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
-from backend.database.db import users_collection
+from backend.database.db import users_collection, token_blocklist_collection
 from dotenv import load_dotenv
 import os
 
@@ -19,11 +19,20 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("email")
+        jti: str = payload.get("jti")
         if email is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
             )
+        # Check if token has been invalidated (logged out)
+        if jti:
+            blocked = await token_blocklist_collection.find_one({"jti": jti})
+            if blocked:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token has been invalidated — please log in again"
+                )
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -197,12 +197,30 @@ function toggleSidebarAccountMenu(event) {
   trigger.setAttribute('aria-expanded', 'true');
 }
 
+async function logoutUser() {
+  const token = localStorage.getItem('token');
+  try {
+    if (token) {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+    }
+  } catch (e) {
+    // Network error — continue logout anyway
+  } finally {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.href = 'landing.html';
+  }
+}
+
 function handleSidebarAccountAction(action) {
   closeSidebarAccountMenu();
   if (action === 'profile') openEditProfile();
   if (action === 'accessibility') openSettings('accessibility');
   if (action === 'plan') openSettings('plan');
-  if (action === 'signout') window.location.href = 'landing.html';
+  if (action === 'signout') logoutUser();
 }
 
 /* â”€â”€ Settings modal â”€â”€ */
@@ -464,7 +482,7 @@ function openProfile() {
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 10.8V12h1.2l6.9-6.9-1.2-1.2L2 10.8z"/><path d="M7.8 3.9l1.2 1.2"/><path d="M9.8 2l1.7 1.7"/></svg>
           Edit
         </button>
-        <button class="btn" style="justify-content:center;color:var(--red-soft)" onclick="closeProfile();window.location.href='landing.html'">
+        <button class="btn" style="justify-content:center;color:var(--red-soft)" onclick="closeProfile();logoutUser()">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M5 7h7M9 5l2 2-2 2"/><path d="M5 2H2.5a1 1 0 00-1 1v8a1 1 0 001 1H5"/></svg>
           Sign out
         </button>
