@@ -75,3 +75,11 @@ jobs:
               "docker rm my-app-container || true",
               "docker run -d --name my-app-container -p 80:5000 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
             ]'
+
+        #Live CloudFront Display URL Link 
+      - name: Display CloudFront URL
+        run: |
+          echo "Deployment to AWS is successful!"
+          echo "Live Link: https://${{ vars.CLOUDFRONT_DOMAIN_NAME }}"
+
+        
