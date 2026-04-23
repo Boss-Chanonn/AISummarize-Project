@@ -1,0 +1,77 @@
+#Add full comments below! 
+#Name of Workflow
+name: Deploy to Amazon EC2 (ASG), Lambda and ECR
+
+#Workflow trigger on push to main branch only!
+on: 
+  push:
+    branches: ["main"]
+
+#Set of environment variables for AWS Deployment of the following services
+env: 
+  AWS_REGION: ap-southeast-6 
+  ECR_REPOSITORY: 301.1_project 
+  ASG_NAME: 301.3_Learnova_Website
+  ACCOUNT_ID: 794038214785
+
+#Jobs for Github Actions workflow to automate deployment... 
+jobs: 
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code 
+        uses: actions/checkout@v4
+
+      - name: Start MongoDB
+        uses: supercharge/mongodb-github-action@1.12.1
+        with:
+          mongodb-version: 'latest'
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      #Sign-in to Amazon ECR 
+      - name: Sign in to Amazon ECR 
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      
+      #Build and Push Repository to ECR (Elastic Container Registry) Image
+      - name: Build and Push to ECR 
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true 
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          platforms: linux/amd64
+          provenance: false
+
+      #Lambda Deployment with ECR Image 
+      - name: Deploy to Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name ai_summarize_project \
+            --image-uri ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
+            --region ${{ env.AWS_REGION }} || \
+          aws lambda create-function \
+            --function-name ai_summarize_project \
+            --package-type Image \
+            --code ImageUri=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
+            --role arn:aws:iam::${{ env.ACCOUNT_ID }}:role/service-role/ai_summarize_project-role-ml8sy2om \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Run SSM Script Update for ASG
+        run: |
+          aws ssm send-command \
+            --targets "Key=tag:aws:autoscaling:groupName,Values=${{ env.ASG_NAME }}" \
+            --document-name "AWS-RunShellScript" \
+            --parameters 'commands=[
+              "aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
+              "docker pull ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest",
+              "docker stop my-app-container || true",
+              "docker rm my-app-container || true",
+              "docker run -d --name my-app-container -p 80:5000 ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest"
+            ]'

@@ -1,0 +1,15 @@
+#Environment 
+.env
+.env.*
+!.env.example
+
+#IDE and editor files 
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Always exclude .git directory
+.git/

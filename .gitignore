@@ -1,3 +1,20 @@
+#Environment 
+.env
+.env.*
+!.env.example
+
+#IDE and editor files 
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Always exclude .git directory
+.git/
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
