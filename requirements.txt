@@ -1,0 +1,6 @@
+fastapi
+mangum
+boto3
+marshmallow 
+motor #Mongodb Driver
+dnspython #Mongodb Atlas connection link
