@@ -81,5 +81,8 @@ jobs:
         run: |
           echo "Deployment to AWS is successful!"
           echo "Live Link: https://${{ vars.CLOUDFRONT_DOMAIN_NAME }}"
-
-        
+      
+      #Link to S3 Bucket For all front-end files 
+      - name: Sync to S3
+        run: aws s3 sync ./build/frontend s3://${secrets.S3_BUCKET_NAME}/ --delete
+        #Sync source code inside github to store inside S3 bucket to connect with Amazon Cloudfront hosting
