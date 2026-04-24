@@ -49,8 +49,8 @@ jobs:
           platforms: linux/amd64
           provenance: false
 
-      #Lambda Deployment with ECR Image 
-      - name: Deploy to Lambda
+      #Lambda Deployment with ECR (Elastic Container Registry) Image 
+      - name: Deploy to Lambda with Elastic Container Image
         run: |
           aws lambda update-function-code \
             --function-name ai_summarize_project \
@@ -63,6 +63,7 @@ jobs:
             --role arn:aws:iam::${{ env.ACCOUNT_ID }}:role/service-role/ai_summarize_project-role-ml8sy2om \
             --region ${{ env.AWS_REGION }}
 
+      #Connection between Auto-scaling group and Systems Manager
       - name: Run SSM Script Update for ASG
         run: |
           aws ssm send-command \
@@ -83,6 +84,12 @@ jobs:
           echo "Live Link: https://${{ vars.CLOUDFRONT_DOMAIN_NAME }}"
       
       #Link to S3 Bucket For all front-end files 
-      - name: Sync to S3
-        run: aws s3 sync ./build/frontend s3://${secrets.S3_BUCKET_NAME}/ --delete
+      #1. Sign-in again using the below credentials for final check!
+      - name: Sync to Amazon S3 (Simple Storage Services)
+        env:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+        run: | 
+         aws s3 sync ./build/frontend s3://${{secrets.S3_BUCKET_NAME}}/ --delete
         #Sync source code inside github to store inside S3 bucket to connect with Amazon Cloudfront hosting
