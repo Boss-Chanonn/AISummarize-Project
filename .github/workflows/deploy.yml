@@ -91,5 +91,5 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
         run: | 
-         aws s3 sync ./build/frontend s3://${{secrets.S3_BUCKET_NAME}}/ --delete
+         aws s3 sync ./frontend s3://${{secrets.S3_BUCKET_NAME}}/ --delete
         #Sync source code inside github to store inside S3 bucket to connect with Amazon Cloudfront hosting
