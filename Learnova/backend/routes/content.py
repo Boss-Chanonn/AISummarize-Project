@@ -3,140 +3,87 @@ from fastapi.responses import JSONResponse
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from datetime import datetime
-import math
+from bson import ObjectId
 
 router = APIRouter()
 
 
-def serialize_history(doc: dict) -> dict:
-    """Convert a MongoDB history document to a JSON-safe dict."""
-    doc["id"] = doc.pop("seqId", 0)
-    doc.pop("_id", None)
-    doc.pop("userId", None)
+def _serialize(doc: dict) -> dict:
+    doc = dict(doc)
+    doc["_id"] = str(doc["_id"])
     if isinstance(doc.get("uploadedAt"), datetime):
         doc["uploadedAt"] = doc["uploadedAt"].isoformat()
+    if isinstance(doc.get("completedAt"), datetime):
+        doc["completedAt"] = doc["completedAt"].isoformat()
     return doc
 
 
 @router.get("/results")
 async def get_results(
-    id: int = Query(0),
+    id: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
+    """Get quiz results for a history item by MongoDB _id."""
     user_id = str(current_user["_id"])
 
     if id:
-        item = await history_collection.find_one({"userId": user_id, "seqId": id})
+        try:
+            oid = ObjectId(id)
+        except Exception:
+            return JSONResponse(status_code=400, content={"message": "Invalid ID"})
+        item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
         item = await history_collection.find_one(
-            {"userId": user_id}, sort=[("uploadedAt", -1)]
+            {"userId": user_id, "done": True}, sort=[("completedAt", -1)]
         )
 
     if not item:
-        return JSONResponse(
-            status_code=404,
-            content={"message": "Result not found. Complete a quiz first."},
-        )
+        return JSONResponse(status_code=404, content={"message": "Result not found. Complete a quiz first."})
 
-    return serialize_history(item)
+    doc = _serialize(item)
+    return {
+        "_id": doc["_id"],
+        "title": doc.get("title"),
+        "fileType": doc.get("fileType"),
+        "score": doc.get("score"),
+        "correct": doc.get("correct"),
+        "total": doc.get("total"),
+        "userAnswers": doc.get("userAnswers", []),
+        "quizFull": doc.get("quizFull", []),
+        "analysis": doc.get("analysis", {}),
+        "summary": doc.get("summary", {}),
+        "modules": doc.get("modules", []),
+        "uploadedAt": doc.get("uploadedAt"),
+        "completedAt": doc.get("completedAt"),
+    }
 
 
 @router.get("/modules")
 async def get_modules(
-    historyId: int = Query(0),
+    historyId: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
+    """Get learning modules for a history item by MongoDB _id."""
     user_id = str(current_user["_id"])
 
     if historyId:
-        item = await history_collection.find_one(
-            {"userId": user_id, "seqId": historyId}
-        )
+        try:
+            oid = ObjectId(historyId)
+        except Exception:
+            return JSONResponse(status_code=400, content={"message": "Invalid ID"})
+        item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
         item = await history_collection.find_one(
             {"userId": user_id}, sort=[("uploadedAt", -1)]
         )
 
     if not item:
-        return JSONResponse(
-            status_code=404,
-            content={"message": "No module data found. Complete a quiz first."},
-        )
-
-    weaknesses = item.get("weaknesses", [])
-    study_next = item.get("studyNext", [])
-    topics = (weaknesses + study_next)[:4]
-    while len(topics) < 4:
-        topics.append("study skills")
-
-    types = ["video", "article", "video", "podcast"]
-    sources = [
-        "MIT OpenCourseWare \u00b7 YouTube",
-        "Nature \u2014 npj Science of Learning",
-        "EdSurge \u00b7 Vimeo",
-        "The EdTech Podcast \u00b7 Spotify",
-    ]
-    durations = ["18 min", "12 min read", "24 min", "38 min"]
-    tags = ["Watched", "Peer-reviewed", "Expert speaker", "Transcript available"]
-    badges = [
-        {"class": "badge-dim", "label": "Done"},
-        {"class": "badge-gold", "label": "Recommended"},
-        {"class": "badge-green", "label": "New"},
-        {"class": "badge-gold", "label": "Recommended"},
-    ]
-    statuses = ["done", "none", "none", "none"]
-
-    def title_fn(i: int, topic: str) -> str:
-        fns = [
-            lambda t: f"Understanding {t} in depth",
-            lambda t: f"The evidence on {t} in education",
-            lambda t: f"{t[0].upper()}{t[1:]} in practice: A guide",
-            lambda t: f"Rethinking {t} \u2014 experts discuss",
-        ]
-        return fns[i](topic)
-
-    main_topic = (weaknesses[0] if weaknesses else (study_next[0] if study_next else "key concepts")).lower()
-    total_minutes = 92
-
-    resources = []
-    for i, topic in enumerate(topics):
-        resources.append({
-            "id": i,
-            "type": types[i],
-            "title": title_fn(i, topic),
-            "source": sources[i],
-            "duration": durations[i],
-            "tag": tags[i],
-            "badge": badges[i],
-            "status": statuses[i],
-        })
+        return JSONResponse(status_code=404, content={"message": "No modules found."})
 
     return {
-        "historyId": item.get("seqId", 0),
-        "docTitle": item.get("title", ""),
-        "moduleTitle": main_topic,
-        "description": f"Based on your quiz results, you missed questions about {main_topic}. These resources will help close that gap \u2014 estimated {total_minutes} min total.",
-        "totalMinutes": total_minutes,
-        "resourceCount": len(topics),
-        "progress": {
-            "done": 1,
-            "scheduled": 1,
-            "remaining": len(topics) - 1,
-            "pct": math.floor(1 / len(topics) * 100),
-        },
-        "focusAreas": [
-            {
-                "title": "Rebuild the weak spot",
-                "body": f"Understand why {main_topic} matters and what the research says.",
-            },
-            {
-                "title": "Learn through mixed formats",
-                "body": "Short article, practical video, and podcast pacing to keep the module engaging.",
-            },
-            {
-                "title": "Leave with clearer recall",
-                "body": "Use the scheduled resources to reinforce the same concept from multiple angles.",
-            },
-        ],
-        "resources": resources,
+        "_id": str(item["_id"]),
+        "title": item.get("title"),
+        "modules": item.get("modules", []),
+        "studyNext": item.get("analysis", {}).get("studyNext", []),
     }
+

@@ -138,13 +138,15 @@ async function loadDashboard() {
 
 loadDashboard();
 
+function fmtMeta(item) {
+  const d = item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+  return (item.fileType || 'Text') + (d ? ' · ' + d : '');
+}
+
 function renderRecentPreview(item) {
+  const an = item.analysis || {};
   if (!item.done) {
-    return `
-      <div class="mini-result">
-        ${renderSummaryMarkup(item)}
-      </div>
-    `;
+    return `<div class="mini-result" style="padding:14px 18px"><div style="font-size:12px;color:var(--cream-25)">${escapeHtml((item.summary && item.summary.body) ? (Array.isArray(item.summary.body) ? item.summary.body[0] : item.summary.body).slice(0,180)+'…' : 'Summary available')}</div></div>`;
   }
   return `
     <div class="mini-result">
@@ -155,17 +157,16 @@ function renderRecentPreview(item) {
         </div>
         <div style="flex:1">
           <div class="mr-section">Strengths</div>
-          <div class="mr-tags">${item.strengths.map(s=>`<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="mr-tags">${(an.strengths||[]).map(s=>`<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div>
           <div class="mr-section">Needs work</div>
-          <div class="mr-tags">${item.weaknesses.map(s=>`<span class="badge badge-red">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="mr-tags">${(an.weaknesses||[]).map(s=>`<span class="badge badge-red">${escapeHtml(s)}</span>`).join('')}</div>
           <div class="mr-section">Study next</div>
-          <div class="mr-tags">${item.studyNext.map(s=>`<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="mr-tags">${(an.studyNext||[]).map(s=>`<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('')}</div>
         </div>
       </div>
       <div class="mr-actions" onclick="event.stopPropagation()">
-        <button class="btn" onclick="window.LN.setModalSourceFromEvent(event);openHistoryDetail(${item.id})">Full results</button>
-        <button class="btn" onclick="window.LN.setModalSourceFromEvent(event);openHistorySplit(${item.id})">Summary + result</button>
-        <a href="module.html" class="btn btn-gold">Learning module →</a>
+        <a href="results.html?id=${item._id}" class="btn">Full results</a>
+        <a href="module.html?historyId=${item._id}" class="btn btn-gold">Learning module →</a>
       </div>
     </div>
   `;
@@ -187,13 +188,13 @@ async function renderRecentActivity() {
       return;
     }
     document.getElementById('recent-activity-list').innerHTML = items.map(item => `
-      <div class="history-item history-item-anim" id="recent-${item.id}" onclick="toggleRecentActivity(${item.id})">
+      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
         <div class="hi-row">
           <div class="hi-left">
             <div class="hi-dot${item.done?' done':''}"></div>
             <div style="min-width:0;flex:1">
               <div class="hi-title">${escapeHtml(item.title)}</div>
-              <div class="hi-meta">${escapeHtml(item.meta)}</div>
+              <div class="hi-meta">${escapeHtml(fmtMeta(item))}</div>
             </div>
           </div>
           <div class="hi-right">

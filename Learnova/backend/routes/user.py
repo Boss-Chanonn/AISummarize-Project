@@ -29,11 +29,11 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
     # Sub-labels
     new_this_week = sum(
         1 for h in history
-        if h.get("uploadedAt") and h["uploadedAt"] >= week_ago
+        if h.get("uploadedAt") and h["uploadedAt"].replace(tzinfo=timezone.utc) >= week_ago
     )
     quizzes_this_month = sum(
         1 for h in completed
-        if h.get("uploadedAt") and h["uploadedAt"] >= month_ago
+        if h.get("uploadedAt") and h["uploadedAt"].replace(tzinfo=timezone.utc) >= month_ago
     )
 
     stat_subs = [

@@ -407,12 +407,19 @@ async function processDocument() {
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
-  const payload = {
-    title: file ? file.name : (hasPaste ? 'Pasted text' : 'Document'),
-    fileType: file ? file.name.split('.').pop().toUpperCase() : 'TXT',
-    pageCount: file ? Math.max(1, Math.round(file.size / 3000)) : 1
-  };
-  // Run animation + fetch in parallel so animation always plays fully
+  const _token = localStorage.getItem('token') || '';
+
+  // Build FormData for real file upload
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+  } else if (hasPaste) {
+    const pastedText = document.getElementById('paste-area') ? document.getElementById('paste-area').value : '';
+    formData.append('text_content', pastedText);
+    formData.append('title', 'Pasted text');
+  }
+
   let step = 0;
   const progressMarks = [18, 42, 71, 100];
   const animPromise = new Promise(function(resolve) {
@@ -428,14 +435,22 @@ async function processDocument() {
   });
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers: { 'Authorization': 'Bearer ' + _token },
+    body: formData
   });
   try {
     const results = await Promise.all([animPromise, fetchPromise]);
     const fetchRes = results[1];
     const data = await fetchRes.json();
-    if (!fetchRes.ok) throw new Error(data.message || 'Upload failed');
+    if (fetchRes.status === 401 || fetchRes.status === 403) {
+      localStorage.removeItem('token');
+      window.location.href = 'landing.html';
+      return;
+    }
+    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
+    // Store historyId so quiz/results pages can use it
+    if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
+    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
     setTimeout(function() {
       showSummary(data);
       document.getElementById('btn-rescan').style.display = 'flex';
@@ -446,7 +461,7 @@ async function processDocument() {
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
-    showToast('Processing failed — please try again');
+    showToast(e.message || 'Processing failed — please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
 }
@@ -611,38 +626,26 @@ async function showQuizResults() {
       answer: isCorrect ? null : q.opts[q.correct]
     };
   });
-  // Save to history
+  // Save to history via submit-quiz endpoint
   try {
     const token = localStorage.getItem('token') || '';
-    const saveRes = await fetch('/api/history/save', {
-      method: 'POST',
-      headers: Object.assign(
-        { 'Content-Type': 'application/json' },
-        token ? { 'Authorization': 'Bearer ' + token } : {}
-      ),
-      body: JSON.stringify({
-        title: currentDoc.title,
-        meta: currentDoc.meta || '',
-        fileType: currentDoc.fileType || 'TXT',
-        pageCount: currentDoc.pageCount || 1,
-        score: pct,
-        correct: correctCount,
-        total: quizData.length,
-        done: true,
-        summary: currentDoc.summary || {},
-        strengths: currentDoc.strengths || [],
-        weaknesses: currentDoc.weaknesses || [],
-        studyNext: currentDoc.studyNext || [],
-        questions: questionDetails,
-        quizFull: quizData
-      })
-    });
-    const saved = await saveRes.json();
+    const historyId = localStorage.getItem('currentHistoryId') || '';
+    const userAnswerIndices = answers.map(a => a.chosen);
+    let savedId = historyId;
+    if (historyId) {
+      const saveRes = await fetch('/api/history/' + historyId + '/submit-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ answers: userAnswerIndices })
+      });
+      const saved = await saveRes.json();
+      savedId = saved._id || historyId;
+    }
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html?id=' + saved.id; };
+      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {

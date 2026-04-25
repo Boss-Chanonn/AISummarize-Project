@@ -539,6 +539,10 @@ const registerHTML = `
     <input class="input" type="email" placeholder="you@university.ac.nz" id="register-email"/>
   </div>
   <div class="form-field">
+    <label class="field-label">Date of birth</label>
+    <input class="input" type="date" id="register-dob"/>
+  </div>
+  <div class="form-field">
     <label class="field-label">Password</label>
     <input class="input" type="password" placeholder="Min. 8 characters" id="register-password"/>
   </div>
@@ -586,16 +590,17 @@ async function loginUser() {
 async function registerUser() {
   const name = document.getElementById('register-name').value;
   const email = document.getElementById('register-email').value;
+  const dob = document.getElementById('register-dob').value;
   const password = document.getElementById('register-password').value;
   const btn = document.getElementById('register-btn');
-  if (!name || !email || !password) { showToast('Please fill in all fields'); return; }
+  if (!name || !email || !dob || !password) { showToast('Please fill in all fields including date of birth'); return; }
   btn.disabled = true;
   btn.textContent = 'Creating account…';
   try {
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
+      body: JSON.stringify({ name, email, dob, password })
     });
     const data = await response.json();
     if (!response.ok) { showToast(data.message || 'Registration failed'); return; }

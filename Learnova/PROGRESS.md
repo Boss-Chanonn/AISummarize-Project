@@ -1,5 +1,5 @@
 # Learnova — AI Development Log
-Last updated: 2026-04-20
+Last updated: 2026-04-22
 
 ## CRITICAL RULES FOR ALL AI AGENTS
 1. NEVER modify .css files
@@ -19,28 +19,108 @@ NOTE: .html files CAN be modified (owner approved on 2026-04-20)
 - Frontend : HTML/CSS/JS (served via FastAPI)
 - Database : MongoDB Atlas (cloud) — NOT local
 - Auth     : JWT + bcrypt + token blocklist
-- AI       : Mock now → Kunal adds Groq later
+- AI       : Ollama llama3:latest (with fallback if Ollama offline)
 - Port     : 8000 (everything)
 
 ## User Roles
-- user         → student, regular access
+- user         → student, regular access (free/pro tier)
 - admin        → manage users, view all history
 - system_admin → full DB access, system logs
 
-## API Format — mock-api.js is the source of truth
-Frontend mock-api.js defines EXACT response format.
-Backend must match it precisely.
+## API Field Formats — IMPORTANT
+Quiz questions stored in MongoDB as:
+  { q: "question text", opts: ["A","B","C","D"], correct: 0, explanation: "..." }
+  NOTE: field is "q" (not "question"), "opts" (not "options")
 
-Key formats:
-POST /api/upload response must include:
-  studyNext (NOT recommendations)
-  quizData with: q, opts, correct (index), explanation
+History item key fields:
+  _id: MongoDB ObjectId string (24-char hex)
+  done: bool
+  score: int (0-100) | null
+  correct: int | null
+  total: int
+  fileType: "PDF"|"DOCX"|"PPTX"|"TXT"
+  uploadedAt: ISO datetime string
+  summary.body: array of 2 paragraph strings
+  summary.takeaways: array of 3 strings
+  analysis.strengths/weaknesses/recommendations/studyNext: arrays
+  quizFull: array of 8 quiz question objects
+  userAnswers: array of chosen option indices
+  modules: array of 5 { title, type, url, description }
 
-POST /api/history/save receives:
-  title, meta, fileType, pageCount
-  score, correct, total, done
-  summary, strengths, weaknesses
-  studyNext, questions, quizFull
+POST /api/upload (multipart/form-data):
+  Fields: file (UploadFile) OR text_content (str) + title (str)
+  Returns: historyId, summary{title,authors,pages,body[],takeaways[],strengths[],weaknesses[],studyNext[]}, quizData[], modules[]
+
+POST /api/history/{id}/submit-quiz:
+  Body: { answers: [0,2,1,...] } — array of chosen option indices
+  Returns: { score, correct, total, _id, analysis }
+
+## Completed Stages — AS OF 2026-04-22
+
+### STAGE 1 — Core Setup ✅
+### STAGE 1.1 — MongoDB Atlas + Docker ✅
+### STAGE 1.2 — JWT Logout + Token Blocklist ✅
+### STAGE 2 — Full Backend Rebuild ✅ (completed 2026-04-22)
+Files: auth.py, user.py, upload.py, history.py, content.py, admin.py, sysadmin.py, main.py, ollama_service.py, models/user.py, requirements.txt
+### STAGE 3 — Frontend Pages Updated ✅ (completed 2026-04-22)
+Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, history.html, module.html, index.html
+
+## What works now (all verified 2026-04-22/23)
+  ✅ POST /api/auth/register (DOB required)
+  ✅ POST /api/auth/login (JWT 24h)
+  ✅ POST /api/auth/logout (token blocklist)
+  ✅ GET  /api/user/profile (documentsStudied, averageScore, quizzesCompleted, statSubs)
+  ✅ POST /api/upload (FormData: file OR text_content; Ollama AI with fallback)
+  ✅ GET  /api/history (all history, _id based)
+  ✅ GET  /api/history/recent (last 5)
+  ✅ GET  /api/history/{id} (single item)
+  ✅ POST /api/history/{id}/submit-quiz (saves score, triggers AI analysis)
+  ✅ DELETE /api/history/{id}
+  ✅ GET  /api/results?id= (quiz results + analysis)
+  ✅ GET  /api/modules?historyId= (5 AI-generated module links)
+  ✅ GET  /api/admin/dashboard, /users, /history
+  ✅ GET  /api/sysadmin/health, /stats, /logs
+  ✅ Rate limiting (slowapi)
+  ✅ Activity logging middleware
+  ✅ Frontend: upload → quiz → results → modules full flow
+  ✅ History page: Summary button + modal (re-read AI summaries)
+  ✅ Ollama timeout: 300s (no more ReadTimeout on large documents)
+
+## Still Missing / Not Yet Built
+  ❌ admin.html frontend page (admin.py backend exists)
+  ❌ sysadmin.html frontend page (sysadmin.py backend exists)
+  ❌ Plan & Billing page (Pro upgrade flow)
+  ❌ PUT /api/auth/profile (update name/phone)
+  ❌ PUT /api/auth/password (change password)
+
+## Docker
+  docker-compose up --build -d   ← use --build when requirements.txt changes
+  Container: learnova-app-1 on port 8000
+  Refresh PATH first: $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+
+## Change Log
+| Date | Change | Reason |
+|------|--------|---------|
+| 2026-04-20 | Fixed duplicate MongoDB client | Stability |
+| 2026-04-20 | Added role/tier to User model | RBAC |
+| 2026-04-20 | Created auth_middleware.py | Route protection |
+| 2026-04-20 | Registered SecurityHeadersMiddleware | Security |
+| 2026-04-20 | Switched DB to MongoDB Atlas | Persistent cloud storage |
+| 2026-04-20 | Added JWT blocklist (jti + MongoDB TTL) | Logout invalidates token |
+| 2026-04-20 | Created POST /api/auth/logout | Secure server-side logout |
+| 2026-04-22 | Added DOB field to register | Blueprint requirement |
+| 2026-04-22 | Rewrote upload.py (FormData + text extraction) | Real file processing |
+| 2026-04-22 | Rewrote ollama_service.py (full AI payload) | Summary+quiz+analysis+modules |
+| 2026-04-22 | Rewrote history.py (submit-quiz + AI analysis) | Post-quiz personalization |
+| 2026-04-22 | Created admin.py + sysadmin.py | Role-based management |
+| 2026-04-22 | Updated main.py (all routers + slowapi + logging) | Complete API registration |
+| 2026-04-22 | Updated frontend pages (results/history/module/index) | Match new API fields |
+| 2026-04-22 | Fixed results.html (q.q + q.opts field names) | Was using wrong field names |
+| 2026-04-22 | Fixed user.py datetime comparison (tz-aware) | Profile 500 error |
+| 2026-04-23 | Added Summary button + modal to history.html | Re-read AI summaries from history |
+| 2026-04-23 | Set OLLAMA_TIMEOUT_SECONDS=300 in .env | Prevent ReadTimeout on large documents |
+| 2026-04-23 | Reduced ollama_service.py snippet to 1500 chars | Faster AI generation |
+
 
 ## Completed Stages
 

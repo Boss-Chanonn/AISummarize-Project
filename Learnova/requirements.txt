@@ -9,5 +9,8 @@ python-multipart
 python-dotenv
 pydantic[email]
 PyPDF2
+python-docx
+python-pptx
 httpx
 boto3
+slowapi
