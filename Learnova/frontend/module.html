@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova — Learning Module</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .mod-hero { display:grid; grid-template-columns:minmax(0,1.4fr) minmax(280px,0.9fr); gap:18px; margin-bottom:28px; }
+    .mod-hero-main, .mod-hero-side {
+      border:0.5px solid var(--border);
+      border-radius:var(--radius-lg);
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.09), transparent 46%),
+        linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
+      padding:28px;
+      position:relative;
+      overflow:hidden;
+    }
+    .mod-hero-main::after, .mod-hero-side::after {
+      content:'';
+      position:absolute; inset:auto -8% -30% auto;
+      width:180px; height:180px; border-radius:50%;
+      background:radial-gradient(circle, rgba(200,184,154,0.08), transparent 70%);
+      pointer-events:none;
+    }
+    .mod-tag-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
+    .mod-kicker { font-size:10px; letter-spacing:1.4px; text-transform:uppercase; color:var(--cream-25); margin-bottom:12px; }
+    .mod-title { font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -0.9px; line-height: 1.04; margin-bottom: 12px; max-width: 10ch; }
+    .mod-title em { font-style: italic; color: var(--gold); }
+    .mod-desc { font-size: 13px; color: var(--cream-40); line-height: 1.82; max-width: 600px; font-weight: 300; margin-bottom: 24px; }
+    .mod-meta { display: grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .meta-item { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--cream-25); padding:14px 15px; border:0.5px solid var(--border); border-radius:var(--radius-md); background:var(--cream-05); }
+    .meta-item svg { width: 13px; height: 13px; opacity: 0.45; flex-shrink: 0; }
+    .meta-val { color: var(--cream-60); }
+    .mod-side-label { font-size:10px; letter-spacing:1.2px; text-transform:uppercase; color:var(--cream-25); margin-bottom:12px; }
+    .mod-focus-title { font-family:var(--serif); font-size:22px; line-height:1.12; letter-spacing:-0.5px; margin-bottom:10px; }
+    .mod-focus-copy { font-size:12px; line-height:1.75; color:var(--cream-40); margin-bottom:18px; }
+    .module-state-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:0 0 26px; }
+    .module-state-card {
+      border:0.5px solid var(--border); border-radius:var(--radius-lg);
+      padding:18px 20px;
+      background:linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
+    }
+    .ms-label { font-size:10px; letter-spacing:1.1px; text-transform:uppercase; color:var(--cream-25); margin-bottom:8px; }
+    .ms-value { font-family:var(--serif); font-size:28px; line-height:1; letter-spacing:-0.6px; margin-bottom:6px; }
+    .ms-value.done { color:var(--green); }
+    .ms-value.scheduled { color:var(--gold); }
+    .ms-value.remaining { color:var(--cream); }
+    .ms-sub { font-size:12px; color:var(--cream-40); line-height:1.6; }
+    .focus-list { display:flex; flex-direction:column; gap:10px; margin-bottom:20px; }
+    .focus-item { display:flex; gap:10px; padding:12px 0; border-top:0.5px solid var(--border); }
+    .focus-item:first-child { border-top:none; padding-top:0; }
+    .focus-index { width:22px; height:22px; border-radius:50%; background:rgba(200,184,154,0.12); color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; }
+    .focus-item div:last-child { font-size:12px; color:var(--cream-40); line-height:1.65; }
+    .focus-item strong { display:block; color:var(--cream-60); font-weight:500; margin-bottom:2px; }
+
+    /* Resource cards */
+    .res-list { display: flex; flex-direction: column; gap: 14px; }
+    .res-card {
+      display: grid; grid-template-columns:116px minmax(0,1fr);
+      align-items: stretch;
+      border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+      overflow: hidden; cursor: pointer;
+      background:linear-gradient(180deg, rgba(240,237,232,0.035), rgba(240,237,232,0.02));
+      transition: border-color 0.15s;
+    }
+    .res-card:hover { border-color: rgba(200,184,154,0.24); }
+    .res-card.scheduled { border-color: rgba(107,158,107,0.28); background:linear-gradient(180deg, rgba(107,158,107,0.055), rgba(240,237,232,0.02)); }
+
+    .res-thumb {
+      min-height: 132px;
+      background: var(--cream-05);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+      border-right:0.5px solid var(--border);
+    }
+    .res-thumb.t-video   { background: linear-gradient(180deg, rgba(200,184,154,0.14), rgba(200,184,154,0.04)); }
+    .res-thumb.t-article { background: linear-gradient(180deg, rgba(107,158,107,0.14), rgba(107,158,107,0.04)); }
+    .res-thumb.t-podcast { background: linear-gradient(180deg, rgba(150,120,200,0.14), rgba(150,120,200,0.04)); }
+    .thumb-icon { opacity: 0.72; }
+    .thumb-label { font-size: 9px; letter-spacing: 1px; text-transform: uppercase; color: var(--cream-25); }
+
+    .res-body { padding: 18px 20px; display: flex; flex-direction: column; justify-content: space-between; gap:14px; }
+    .res-top  { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .res-title  { font-size: 16px; color: rgba(240,237,232,0.9); line-height: 1.42; letter-spacing:-0.2px; max-width:42ch; }
+    .res-source { font-size: 11px; color: var(--cream-25); margin-top: 6px; }
+    .res-bottom { display: flex; align-items: center; justify-content: space-between; gap:14px; }
+    .res-meta   { display: flex; align-items: center; gap: 14px; flex-wrap:wrap; }
+    .rm-item    { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--cream-25); padding:7px 10px; border:0.5px solid var(--border); border-radius:999px; background:rgba(240,237,232,0.03); }
+    .rm-item svg { width: 12px; height: 12px; opacity: 0.4; }
+
+    .sched-btn {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; padding: 8px 14px; border-radius: 999px;
+      border: 0.5px solid var(--border-md); background: var(--cream-05);
+      color: var(--cream-40); font-family: var(--sans); white-space: nowrap;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .sched-btn:hover { border-color: rgba(200,184,154,0.35); color: var(--gold); background: rgba(200,184,154,0.06); }
+    .sched-btn.scheduled { border-color: rgba(107,158,107,0.35); color: var(--green); background: rgba(107,158,107,0.06); }
+    .sched-btn svg { width: 12px; height: 12px; }
+
+    /* Calendar modal */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .cal-modal {
+      background: var(--surface); border: 0.5px solid var(--border-md);
+      border-radius: var(--radius-lg); padding: 30px; width: 400px;
+      animation: fadeUp 0.22s ease;
+    }
+    .cm-head { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+    .cm-title { font-family: var(--serif); font-size: 20px; font-weight: 400; letter-spacing: -0.3px; }
+    .cm-close { background: none; border: none; color: var(--cream-25); font-size: 18px; cursor: pointer; }
+    .cm-resource {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 13px;
+      background: var(--cream-05); border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm); margin-bottom: 20px;
+    }
+    .cm-res-ico {
+      width: 28px; height: 28px; border-radius: 5px;
+      background: rgba(200,184,154,0.1);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .cm-res-name { font-size: 13px; color: var(--cream-60); }
+    .cm-res-dur  { font-size: 11px; color: var(--cream-25); margin-top: 2px; }
+    .cm-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cm-field { margin-bottom: 16px; }
+    .cal-opt-list { display: flex; flex-direction: column; gap: 6px; }
+    .cal-opt {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 12px;
+      background: var(--cream-05); border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm); cursor: pointer; transition: border-color 0.12s;
+    }
+    .cal-opt:hover { border-color: var(--border-md); }
+    .cal-opt.sel { border-color: rgba(200,184,154,0.3); background: rgba(200,184,154,0.05); }
+    .cal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .cal-name { font-size: 13px; color: var(--cream-60); flex: 1; }
+    .cal-tick {
+      width: 14px; height: 14px; border-radius: 3px;
+      border: 0.5px solid var(--border-md);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .cal-tick.on { background: var(--gold); border-color: var(--gold); }
+    .cm-actions { display: flex; gap: 8px; margin-top: 20px; }
+    .cm-cancel { flex: 1; background: var(--cream-05); border: 0.5px solid var(--border-md); color: var(--cream-40); font-size: 13px; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; font-family: var(--sans); }
+    .cm-confirm { flex: 2; background: var(--cream); border: none; color: var(--bg); font-size: 13px; font-weight: 500; padding: 10px; border-radius: var(--radius-sm); cursor: pointer; font-family: var(--sans); }
+    [data-theme="light"] .mod-hero-main,
+    [data-theme="light"] .mod-hero-side,
+    [data-theme="light"] .module-state-card,
+    [data-theme="light"] .res-card,
+    [data-theme="light"] .meta-item,
+    [data-theme="light"] .rm-item,
+    [data-theme="light"] .cm-resource,
+    [data-theme="light"] .cal-opt,
+    [data-theme="light"] .cal-modal{
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(110,81,43,0.08), transparent 44%),
+        linear-gradient(180deg, rgba(255,255,255,0.98), rgba(240,235,227,0.94));
+      box-shadow:0 14px 34px rgba(42,31,19,0.05);
+    }
+    [data-theme="light"] .res-thumb.t-video{background:linear-gradient(180deg, rgba(110,81,43,0.12), rgba(110,81,43,0.04))}
+    [data-theme="light"] .res-thumb.t-article{background:linear-gradient(180deg, rgba(35,95,35,0.12), rgba(35,95,35,0.04))}
+    [data-theme="light"] .res-thumb.t-podcast{background:linear-gradient(180deg, rgba(120,95,180,0.12), rgba(120,95,180,0.04))}
+    [data-theme="light"] .mod-desc,
+    [data-theme="light"] .mod-focus-copy,
+    [data-theme="light"] .focus-item div:last-child,
+    [data-theme="light"] .res-source,
+    [data-theme="light"] .thumb-label,
+    [data-theme="light"] .mod-kicker,
+    [data-theme="light"] .mod-side-label{color:var(--cream-40)}
+    [data-theme="light"] .res-title,
+    [data-theme="light"] .mod-focus-title,
+    [data-theme="light"] .focus-item strong{color:var(--cream)}
+    @media(max-width:980px){
+      .mod-hero{grid-template-columns:1fr}
+      .mod-title{max-width:none;font-size:30px}
+      .module-state-grid{grid-template-columns:1fr}
+    }
+    @media(max-width:760px){
+      .mod-meta{grid-template-columns:1fr}
+      .res-card{grid-template-columns:1fr}
+      .res-thumb{min-height:86px;border-right:none;border-bottom:0.5px solid var(--border)}
+      .res-bottom{flex-direction:column;align-items:flex-start}
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+
+    <!-- Breadcrumb -->
+    <div style="font-size:12px;color:var(--cream-25);margin-bottom:20px;display:flex;gap:8px;align-items:center" class="fade-up">
+      <a href="index.html" style="color:var(--cream-25)">Dashboard</a>
+      <span style="color:var(--border-md)">/</span>
+      <a href="results.html" style="color:var(--cream-25)" id="breadcrumb-doc">Loading…</a>
+      <span style="color:var(--border-md)">/</span>
+      <span style="color:var(--cream-60)">Learning module</span>
+    </div>
+
+    <!-- Module header -->
+    <div class="mod-hero fade-up">
+      <div class="mod-hero-main">
+        <div class="mod-kicker">Learning module</div>
+        <div class="mod-tag-row">
+          <span class="badge badge-red">Needs work</span>
+          <span class="badge badge-gold">AI-recommended</span>
+        </div>
+        <div class="mod-title">Deepen your understanding of <em id="mod-title-focus">…</em></div>
+        <div class="mod-desc" id="mod-desc"></div>
+        <div class="mod-meta">
+          <div class="meta-item">
+            <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6.5" cy="6.5" r="5"/><path d="M6.5 4v3l2 1.5"/></svg>
+            <span>Total time <span class="meta-val" id="mod-meta-time">—</span></span>
+          </div>
+          <div class="meta-item">
+            <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="2.5" width="10" height="9" rx="1.5"/><path d="M1.5 5.5h10M4.5 1v3M8.5 1v3"/></svg>
+            <span>Resources <span class="meta-val" id="mod-meta-count">—</span></span>
+          </div>
+          <div class="meta-item">
+            <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 10L5 6.5l3 3 4-5.5"/></svg>
+            <span>Progress <span class="meta-val" id="progress-text">—</span></span>
+          </div>
+        </div>
+      </div>
+      <aside class="mod-hero-side fade-up fade-up-1">
+        <div class="mod-side-label">Focus areas</div>
+        <div class="mod-focus-title">What this module will strengthen next.</div>
+        <div class="mod-focus-copy">Each recommendation is tuned to the concepts you need to strengthen most.</div>
+        <div class="focus-list" id="mod-focus-list"></div>
+        <div class="prog-wrap" style="margin-bottom:0">
+          <div class="prog-header">
+            <div class="prog-label">Module progress</div>
+            <div class="prog-pct" id="prog-pct">—</div>
+          </div>
+          <div class="prog-track"><div class="prog-fill prog-fill-animated" id="prog-fill" data-width="0%" style="width:0"></div></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="module-state-grid fade-up fade-up-2">
+      <div class="module-state-card">
+        <div class="ms-label">Completed</div>
+        <div class="ms-value done" id="ms-completed">—</div>
+        <div class="ms-sub">Resources already finished in this module.</div>
+      </div>
+      <div class="module-state-card">
+        <div class="ms-label">Scheduled</div>
+        <div class="ms-value scheduled" id="ms-scheduled">—</div>
+        <div class="ms-sub">Items locked into your study plan.</div>
+      </div>
+      <div class="module-state-card">
+        <div class="ms-label">Remaining</div>
+        <div class="ms-value remaining" id="ms-remaining">—</div>
+        <div class="ms-sub">Resources still waiting for action.</div>
+      </div>
+    </div>
+
+    <!-- Resources -->
+    <div class="section-label fade-up fade-up-2">Recommended resources</div>
+    <div class="res-list fade-up fade-up-2 reveal reveal-delay-2" id="res-list"></div>
+
+  </main>
+</div>
+
+<!-- Calendar modal -->
+<div class="modal-backdrop" id="cal-backdrop" onclick="closeOnBackdrop(event)">
+  <div class="cal-modal" id="cal-modal-box">
+    <div class="cm-head">
+      <div class="cm-title">Schedule for later</div>
+      <button class="cm-close" onclick="closeCalModal()">✕</button>
+    </div>
+    <div class="cm-resource">
+      <div class="cm-res-ico" id="cm-ico"></div>
+      <div>
+        <div class="cm-res-name" id="cm-res-name"></div>
+        <div class="cm-res-dur"  id="cm-res-dur"></div>
+      </div>
+    </div>
+    <div class="cm-field">
+      <label class="field-label">Date &amp; time</label>
+      <div class="cm-grid">
+        <input class="input" type="date" id="cm-date"/>
+        <input class="input" type="time" id="cm-time" value="09:00"/>
+      </div>
+    </div>
+    <div class="cm-field">
+      <label class="field-label">Add to calendar</label>
+      <div class="cal-opt-list" id="cal-opts"></div>
+    </div>
+    <div class="cm-actions">
+      <button class="cm-cancel" onclick="closeCalModal()">Cancel</button>
+      <button class="cm-confirm" onclick="confirmSchedule()">Add to calendar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/mock-api.js"></script>
+<script src="js/app.js"></script>
+<script src="js/auth-logout.js"></script>
+<script>
+document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
+
+const calendars = [
+  { name:'Google Calendar', color:'#4A90D9' },
+  { name:'Apple Calendar',  color:'#888888' },
+  { name:'Outlook',         color:'#0F6E56' }
+];
+let selectedCal = 0;
+let currentCardId = null;
+let totalResCount = 4;
+
+const iconSVG = {
+  video:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C8B89A" stroke-width="1.3"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="#C8B89A" stroke="none"/></svg>',
+  article: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B9E6B" stroke-width="1.3"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>',
+  podcast: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9678C8" stroke-width="1.3"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>'
+};
+
+function openCalModal(cardId, title, dur, type) {
+  currentCardId = cardId;
+  document.getElementById('cm-res-name').textContent = title;
+  document.getElementById('cm-res-dur').textContent = dur;
+  document.getElementById('cm-ico').innerHTML = iconSVG[type] || iconSVG.video;
+  const d = new Date(); d.setDate(d.getDate()+1);
+  document.getElementById('cm-date').value = d.toISOString().slice(0,10);
+  renderCalOpts();
+  document.getElementById('cal-backdrop').classList.add('open');
+}
+
+function renderCalOpts() {
+  document.getElementById('cal-opts').innerHTML = calendars.map((c,i) => `
+    <div class="cal-opt ${i===selectedCal?'sel':''}" onclick="selectCal(${i})">
+      <div class="cal-dot" style="background:${c.color}"></div>
+      <div class="cal-name">${c.name}</div>
+      <div class="cal-tick ${i===selectedCal?'on':''}">
+        ${i===selectedCal?'<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0A0A0A" stroke-width="1.8"><path d="M1.5 4.5L3.5 6.5L7.5 2.5"/></svg>':''}
+      </div>
+    </div>`).join('');
+}
+
+function selectCal(i) {
+  selectedCal = i;
+  renderCalOpts();
+}
+
+function closeCalModal() {
+  document.getElementById('cal-backdrop').classList.remove('open');
+}
+function closeOnBackdrop(e) {
+  if (e.target === document.getElementById('cal-backdrop')) closeCalModal();
+}
+
+function confirmSchedule() {
+  closeCalModal();
+  const card = document.querySelector(`.res-card[data-id="${currentCardId}"]`);
+  if (!card) return;
+  card.classList.add('scheduled');
+  const btn = card.querySelector('.sched-btn');
+  btn.className = 'sched-btn scheduled';
+  btn.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg> Scheduled';
+  btn.onclick = null;
+
+  const scheduledCards = document.querySelectorAll('.res-card.scheduled').length;
+  const pct = Math.round((scheduledCards / totalResCount) * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-pct').textContent = pct + '%';
+  document.getElementById('progress-text').textContent = scheduledCards + ' of ' + totalResCount + ' done';
+  const completedCount = document.querySelectorAll('.badge.badge-dim').length;
+  document.getElementById('ms-completed').textContent = completedCount;
+  document.getElementById('ms-scheduled').textContent = scheduledCards;
+  document.getElementById('ms-remaining').textContent = Math.max(totalResCount - scheduledCards, 0);
+  showToast('Added to ' + calendars[selectedCal].name);
+}
+
+function buildResCard(res) {
+  const thumbClass = { video: 't-video', article: 't-article', podcast: 't-podcast' }[res.type] || 't-video';
+  const color = { video: '#C8B89A', article: '#6B9E6B', podcast: '#9678C8' }[res.type] || '#C8B89A';
+  const thumbIcon = {
+    video:   `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="${color}" stroke="none"/></svg>`,
+    article: `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>`,
+    podcast: `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>`
+  }[res.type] || '';
+  const typeLabel = res.type.charAt(0).toUpperCase() + res.type.slice(1);
+  const isDone = res.status === 'done';
+  const isScheduled = res.status === 'scheduled' || isDone;
+  const tagIcon = {
+    video:   `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="5" r="2.5"/><path d="M2 11c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg>`,
+    article: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 8.5L4.5 6l2 2 3.5-4.5"/></svg>`,
+    podcast: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 3h8M2 6h8M2 9h5"/></svg>`
+  }[res.type] || '';
+  const schedBtn = isScheduled
+    ? `<button class="sched-btn scheduled"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>Scheduled</button>`
+    : `<button class="sched-btn" onclick="openCalModal(${res.id}, ${JSON.stringify(res.title)}, ${JSON.stringify(res.duration)}, '${res.type}')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>Schedule</button>`;
+  return `
+    <div class="res-card${isScheduled ? ' scheduled' : ''}" data-id="${res.id}">
+      <div class="res-thumb ${thumbClass}">
+        ${thumbIcon}
+        <div class="thumb-label">${typeLabel}</div>
+      </div>
+      <div class="res-body">
+        <div class="res-top">
+          <div>
+            <div class="res-title">${escapeHtml(res.title)}</div>
+            <div class="res-source">${escapeHtml(res.source)}</div>
+          </div>
+          ${isDone ? '<span class="badge badge-dim">Done</span>' : `<span class="badge ${res.badge.class}">${escapeHtml(res.badge.label)}</span>`}
+        </div>
+        <div class="res-bottom">
+          <div class="res-meta">
+            <div class="rm-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l1.5 1"/></svg>${escapeHtml(res.duration)}</div>
+            ${res.tag ? `<div class="rm-item">${tagIcon}${escapeHtml(res.tag)}</div>` : ''}
+          </div>
+          ${schedBtn}
+        </div>
+      </div>
+    </div>`;
+}
+
+async function loadModule() {
+  const params = new URLSearchParams(window.location.search);
+  let historyId = params.get('historyId') || localStorage.getItem('ln_last_module_id');
+  if (!historyId) {
+    const hist = JSON.parse(localStorage.getItem('ln_history') || '[]');
+    if (hist.length) historyId = hist[0].id;
+  }
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/modules?historyId=' + (historyId || ''), {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    });
+    const data = await res.json();
+    if (!res.ok) { showEmptyModule(); return; }
+    totalResCount = data.resources.length;
+    document.getElementById('breadcrumb-doc').textContent = data.docTitle;
+    document.getElementById('mod-title-focus').textContent = data.moduleTitle + '.';
+    document.getElementById('mod-desc').textContent = data.description;
+    document.getElementById('mod-meta-time').textContent = data.totalMinutes + ' min';
+    document.getElementById('mod-meta-count').textContent = data.resourceCount + ' selected';
+    document.getElementById('mod-focus-list').innerHTML = data.focusAreas.map((f, i) => `
+      <div class="focus-item">
+        <div class="focus-index">${i + 1}</div>
+        <div><strong>${escapeHtml(f.title)}</strong>${escapeHtml(f.body)}</div>
+      </div>`).join('');
+    const pct = data.progress.pct;
+    document.getElementById('prog-pct').textContent = pct + '%';
+    document.getElementById('prog-fill').setAttribute('data-width', pct + '%');
+    document.getElementById('progress-text').textContent = data.progress.done + ' of ' + totalResCount + ' done';
+    document.getElementById('ms-completed').textContent = data.progress.done;
+    document.getElementById('ms-scheduled').textContent = data.progress.scheduled;
+    document.getElementById('ms-remaining').textContent = data.progress.remaining;
+    document.getElementById('res-list').innerHTML = data.resources.map(buildResCard).join('');
+  } catch (e) {
+    showEmptyModule();
+  }
+}
+
+function showEmptyModule() {
+  document.getElementById('res-list').innerHTML = '<p style="color:var(--cream-25);font-size:13px;padding:20px 0">No module data available. Complete a quiz first.</p>';
+}
+
+loadModule();
+</script>
+<script src="js/animations.js"></script>
+</body>
+</html>
