@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova — Dashboard</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .history-item { display:flex;flex-direction:column;padding:0;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.18s,transform 0.22s cubic-bezier(0.16,1,0.3,1),box-shadow 0.22s;text-decoration:none;color:inherit;overflow:hidden; }
+    .history-item:hover { border-color:var(--border-md);transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,0.12); }
+    .history-item.open { border-color:rgba(200,184,154,0.3); }
+    .hi-row { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 18px;width:100%; }
+    .hi-left { display:flex;align-items:center;gap:12px;min-width:0;width:100%; }
+    .hi-dot { width:6px;height:6px;border-radius:50%;background:rgba(200,184,154,0.35);flex-shrink:0; }
+    .hi-dot.done { background:var(--green);opacity:0.85; }
+    .hi-title { font-size:13px;color:var(--cream-60);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .hi-meta { font-size:11px;color:var(--cream-25);margin-top:2px; }
+    .hi-right { display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-shrink:0;min-width:max-content; }
+    .hi-score { font-size:12px;color:var(--gold-dim);font-weight:500;white-space:nowrap; }
+    .hi-score.na { color:var(--cream-25); }
+    .hi-chevron { font-size:10px;color:var(--cream-25);transition:transform 0.2s;flex-shrink:0;width:16px;text-align:center; }
+    .history-item.open .hi-chevron { transform:rotate(180deg); }
+    .mini-result { background:transparent; }
+    .dash-section{
+      padding:24px;border:0.5px solid var(--border);border-radius:var(--radius-lg);
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.08), transparent 42%),
+        linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
+    }
+    [data-theme="light"] .dash-section,
+    [data-theme="light"] .history-item{
+      background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,236,228,0.94));
+      box-shadow:0 12px 30px rgba(42,31,19,0.04);
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+    <div class="page-header fade-up">
+      <div>
+        <div class="page-title" id="greeting">Welcome back.</div>
+        <div class="page-subtitle" id="today-date"></div>
+      </div>
+    </div>
+
+    <div class="stats-grid fade-up fade-up-1 reveal reveal-delay-1">
+      <div class="stat-card card-lift">
+        <div class="stat-label">Documents uploaded</div>
+        <div class="stat-value delay-1" id="stat-docs" data-target="0">—</div>
+        <div class="stat-sub" id="stat-docs-sub">&nbsp;</div>
+      </div>
+      <div class="stat-card card-lift">
+        <div class="stat-label">Average quiz score</div>
+        <div class="stat-value delay-2" id="stat-score" data-target="0" data-suffix="%">—</div>
+        <div class="stat-sub" id="stat-score-sub">&nbsp;</div>
+      </div>
+      <div class="stat-card card-lift">
+        <div class="stat-label">Quizzes completed</div>
+        <div class="stat-value delay-3" id="stat-quizzes" data-target="0">—</div>
+        <div class="stat-sub" id="stat-quizzes-sub">&nbsp;</div>
+      </div>
+    </div>
+
+    <div class="fade-up fade-up-2 reveal reveal-delay-2 dash-section" style="margin-bottom:32px">
+      <div class="section-label">Quick actions</div>
+      <div class="quick-actions">
+        <a href="upload.html" class="qa-card card-lift">
+          <div class="qa-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M10 14V6M6 10l4-4 4 4"/><rect x="2" y="2" width="16" height="16" rx="3"/></svg></div>
+          <div class="qa-title">Upload &amp; summarise</div>
+          <div class="qa-desc">Drop a PDF or paste text to get an instant AI summary.</div>
+          <div class="qa-arrow">→</div>
+        </a>
+        <a href="module.html" class="qa-card card-lift">
+          <div class="qa-icon"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 16V7l7-4 7 4v9"/><path d="M10 3v13"/><path d="M6 12h8"/></svg></div>
+          <div class="qa-title">Continue learning</div>
+          <div class="qa-desc">You have 3 recommended resources waiting in your module.</div>
+          <div class="qa-arrow">→</div>
+        </a>
+      </div>
+    </div>
+
+    <div class="fade-up fade-up-3 reveal reveal-delay-3 dash-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div class="section-label" style="margin:0">Recent activity</div>
+        <a href="history.html" style="font-size:11px;color:var(--cream-25)">View all →</a>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px" id="recent-activity-list"></div>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/animations.js"></script>
+<script src="js/app.js"></script>
+<script>
+// Auth guard — redirect to login if no token
+(function() {
+  const token = localStorage.getItem('token');
+  if (!token) { window.location.replace('index.html'); }
+})();
+
+document.getElementById('sidebar-mount').innerHTML = renderSidebar('dashboard');
+const now = new Date();
+const h = now.getHours();
+document.getElementById('today-date').textContent = now.toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+
+async function loadDashboard() {
+  try {
+    const response = await fetch('/api/user/profile', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    });
+    const data = await response.json();
+    if (!response.ok) { showToast(data.message || 'Failed to load profile'); return; }
+
+    // Greeting
+    const firstName = data.name ? data.name.split(' ')[0] : 'User';
+    document.getElementById('greeting').textContent = (h<12?'Good morning':h<17?'Good afternoon':'Good evening') + ', ' + firstName + '.';
+
+    // Stats
+    if (data.documentsUploaded !== undefined) {
+      const docsEl = document.getElementById('stat-docs');
+      const scoreEl = document.getElementById('stat-score');
+      const quizzesEl = document.getElementById('stat-quizzes');
+      docsEl.dataset.target = data.documentsUploaded;
+      scoreEl.dataset.target = data.averageScore;
+      quizzesEl.dataset.target = data.quizzesCompleted;
+      if (window.LN && window.LN.countUp) {
+        window.LN.countUp(docsEl, data.documentsUploaded, 900, '');
+        window.LN.countUp(scoreEl, data.averageScore, 900, '%');
+        window.LN.countUp(quizzesEl, data.quizzesCompleted, 900, '');
+      } else {
+        docsEl.textContent = data.documentsUploaded;
+        scoreEl.textContent = data.averageScore + '%';
+        quizzesEl.textContent = data.quizzesCompleted;
+      }
+    }
+    if (data.statSubs) {
+      document.getElementById('stat-docs-sub').textContent = data.statSubs[0];
+      document.getElementById('stat-score-sub').textContent = data.statSubs[1];
+      document.getElementById('stat-quizzes-sub').textContent = data.statSubs[2];
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    showToast('Unable to load dashboard');
+  }
+}
+
+loadDashboard();
+
+function fmtMeta(item) {
+  const d = item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+  return (item.fileType || 'Text') + (d ? ' · ' + d : '');
+}
+
+function renderRecentPreview(item) {
+  const an = item.analysis || {};
+  if (!item.done) {
+    return `<div class="mini-result" style="padding:14px 18px"><div style="font-size:12px;color:var(--cream-25)">${escapeHtml((item.summary && item.summary.body) ? (Array.isArray(item.summary.body) ? item.summary.body[0] : item.summary.body).slice(0,180)+'…' : 'Summary available')}</div></div>`;
+  }
+  return `
+    <div class="mini-result">
+      <div class="mr-top">
+        <div>
+          <div class="mr-score">${item.score}%</div>
+          <div class="mr-correct">${item.correct} of ${item.total} correct</div>
+        </div>
+        <div style="flex:1">
+          <div class="mr-section">Strengths</div>
+          <div class="mr-tags">${(an.strengths||[]).map(s=>`<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="mr-section">Needs work</div>
+          <div class="mr-tags">${(an.weaknesses||[]).map(s=>`<span class="badge badge-red">${escapeHtml(s)}</span>`).join('')}</div>
+          <div class="mr-section">Study next</div>
+          <div class="mr-tags">${(an.studyNext||[]).map(s=>`<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('')}</div>
+        </div>
+      </div>
+      <div class="mr-actions" onclick="event.stopPropagation()">
+        <a href="results.html?id=${item._id}" class="btn">Full results</a>
+        <a href="module.html?historyId=${item._id}" class="btn btn-gold">Learning module →</a>
+      </div>
+    </div>
+  `;
+}
+
+async function renderRecentActivity() {
+  try {
+    const response = await fetch('/api/history/recent', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + localStorage.getItem('token')
+      }
+    });
+    const items = await response.json();
+    if (!response.ok) { showToast('Failed to load recent activity'); return; }
+    if (!items.length) {
+      document.getElementById('recent-activity-list').innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--cream-25);font-style:italic">No activity yet. Upload a document to get started.</div>';
+      return;
+    }
+    document.getElementById('recent-activity-list').innerHTML = items.map(item => `
+      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
+        <div class="hi-row">
+          <div class="hi-left">
+            <div class="hi-dot${item.done?' done':''}"></div>
+            <div style="min-width:0;flex:1">
+              <div class="hi-title">${escapeHtml(item.title)}</div>
+              <div class="hi-meta">${escapeHtml(fmtMeta(item))}</div>
+            </div>
+          </div>
+          <div class="hi-right">
+            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
+            <span class="hi-chevron">▾</span>
+          </div>
+        </div>
+        ${renderRecentPreview(item)}
+      </div>
+    `).join('');
+  } catch (error) {
+    console.error('Error:', error);
+    showToast('Unable to load recent activity');
+  }
+}
+
+function toggleRecentActivity(id) {
+  const el = document.getElementById('recent-' + id);
+  const wasOpen = el.classList.contains('open');
+  document.querySelectorAll('#recent-activity-list .history-item').forEach(node => node.classList.remove('open'));
+  if (!wasOpen) el.classList.add('open');
+}
+
+renderRecentActivity();
+</script>
+</body>
+</html>

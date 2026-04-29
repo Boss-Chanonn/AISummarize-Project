@@ -11,10 +11,7 @@ client = AsyncIOMotorClient(MONGO_URL)
 db = client[DATABASE_NAME]
 
 # Collections
-users_collection        = db["users"]
-documents_collection    = db["documents"]
-history_collection      = db["history"]
-quizzes_collection      = db["quizzes"]
-results_collection      = db["results"]
-system_logs_collection  = db["system_logs"]
+users_collection           = db["users"]
+history_collection         = db["history"]
+system_logs_collection     = db["system_logs"]
 token_blocklist_collection = db["token_blocklist"]

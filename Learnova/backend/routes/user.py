@@ -39,13 +39,13 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
     stat_subs = [
         f"+{new_this_week} this week" if new_this_week > 0 else "No new uploads this week",
         f"Based on {quiz_count} quiz{'zes' if quiz_count > 1 else ''}" if quiz_count > 0 else "No quizzes yet",
-        f"{quizzes_this_month} this month" if quizzes_this_month > 0 else "None this month",
+        f"{quiz_count} of {total_docs} file{'s' if total_docs != 1 else ''}",
     ]
 
     return {
         "name": current_user["name"],
         "email": current_user["email"],
-        "documentsStudied": total_docs,
+        "documentsUploaded": total_docs,
         "averageScore": avg_score,
         "quizzesCompleted": quiz_count,
         "statSubs": stat_subs,

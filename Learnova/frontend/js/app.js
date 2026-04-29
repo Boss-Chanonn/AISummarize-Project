@@ -211,7 +211,7 @@ async function logoutUser() {
   } finally {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = 'landing.html';
+    window.location.href = 'index.html';
   }
 }
 
@@ -501,7 +501,7 @@ function renderSidebar(activePage) {
   <aside class="sidebar">
     <div class="sidebar-logo">Learnova</div>
     <div class="sidebar-section">Main</div>
-    <a href="index.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="index.html">
+    <a href="dashboard.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="dashboard.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
       Dashboard
     </a>
@@ -544,7 +544,7 @@ function renderSidebar(activePage) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadPrefs();
-  const page = location.pathname.split('/').pop() || 'index.html';
+  const page = location.pathname.split('/').pop() || 'dashboard.html';
   document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
     if (el.dataset.page === page) el.classList.add('active');
   });

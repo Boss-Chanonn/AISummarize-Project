@@ -105,7 +105,7 @@
   <main class="main-content" style="padding:0">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:0.5px solid var(--border);background:radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.07), transparent 42%), linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-25)">
-        <a href="index.html" style="color:var(--cream-25)">Dashboard</a>
+        <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
         <span style="color:var(--border-md)">/</span>
         <span style="color:var(--cream-60)" id="breadcrumb-cur">New document</span>
       </div>
@@ -174,9 +174,7 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
-<script src="js/mock-api.js"></script>
 <script src="js/app.js"></script>
-<script src="js/auth-logout.js"></script>
 <script>
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 
@@ -444,7 +442,7 @@ async function processDocument() {
     const data = await fetchRes.json();
     if (fetchRes.status === 401 || fetchRes.status === 403) {
       localStorage.removeItem('token');
-      window.location.href = 'landing.html';
+      window.location.href = 'index.html';
       return;
     }
     if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
