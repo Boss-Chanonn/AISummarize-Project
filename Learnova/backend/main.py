@@ -60,6 +60,7 @@ from backend.routes.history import router as history_router
 from backend.routes.content import router as content_router
 from backend.routes.admin import router as admin_router
 from backend.routes.sysadmin import router as sysadmin_router
+from backend.routes.billing import router as billing_router
 
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(user_router, prefix="/api/user", tags=["user"])
@@ -68,6 +69,7 @@ app.include_router(history_router, prefix="/api/history", tags=["history"])
 app.include_router(content_router, prefix="/api", tags=["content"])
 app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
 app.include_router(sysadmin_router, prefix="/api/sysadmin", tags=["sysadmin"])
+app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
 
 
 @app.get("/api/health")

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from datetime import datetime
 
 class UserCreate(BaseModel):
     name: str
@@ -33,3 +34,22 @@ class UserUpdate(BaseModel):
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str
+
+# ── Billing / Plan models ──────────────────────────────────────────────────────
+
+class UpgradeRequest(BaseModel):
+    plan_type: str  # "monthly" or "yearly"
+
+class PaymentConfirm(BaseModel):
+    plan_type: str
+    card_name: str
+    card_last4: str     # last 4 digits only — NEVER store full card number
+    amount: float
+    currency: str = "USD"
+
+class BillingResponse(BaseModel):
+    tier: str
+    plan_type: str
+    plan_started: Optional[str] = None
+    plan_expires: Optional[str] = None
+    amount_paid: Optional[float] = None

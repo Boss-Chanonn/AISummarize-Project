@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova — Confirm Order</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .confirm-shell {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .confirm-summary-box {
+      background: var(--cream-05);
+      border: 0.5px solid var(--gold-dim);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .confirm-summary-title {
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--cream-25);
+      margin-bottom: 16px;
+    }
+    .confirm-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 0;
+      border-bottom: 0.5px solid var(--border);
+    }
+    .confirm-row:last-child { border-bottom: none; }
+    .confirm-row-label { font-size: 12px; color: var(--cream-25); }
+    .confirm-row-value { font-size: 13px; color: var(--cream-60); text-align: right; }
+    .confirm-row-value.gold { color: var(--gold); font-weight: 600; }
+
+    .confirm-total-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 0.5px solid var(--border-md);
+    }
+    .confirm-total-label { font-size: 13px; color: var(--cream-60); font-weight: 600; }
+    .confirm-total-amount {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--gold);
+      font-family: var(--serif);
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    .confirm-buttons .btn { flex: 1; justify-content: center; }
+
+    .confirm-error {
+      font-size: 12px;
+      color: #e57373;
+      margin-top: 10px;
+      display: none;
+      text-align: center;
+    }
+    .confirm-error.show { display: block; }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--cream-25);
+      text-decoration: none;
+      margin-bottom: 20px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--cream-60); }
+
+    .lock-note {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--cream-25);
+      margin-top: 14px;
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+
+    <div class="page-header fade-up" style="margin-bottom: 8px;">
+      <div>
+        <div class="page-title">Confirm Your Order</div>
+        <div class="page-subtitle" style="color:var(--cream-25);font-size:13px;">Review your order before confirming</div>
+      </div>
+    </div>
+
+    <div class="confirm-shell fade-up fade-up-1 reveal reveal-delay-1">
+      <a href="payment.html" class="back-link">← Back to payment</a>
+
+      <div class="confirm-summary-box">
+        <div class="confirm-summary-title">Order Summary</div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Plan</span>
+          <span class="confirm-row-value gold" id="summary-plan">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Card</span>
+          <span class="confirm-row-value" id="summary-card">—</span>
+        </div>
+        <div class="confirm-row">
+          <span class="confirm-row-label">Name</span>
+          <span class="confirm-row-value" id="summary-name">—</span>
+        </div>
+        <div class="confirm-total-row">
+          <span class="confirm-total-label">Total due today</span>
+          <span class="confirm-total-amount" id="summary-amount">—</span>
+        </div>
+      </div>
+
+      <div class="confirm-buttons">
+        <a href="payment.html" class="btn" style="text-decoration:none;display:flex;align-items:center;">← Back</a>
+        <button class="btn btn-primary" id="btn-confirm" onclick="submitPayment()">
+          Confirm &amp; Pay
+        </button>
+      </div>
+      <div class="confirm-error" id="confirm-error">Payment failed. Please try again.</div>
+      <div class="lock-note">🔒 Mock payment — no real charges will be made</div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/animations.js"></script>
+<script src="js/app.js"></script>
+<script src="js/billing.js"></script>
+<script>
+  // Auth guard
+  (function () {
+    const token = localStorage.getItem('token');
+    if (!token) { window.location.replace('index.html'); }
+  })();
+
+  document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
+
+  // Populate summary from sessionStorage
+  (function () {
+    const planType    = sessionStorage.getItem('selected_plan') || 'monthly';
+    const paymentData = JSON.parse(sessionStorage.getItem('payment_data') || 'null');
+
+    if (!paymentData) {
+      window.location.replace('billing.html');
+      return;
+    }
+
+    const isYearly = planType === 'yearly';
+    const amount   = isYearly ? '$99.99' : '$12.99';
+    const period   = isYearly ? '/year' : '/month';
+
+    document.getElementById('summary-plan').textContent =
+      'Learnova Pro ✨ — ' + (isYearly ? 'Yearly' : 'Monthly');
+    document.getElementById('summary-card').textContent =
+      '•••• •••• •••• ' + (paymentData.card_last4 || '????');
+    document.getElementById('summary-name').textContent =
+      paymentData.card_name || '—';
+    document.getElementById('summary-amount').textContent = amount + period;
+  })();
+
+  async function submitPayment() {
+    const btn  = document.getElementById('btn-confirm');
+    const errEl = document.getElementById('confirm-error');
+
+    // Loading state
+    btn.disabled    = true;
+    btn.textContent = 'Processing...';
+    errEl.classList.remove('show');
+
+    const planType    = sessionStorage.getItem('selected_plan') || 'monthly';
+    const paymentData = JSON.parse(sessionStorage.getItem('payment_data') || 'null');
+
+    if (!paymentData) {
+      window.location.replace('billing.html');
+      return;
+    }
+
+    const amount = planType === 'yearly' ? 99.99 : 12.99;
+
+    try {
+      const result = await confirmPayment({
+        plan_type:  planType,
+        card_name:  paymentData.card_name,
+        card_last4: paymentData.card_last4,
+        amount:     amount,
+        currency:   'USD',
+      });
+
+      if (result.success) {
+        // Clear payment session data
+        sessionStorage.removeItem('payment_data');
+        sessionStorage.removeItem('selected_plan');
+
+        // Update cached user tier so sidebar shows Pro after redirect
+        try {
+          const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          storedUser.tier = 'pro';
+          localStorage.setItem('user', JSON.stringify(storedUser));
+        } catch (_) {}
+
+        showSuccessNotification();
+      } else {
+        btn.disabled    = false;
+        btn.textContent = 'Confirm & Pay';
+        errEl.textContent = result.detail || 'Payment failed. Please try again.';
+        errEl.classList.add('show');
+      }
+    } catch (e) {
+      btn.disabled    = false;
+      btn.textContent = 'Confirm & Pay';
+      errEl.textContent = 'Network error. Please check your connection and try again.';
+      errEl.classList.add('show');
+    }
+  }
+</script>
+</body>
+</html>

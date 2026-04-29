@@ -12,7 +12,7 @@ const LEARNOVA_USER = {
   phone: '',
   password: '',
   passwordMask: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
-  tier: 'free', /* 'free' | 'pro' */
+  tier: (_storedUser && _storedUser.tier) || 'free',
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
@@ -219,7 +219,7 @@ function handleSidebarAccountAction(action) {
   closeSidebarAccountMenu();
   if (action === 'profile') openEditProfile();
   if (action === 'accessibility') openSettings('accessibility');
-  if (action === 'plan') openSettings('plan');
+  if (action === 'plan') window.location.href = 'billing.html';
   if (action === 'signout') logoutUser();
 }
 
@@ -436,11 +436,8 @@ function saveProfile() {
   syncUserUI();
 }
 function upgradeToPro() {
-  LEARNOVA_USER.tier = 'pro';
-  closeSettings();
-  showToast('Welcome to Learnova Pro!');
-  syncUserUI();
-  setTimeout(() => openSettings('plan'), 400);
+  if (typeof closeSettings === 'function') closeSettings();
+  window.location.href = 'billing.html';
 }
 
 /* â”€â”€ Profile modal â”€â”€ */
@@ -548,6 +545,25 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
     if (el.dataset.page === page) el.classList.add('active');
   });
+
+  // Silently revalidate tier from DB on every page load
+  const token = localStorage.getItem('token');
+  if (token) {
+    fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        const freshTier = data.tier || 'free';
+        if (freshTier !== LEARNOVA_USER.tier) {
+          LEARNOVA_USER.tier = freshTier;
+          const stored = JSON.parse(localStorage.getItem('user') || '{}');
+          stored.tier = freshTier;
+          localStorage.setItem('user', JSON.stringify(stored));
+          syncUserUI();
+        }
+      })
+      .catch(() => {/* network error — keep showing cached value */});
+  }
 });
 
 document.addEventListener('click', (event) => {

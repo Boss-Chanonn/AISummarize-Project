@@ -1,5 +1,5 @@
 # Learnova — AI Development Log
-Last updated: 2026-04-22
+Last updated: 2026-04-29
 
 ## CRITICAL RULES FOR ALL AI AGENTS
 1. NEVER modify .css files
@@ -89,7 +89,7 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
 ## Still Missing / Not Yet Built
   ❌ admin.html frontend page (admin.py backend exists)
   ❌ sysadmin.html frontend page (sysadmin.py backend exists)
-  ❌ Plan & Billing page (Pro upgrade flow)
+  ✅ Plan & Billing page (Pro upgrade flow) — completed 2026-04-29
   ❌ PUT /api/auth/profile (update name/phone)
   ❌ PUT /api/auth/password (change password)
 
@@ -120,6 +120,48 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
 | 2026-04-23 | Added Summary button + modal to history.html | Re-read AI summaries from history |
 | 2026-04-23 | Set OLLAMA_TIMEOUT_SECONDS=300 in .env | Prevent ReadTimeout on large documents |
 | 2026-04-23 | Reduced ollama_service.py snippet to 1500 chars | Faster AI generation |
+| 2026-04-29 | Added Payment & Billing feature | Pro upgrade flow |
+
+---
+
+### Payment & Billing Feature — 2026-04-29 ✅
+
+**Files Created:**
+- `backend/routes/billing.py`
+- `frontend/billing.html`
+- `frontend/payment.html`
+- `frontend/confirm.html`
+- `frontend/js/billing.js`
+
+**Files Modified:**
+- `backend/models/user.py` — added UpgradeRequest, PaymentConfirm, BillingResponse models; added datetime import
+- `backend/main.py` — registered billing router at /api/billing
+
+**API Routes Added:**
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET  | /api/billing/status   | Return current tier + plan info |
+| POST | /api/billing/upgrade  | Return payment summary (pre-confirmation) |
+| POST | /api/billing/confirm  | MOCK: upgrade user to Pro, store last4 only |
+| POST | /api/billing/downgrade | Revert user to Free plan |
+
+**Plan Details:**
+| Plan | Price | Features |
+|------|-------|----------|
+| Free | $0/mo | PDF, Word, Text · 1 file at a time |
+| Pro Monthly | $12.99/mo | +PowerPoint · 3 files simultaneously · Unlimited |
+| Pro Yearly  | $99.99/yr | Same as monthly · Save 36% |
+
+**User Flow:**
+1. Click "Plan and billing" in sidebar account popup → `openSettings('plan')` (existing app.js) → OR navigate directly to `billing.html`
+2. `billing.html` — choose Monthly/Yearly → click "Upgrade to Pro →" → sets sessionStorage → redirects to `payment.html`
+3. `payment.html` — enter card details (mock) → validates → saves last4 + name to sessionStorage (full card NEVER stored) → redirects to `confirm.html`
+4. `confirm.html` — shows order summary → "Confirm & Pay" → POST /api/billing/confirm → success notification → redirect to `dashboard.html`
+
+**Security Notes:**
+- Full card number is never stored (only last 4 digits)
+- All billing endpoints require valid JWT via `get_current_user`  
+- Payment is MOCK — no real payment gateway connected
 
 
 ## Completed Stages
