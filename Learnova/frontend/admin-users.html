@@ -1,0 +1,1328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learnova — Admin · User Management</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0A0A0A;--surface:#111111;--surface2:#161616;
+  --border:rgba(240,237,232,0.08);--border-md:rgba(240,237,232,0.13);
+  --cream:#F0EDE8;--cream-60:rgba(240,237,232,0.6);--cream-40:rgba(240,237,232,0.4);
+  --cream-25:rgba(240,237,232,0.25);--cream-10:rgba(240,237,232,0.1);--cream-05:rgba(240,237,232,0.05);
+  --gold:#C8B89A;--gold-dim:rgba(200,184,154,0.4);--green:#6B9E6B;--red-soft:#C87850;
+  --serif:'DM Serif Display',serif;--sans:'DM Sans',sans-serif;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:12px;
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--cream);font-family:var(--sans);font-weight:400;line-height:1.6;min-height:100vh;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--sans)}
+input,select{font-family:var(--sans)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:2px}
+
+.app-shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* Sidebar */
+.sidebar{background:var(--bg);border-right:0.5px solid var(--border);display:flex;flex-direction:column;padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-logo{font-family:var(--serif);font-size:18px;color:var(--cream);padding:0 24px 32px}
+.sidebar-logo span{color:var(--gold)}
+.sidebar-section{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-25);padding:8px 24px;margin-top:6px}
+.sidebar-item{display:flex;align-items:center;gap:10px;padding:9px 24px;font-size:13px;color:var(--cream-40);border-left:2px solid transparent;transition:color 0.15s,background 0.15s;cursor:pointer}
+.sidebar-item:hover{color:var(--cream-60);background:var(--cream-05)}
+.sidebar-item.active{color:var(--cream)!important;border-left-color:var(--gold);background:rgba(200,184,154,0.05)}
+.sidebar-item svg{width:15px;height:15px;opacity:0.5;flex-shrink:0}
+.sidebar-item.active svg{opacity:1}
+.admin-badge{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25);margin-left:auto}
+.sidebar-bottom{margin-top:auto;padding:16px 24px 0;border-top:0.5px solid var(--border)}
+.sidebar-admin-info{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--cream-05)}
+.avatar-circle{width:30px;height:30px;border-radius:50%;background:rgba(200,184,154,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--gold);flex-shrink:0}
+.admin-name-small{font-size:12px;color:var(--cream-60)}
+.admin-role-small{font-size:10px;color:var(--gold)}
+
+/* Main */
+.main{display:flex;flex-direction:column;min-height:100vh;overflow:hidden}
+
+/* Topbar */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:0.5px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+.topbar-left h1{font-family:var(--serif);font-size:20px;font-weight:400;color:var(--cream)}
+.topbar-left p{font-size:12px;color:var(--cream-40);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:500;border:none;transition:all 0.15s;white-space:nowrap}
+.btn-gold{background:var(--gold);color:#0A0A0A}
+.btn-gold:hover{background:#d4c4a6}
+.btn-outline{background:transparent;color:var(--cream-60);border:0.5px solid var(--border-md)}
+.btn-outline:hover{background:var(--cream-05);color:var(--cream)}
+.btn-danger-outline{background:rgba(200,120,80,0.08);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.25)}
+.btn-danger-outline:hover{background:rgba(200,120,80,0.18)}
+.btn-sm{padding:6px 12px;font-size:12px}
+
+/* Stats */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:24px 32px}
+.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px}
+.stat-label{font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px}
+.stat-value{font-family:var(--serif);font-size:28px;color:var(--cream)}
+.stat-sub{font-size:11px;color:var(--cream-40);margin-top:4px}
+.stat-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
+.dot-green{background:var(--green)}
+.dot-red{background:var(--red-soft)}
+.dot-gold{background:var(--gold)}
+
+/* Content */
+.content{padding:0 32px 32px;flex:1}
+
+/* Bulk action bar */
+.bulk-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.2);border-radius:var(--radius-md);margin-bottom:12px;animation:slideDown 0.2s ease;overflow:hidden;max-height:0;opacity:0;transition:max-height 0.25s ease,opacity 0.2s ease,margin 0.2s ease,padding 0.2s ease}
+.bulk-bar.visible{max-height:60px;opacity:1}
+@keyframes slideDown{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
+.bulk-count{font-size:13px;color:var(--gold);font-weight:500;margin-right:4px}
+.bulk-label{font-size:13px;color:var(--cream-40)}
+.bulk-divider{width:0.5px;height:20px;background:var(--border-md);margin:0 4px}
+.bulk-actions{display:flex;gap:8px;margin-left:auto}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:240px}
+.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--cream-25);pointer-events:none}
+.search-input{width:100%;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px 9px 36px;font-size:13px;color:var(--cream);outline:none;transition:border-color 0.15s}
+.search-input::placeholder{color:var(--cream-25)}
+.search-input:focus{border-color:var(--gold-dim)}
+.filter-select{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 32px 9px 14px;font-size:13px;color:var(--cream-60);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:130px}
+.filter-count{font-size:12px;color:var(--cream-40);white-space:nowrap}
+
+/* Table */
+.table-wrap{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
+.table{width:100%;border-collapse:collapse}
+.table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25);padding:12px 16px;text-align:left;border-bottom:0.5px solid var(--border);font-weight:500;white-space:nowrap;user-select:none}
+.table th:first-child{padding-left:16px;width:40px}
+.table th.sortable{cursor:pointer;transition:color 0.15s}
+.table th.sortable:hover{color:var(--cream-60)}
+.table th.sorted{color:var(--gold)}
+.sort-icon{display:inline-flex;flex-direction:column;gap:1px;margin-left:5px;vertical-align:middle;opacity:0.4}
+.table th.sorted .sort-icon{opacity:1}
+.sort-icon span{display:block;width:6px;height:1.5px;background:currentColor;border-radius:1px;transition:opacity 0.15s}
+.sort-asc .sort-icon span:first-child{opacity:1}
+.sort-asc .sort-icon span:last-child{opacity:0.3}
+.sort-desc .sort-icon span:first-child{opacity:0.3}
+.sort-desc .sort-icon span:last-child{opacity:1}
+.table th:last-child{text-align:center}
+.table td{padding:13px 16px;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--cream-60);vertical-align:middle}
+.table td:first-child{padding-left:16px;width:40px}
+.table tbody tr{transition:background 0.12s;cursor:pointer}
+.table tbody tr:hover{background:var(--cream-05)}
+.table tbody tr.selected{background:rgba(200,184,154,0.04);}
+.table tbody tr:last-child td{border-bottom:none}
+
+/* Checkbox */
+.cb-wrap{display:flex;align-items:center;justify-content:center}
+.cb{width:15px;height:15px;border-radius:3px;border:0.5px solid var(--border-md);background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;position:relative;transition:all 0.15s;flex-shrink:0}
+.cb:checked{background:var(--gold);border-color:var(--gold)}
+.cb:checked::after{content:'';position:absolute;left:3px;top:1px;width:5px;height:8px;border:1.5px solid #0A0A0A;border-top:none;border-left:none;transform:rotate(45deg)}
+.cb:indeterminate{background:rgba(200,184,154,0.3);border-color:var(--gold)}
+.cb:indeterminate::after{content:'';position:absolute;left:2px;top:6px;width:9px;height:1.5px;background:#0A0A0A;border-radius:1px}
+
+/* User cell */
+.user-cell{display:flex;align-items:center;gap:12px}
+.user-av{width:32px;height:32px;border-radius:50%;background:rgba(200,184,154,0.12);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--gold);flex-shrink:0}
+.user-name{font-size:13px;color:var(--cream);font-weight:500}
+.user-email{font-size:11px;color:var(--cream-40);margin-top:1px}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;letter-spacing:0.3px;padding:4px 45px;border-radius:20px;font-weight:500;white-space:nowrap}
+.badge-user{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
+.badge-admin{background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25)}
+.badge-system_admin{background:rgba(200,184,154,0.2);color:var(--gold);border:0.5px solid rgba(200,184,154,0.4)}
+.badge-free{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
+.badge-pro{background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25)}
+.badge-active{background:rgba(107,158,107,0.12);color:var(--green);border:0.5px solid rgba(107,158,107,0.25)}
+.badge-inactive{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
+
+/* Score bar */
+.score-bar-wrap{display:flex;align-items:center;gap:8px}
+.score-bar{height:4px;background:var(--cream-10);border-radius:2px;flex:1;overflow:hidden}
+.score-fill{height:100%;border-radius:2px;background:var(--gold)}
+.score-text{font-size:12px;color:var(--cream-60);min-width:30px;text-align:right}
+
+/* Actions */
+.actions-cell{display:flex;align-items:center;justify-content:center;gap:5px}
+.action-btn{width:28px;height:28px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.action-btn:hover{background:var(--cream-05);color:var(--cream)}
+.action-btn.danger:hover{background:rgba(200,120,80,0.1);color:var(--red-soft);border-color:rgba(200,120,80,0.3)}
+.action-btn.warn:hover{background:rgba(200,184,154,0.08);color:var(--gold);border-color:rgba(200,184,154,0.25)}
+.action-btn svg{width:13px;height:13px}
+
+/* Loading state */
+.loading-row td{text-align:center;padding:48px;color:var(--cream-25);font-size:13px}
+
+/* Confirm Modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s}
+.overlay.open{opacity:1;pointer-events:all}
+.modal{background:linear-gradient(180deg,rgba(24,24,24,0.99),rgba(16,16,16,0.99));border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:92vw;transform:translateY(12px);transition:transform 0.2s}
+.overlay.open .modal{transform:translateY(0)}
+.modal-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+.modal-icon.red{background:rgba(200,120,80,0.12);color:var(--red-soft)}
+.modal-icon.gold{background:rgba(200,184,154,0.12);color:var(--gold)}
+.modal h3{font-family:var(--serif);font-size:18px;font-weight:400;margin-bottom:6px}
+.modal p{font-size:13px;color:var(--cream-40);margin-bottom:20px;line-height:1.6}
+.modal p strong{color:var(--cream)}
+.modal-label{font-size:11px;color:var(--cream-40);margin-bottom:6px;letter-spacing:0.3px}
+.modal-input{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;transition:border-color 0.15s;margin-bottom:20px}
+.modal-input:focus{border-color:var(--gold-dim)}
+.modal-input::placeholder{color:var(--cream-25)}
+.modal-actions{display:flex;gap:10px}
+.modal-actions .btn{flex:1;justify-content:center}
+.btn-danger{background:rgba(200,120,80,0.15);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.3)}
+.btn-danger:hover{background:rgba(200,120,80,0.25)}
+.btn-danger:disabled{opacity:0.3;cursor:not-allowed}
+.bulk-info{background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--cream-40)}
+.bulk-info strong{color:var(--cream)}
+
+/* Role picker inside modal */
+.role-select{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;cursor:pointer;margin-bottom:20px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.role-select:focus{border-color:var(--gold-dim)}
+
+/* Tier picker inside modal */
+.tier-select{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;cursor:pointer;margin-bottom:20px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.tier-select:focus{border-color:var(--gold-dim)}
+
+/* Pagination */
+.pagination{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-top:0.5px solid var(--border)}
+.page-info{font-size:12px;color:var(--cream-40)}
+.page-btns{display:flex;gap:4px}
+.page-btn{width:30px;height:30px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);font-size:12px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;cursor:pointer}
+.page-btn:hover{background:var(--cream-05);color:var(--cream)}
+.page-btn.active{background:rgba(200,184,154,0.12);color:var(--gold);border-color:rgba(200,184,154,0.3)}
+.page-btn:disabled{opacity:0.3;cursor:not-allowed}
+
+/* Toast */
+.toast{position:fixed;top:24px;right:24px;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:14px 18px;font-size:13px;color:var(--cream-60);z-index:300;display:flex;align-items:center;gap:10px;transform:translateX(120%);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.toast.show{transform:translateX(0)}
+.toast-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.toast-icon.success{background:rgba(107,158,107,0.2);color:var(--green)}
+.toast-icon.warning{background:rgba(200,120,80,0.15);color:var(--red-soft)}
+.toast-icon.error{background:rgba(200,120,80,0.2);color:var(--red-soft)}
+
+/* User Detail Modal */
+.user-detail-modal{width:520px;max-width:92vw;padding:0;overflow:hidden;max-height:85vh;display:flex;flex-direction:column}
+.udm-header{padding:20px 20px 0;display:flex;align-items:center;gap:14px;flex-shrink:0}
+.udm-header-info{flex:1;min-width:0}
+.udm-close{width:28px;height:28px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;transition:all 0.15s;cursor:pointer;flex-shrink:0}
+.udm-close:hover{background:var(--cream-05);color:var(--cream)}
+.udm-avatar{width:40px;height:40px;border-radius:50%;background:rgba(200,184,154,0.12);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:500;color:var(--gold);flex-shrink:0}
+.udm-name{font-family:var(--serif);font-size:18px;font-weight:400;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.udm-email{font-size:12px;color:var(--cream-40);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Tabs */
+.udm-tabs{display:flex;border-bottom:0.5px solid var(--border);padding:0 20px;margin-top:16px;flex-shrink:0}
+.udm-tab{padding:10px 16px;font-size:13px;color:var(--cream-40);cursor:pointer;border-bottom:2px solid transparent;transition:color 0.15s,border-color 0.15s;margin-bottom:-0.5px}
+.udm-tab:hover{color:var(--cream-60)}
+.udm-tab.active{color:var(--cream);border-bottom-color:var(--gold)}
+/* Tab panels */
+.udm-panels{flex:1;overflow-y:auto}
+.udm-panel{display:none;padding:24px 20px 20px}
+.udm-panel.active{display:block}
+/* Profile fields */
+.udm-field-row{display:flex;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)}
+.udm-field-row:last-child{border-bottom:none}
+.udm-field-label{font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--cream-25);margin-bottom:3px}
+.udm-field-value{font-size:14px;color:var(--cream)}
+.udm-field-left{flex:1;min-width:0}
+.udm-edit-area{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:8px 12px;font-size:13px;color:var(--cream);outline:none;font-family:var(--sans);transition:border-color 0.15s}
+.udm-edit-area:focus{border-color:var(--gold-dim)}
+.udm-edit-header{display:flex;justify-content:flex-end;margin-bottom:12px}
+.udm-form-error{font-size:12px;color:var(--red-soft);margin-top:8px}
+/* Account rows */
+.udm-account-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)}
+.udm-account-row:last-of-type{border-bottom:none}
+.udm-account-left{flex:1}
+.udm-account-label{font-size:12px;letter-spacing:0.4px;text-transform:uppercase;color:var(--cream-25);margin-bottom:4px}
+.udm-account-value{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream)}
+.udm-inline-select{background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:5px 10px;font-size:12px;color:var(--cream);outline:none;cursor:pointer;font-family:var(--sans)}
+.udm-inline-select:focus{border-color:var(--gold-dim)}
+.udm-inline-save{padding:4px 10px;font-size:12px;border-radius:var(--radius-sm);border:0.5px solid var(--gold-dim);background:rgba(200,184,154,0.08);color:var(--gold);cursor:pointer;font-family:var(--sans);transition:all 0.15s}
+.udm-inline-save:hover{background:rgba(200,184,154,0.15)}
+.udm-inline-cancel{width:22px;height:22px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;font-size:14px;line-height:1}
+.udm-inline-cancel:hover{background:var(--cream-05);color:var(--cream)}
+.udm-row-error{font-size:11px;color:var(--red-soft);margin-top:4px}
+/* Reset password section */
+.udm-reset-section{border-top:0.5px solid var(--border);padding-top:16px;margin-top:8px}
+.udm-reset-label{font-size:13px;color:var(--cream);font-weight:500;margin-bottom:2px}
+.udm-reset-sub{font-size:11px;color:var(--cream-40);margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Learn<span>ova</span></div>
+    <div class="sidebar-section">Overview</div>
+    <a href="dashboard.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <div class="sidebar-section">Admin</div>
+    <div class="sidebar-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      User Management
+      <span class="admin-badge">Admin</span>
+    </div>
+    <a href="admin-stats.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Stats Overview
+    </a>
+    <div class="sidebar-section">Account</div>
+    <div class="sidebar-item" onclick="logoutAdmin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </div>
+    <div class="sidebar-bottom">
+      <div class="sidebar-admin-info">
+        <div class="avatar-circle" id="adminInitials">—</div>
+        <div>
+          <div class="admin-name-small" id="adminName">Loading…</div>
+          <div class="admin-role-small" id="adminRole">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1>User Management</h1>
+        <p>Manage and monitor all platform users</p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-outline" onclick="exportCSV()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-label">Total Users</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub" id="statTotalSub">Loading…</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Pro Users</div>
+        <div class="stat-value" id="statPro">—</div>
+        <div class="stat-sub" id="statProSub"><span class="stat-dot dot-gold"></span>—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Free Users</div>
+        <div class="stat-value" id="statFree">—</div>
+        <div class="stat-sub" id="statFreeSub"><span class="stat-dot dot-green"></span>—</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Admins</div>
+        <div class="stat-value" id="statAdmins">—</div>
+        <div class="stat-sub" id="statAdminsSub"><span class="stat-dot dot-gold"></span>—</div>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Bulk action bar -->
+      <div class="bulk-bar" id="bulkBar">
+        <span class="bulk-count" id="bulkCount">0</span>
+        <span class="bulk-label">users selected</span>
+        <div class="bulk-divider"></div>
+        <div class="bulk-actions">
+          <button class="btn btn-danger-outline btn-sm" onclick="bulkAction('delete')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Delete All
+          </button>
+          <button class="btn btn-outline btn-sm" onclick="clearSelection()">Clear</button>
+        </div>
+      </div>
+
+      <!-- Filter bar -->
+      <div class="filter-bar">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="search-input" type="text" placeholder="Search by name or email…" id="searchInput" oninput="applyFilters()">
+        </div>
+        <select class="filter-select" id="roleFilter" onchange="applyFilters()">
+          <option value="">All Roles</option>
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          <option value="system_admin">System Admin</option>
+        </select>
+        <select class="filter-select" id="tierFilter" onchange="applyFilters()">
+          <option value="">All Tiers</option>
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+        </select>
+        <span class="filter-count" id="filterCount">Loading…</span>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>
+                <div class="cb-wrap">
+                  <input type="checkbox" class="cb" id="selectAll" onchange="toggleAll(this)">
+                </div>
+              </th>
+              <th class="sortable" onclick="sortBy('name')">
+                User
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th class="sortable" onclick="sortBy('role')">
+                Role
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th class="sortable" onclick="sortBy('tier')">
+                Tier
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th class="sortable" onclick="sortBy('files')">
+                Files
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th class="sortable" onclick="sortBy('joined')">
+                Joined
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr class="loading-row"><td colspan="7">Loading users…</td></tr>
+          </tbody>
+        </table>
+        <div class="pagination">
+          <span class="page-info" id="pageInfo">Page 1</span>
+          <div class="page-btns" id="pageBtns"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- User Detail Modal -->
+<div class="overlay" id="userDetailOverlay">
+  <div class="modal user-detail-modal">
+
+    <!-- Header -->
+    <div class="udm-header">
+      <div class="udm-avatar" id="modalUserInitials">?</div>
+      <div class="udm-header-info">
+        <div class="udm-name" id="modalUserName">—</div>
+        <div class="udm-email" id="modalUserEmail">—</div>
+      </div>
+      <button class="udm-close" onclick="closeUserModal()" title="Close">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="udm-tabs">
+      <div class="udm-tab active" id="udmTab1" onclick="switchUdmTab(1)">User Detail</div>
+      <div class="udm-tab" id="udmTab2" onclick="switchUdmTab(2)">Account</div>
+    </div>
+
+    <!-- Tab panels -->
+    <div class="udm-panels">
+
+      <!-- TAB 1: User Detail -->
+      <div class="udm-panel active" id="udmPanel1">
+        <div id="udmViewMode">
+          <div class="udm-field-row">
+            <div class="udm-field-left">
+              <div class="udm-field-label">Full Name</div>
+              <div class="udm-field-value" id="vName">—</div>
+            </div>
+          </div>
+          <div class="udm-field-row">
+            <div class="udm-field-left">
+              <div class="udm-field-label">Email</div>
+              <div class="udm-field-value" id="vEmail">—</div>
+            </div>
+          </div>
+          <div class="udm-field-row">
+            <div class="udm-field-left">
+              <div class="udm-field-label">Phone</div>
+              <div class="udm-field-value" id="vPhone">—</div>
+            </div>
+          </div>
+          <div class="udm-field-row">
+            <div class="udm-field-left">
+              <div class="udm-field-label">Date of Birth</div>
+              <div class="udm-field-value" id="vDob">—</div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:center;margin-top:16px">
+            <div id="udmEditButtons">
+              <button class="btn btn-outline btn-sm" onclick="startProfileEdit()">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                Edit
+              </button>
+            </div>
+          </div>
+        </div>
+        <div id="udmEditMode" style="display:none">
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div>
+              <div class="udm-field-label" style="margin-bottom:5px">Full Name</div>
+              <input class="udm-edit-area" type="text" id="eeName" placeholder="Full name">
+            </div>
+            <div>
+              <div class="udm-field-label" style="margin-bottom:5px">Email</div>
+              <input class="udm-edit-area" type="email" id="eeEmail" placeholder="Email address">
+            </div>
+            <div>
+              <div class="udm-field-label" style="margin-bottom:5px">Phone</div>
+              <input class="udm-edit-area" type="tel" id="eePhone" placeholder="Phone number">
+            </div>
+            <div>
+              <div class="udm-field-label" style="margin-bottom:5px">Date of Birth</div>
+              <input class="udm-edit-area" type="date" id="eeDob">
+            </div>
+          </div>
+          <div class="udm-form-error" id="udmFormError" style="display:none"></div>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:center">
+            <button class="btn btn-outline btn-sm" onclick="cancelProfileEdit()">Cancel</button>
+            <button class="btn btn-gold btn-sm" id="udmSaveBtn" onclick="saveProfile()">Save Changes</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: Account -->
+      <div class="udm-panel" id="udmPanel2">
+        <!-- Role row -->
+        <div class="udm-account-row" id="accRowRole">
+          <div class="udm-account-left">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Role</span>
+              <div class="udm-account-value">
+                <span id="accBadgeRole">—</span>
+                <div id="accEditRole" style="display:none;align-items:center;gap:6px">
+                  <select class="udm-inline-select" id="accSelRole">
+                    <option value="user">user</option>
+                    <option value="admin">admin</option>
+                  </select>
+                  <button class="udm-inline-save" onclick="saveAccountField('role')">Save</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('role')" title="Cancel">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="udm-row-error" id="accErrRole" style="display:none"></div>
+          </div>
+          <button class="action-btn" onclick="startAccountEdit('role')" id="accEditBtnRole" title="Edit role">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <!-- Tier row -->
+        <div class="udm-account-row" id="accRowTier">
+          <div class="udm-account-left">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Tier</span>
+              <div class="udm-account-value">
+                <span id="accBadgeTier">—</span>
+                <div id="accEditTier" style="display:none;align-items:center;gap:6px">
+                  <select class="udm-inline-select" id="accSelTier">
+                    <option value="free">free</option>
+                    <option value="pro">pro</option>
+                  </select>
+                  <button class="udm-inline-save" onclick="saveAccountField('tier')">Save</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('tier')" title="Cancel">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="udm-row-error" id="accErrTier" style="display:none"></div>
+          </div>
+          <button class="action-btn" onclick="startAccountEdit('tier')" id="accEditBtnTier" title="Edit tier">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <!-- Status row -->
+        <div class="udm-account-row" id="accRowStatus">
+          <div class="udm-account-left">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Status</span>
+              <div class="udm-account-value">
+                <span id="accBadgeStatus">—</span>
+                <div id="accEditStatus" style="display:none;align-items:center;gap:6px">
+                  <select class="udm-inline-select" id="accSelStatus">
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
+                  <button class="udm-inline-save" onclick="saveAccountField('status')">Save</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('status')" title="Cancel">×</button>
+                </div>
+              </div>
+            </div>
+            <div class="udm-row-error" id="accErrStatus" style="display:none"></div>
+          </div>
+          <button class="action-btn" onclick="startAccountEdit('status')" id="accEditBtnStatus" title="Edit status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+        </div>
+        <!-- Joined row (read-only) -->
+        <div class="udm-account-row">
+          <div class="udm-account-left">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Member Since</span>
+              <span id="accJoined" style="font-size:13px;color:var(--cream-60);font-weight:400">—</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Reset password row -->
+        <div class="udm-account-row" style="border-top:0.5px solid var(--border);margin-top:4px">
+          <div class="udm-account-left">
+            <div style="display:flex;align-items:center;gap:12px">
+              <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Password</span>
+              <span style="font-size:13px;color:var(--cream-40)">Reset to: Learnova@2026</span>
+            </div>
+          </div>
+          <button class="action-btn" id="udmResetPwBtn" onclick="doResetPassword()" title="Reset password" style="color:var(--red-soft);border-color:rgba(200,120,80,0.3)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="overlay" id="confirmOverlay">
+  <div class="modal">
+    <div class="modal-icon red" id="modalIcon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    </div>
+    <h3 id="modalTitle">Confirm Action</h3>
+    <p id="modalDesc">Are you sure?</p>
+    <div id="bulkInfoWrap"></div>
+    <div id="modalExtraWrap"></div>
+    <div class="modal-label" id="modalInputLabel">Type username to confirm</div>
+    <input class="modal-input" id="confirmInput" placeholder="Enter username…" oninput="checkConfirm()">
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-danger" id="confirmBtn" disabled onclick="executeAction()">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon success" id="toastIcon">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <span id="toastMsg">Action completed</span>
+</div>
+
+<script>
+/* ── JWT Guard ──────────────────────────────────────────────────────────────── */
+const TOKEN = localStorage.getItem('token');
+const _stored = JSON.parse(localStorage.getItem('user') || 'null');
+if (!TOKEN) {
+  window.location.href = 'index.html';
+} else if (!_stored || !['admin', 'system_admin'].includes(_stored.role)) {
+  window.location.href = 'index.html';
+}
+
+/* ── Admin identity ─────────────────────────────────────────────────────────── */
+if (_stored) {
+  const initials = (_stored.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  document.getElementById('adminInitials').textContent = initials || '?';
+  document.getElementById('adminName').textContent = _stored.name || 'Admin';
+  document.getElementById('adminRole').textContent = _stored.role === 'system_admin' ? 'System Admin' : 'Admin';
+}
+
+const AUTH = { Authorization: 'Bearer ' + TOKEN };
+
+/* ── State ──────────────────────────────────────────────────────────────────── */
+let ALL_USERS = [];
+let filteredUsers = [];
+let selectedIds = new Set();
+let sortCol = '';
+let sortDir = 'asc';
+let currentAction = null;
+let currentTargetUser = null;   // { _id, name } or null for bulk
+let isBulkAction = false;
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let totalUsers = 0;
+
+/* ── Fetch users from API ───────────────────────────────────────────────────── */
+async function fetchUsers(page = 1) {
+  try {
+    const res = await fetch(`/api/admin/users?page=${page}&limit=${PAGE_SIZE}`, { headers: AUTH });
+    if (res.status === 401 || res.status === 403) {
+      window.location.href = 'index.html';
+      return;
+    }
+    const data = await res.json();
+    ALL_USERS = (data.users || []).map(u => ({
+      ...u,
+      initials: (u.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?',
+      joinedLabel: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+      joined: u.createdAt || '',
+    }));
+    totalUsers = data.total || ALL_USERS.length;
+    currentPage = data.page || page;
+    applyFilters();
+    renderStats();
+    renderPagination();
+  } catch (e) {
+    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
+  }
+}
+
+/* ── Fetch admin dashboard stats ────────────────────────────────────────────── */
+async function fetchStats() {
+  try {
+    const res = await fetch('/api/admin/dashboard', { headers: AUTH });
+    if (!res.ok) return;
+    const data = await res.json();
+    document.getElementById('statTotal').textContent = (data.totalUsers || 0).toLocaleString();
+    document.getElementById('statTotalSub').innerHTML = `<span class="stat-dot dot-green"></span>${(data.totalDocuments || 0).toLocaleString()} documents`;
+  } catch (_) {}
+}
+
+function renderStats() {
+  const pro = ALL_USERS.filter(u => u.tier === 'pro').length;
+  const free = ALL_USERS.filter(u => u.tier === 'free').length;
+  const admins = ALL_USERS.filter(u => u.role === 'admin' || u.role === 'system_admin').length;
+  document.getElementById('statPro').textContent = pro;
+  document.getElementById('statProSub').innerHTML = `<span class="stat-dot dot-gold"></span>${totalUsers ? Math.round(pro / totalUsers * 100) : 0}% of total`;
+  document.getElementById('statFree').textContent = free;
+  document.getElementById('statFreeSub').innerHTML = `<span class="stat-dot dot-green"></span>${totalUsers ? Math.round(free / totalUsers * 100) : 0}% of total`;
+  document.getElementById('statAdmins').textContent = admins;
+  document.getElementById('statAdminsSub').innerHTML = `<span class="stat-dot dot-gold"></span>privileged accounts`;
+}
+
+/* ── Filters ────────────────────────────────────────────────────────────────── */
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.toLowerCase();
+  const role = document.getElementById('roleFilter').value;
+  const tier = document.getElementById('tierFilter').value;
+
+  filteredUsers = ALL_USERS.filter(u => {
+    const ms = !search || (u.name || '').toLowerCase().includes(search) || (u.email || '').toLowerCase().includes(search);
+    const mr = !role || u.role === role;
+    const mt = !tier || u.tier === tier;
+    return ms && mr && mt;
+  });
+
+  if (sortCol) applySort();
+  else renderTable();
+
+  document.getElementById('filterCount').textContent = `Showing ${filteredUsers.length} of ${totalUsers.toLocaleString()} users`;
+  clearSelection();
+}
+
+/* ── Sort ───────────────────────────────────────────────────────────────────── */
+function sortBy(col) {
+  document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
+  if (sortCol === col) {
+    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortCol = col;
+    sortDir = 'asc';
+  }
+  const colMap = { name: 0, role: 1, tier: 2, files: 3, joined: 4 };
+  const ths = document.querySelectorAll('.table th.sortable');
+  if (colMap[col] !== undefined) {
+    ths[colMap[col]].classList.add('sorted', sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  }
+  applySort();
+}
+
+function applySort() {
+  filteredUsers.sort((a, b) => {
+    let va = a[sortCol] ?? '', vb = b[sortCol] ?? '';
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sortDir === 'asc' ? -1 : 1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+  renderTable();
+}
+
+/* ── Render table ───────────────────────────────────────────────────────────── */
+function renderTable() {
+  const tbody = document.getElementById('tableBody');
+  if (!filteredUsers.length) {
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="7">No users match the current filters</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filteredUsers.map(u => `
+    <tr class="${selectedIds.has(u._id) ? 'selected' : ''}" onclick="openUserModal('${u._id}')" style="cursor:pointer">
+      <td onclick="event.stopPropagation()">
+        <div class="cb-wrap">
+          <input type="checkbox" class="cb row-cb" data-id="${u._id}"
+            ${selectedIds.has(u._id) ? 'checked' : ''}
+            onchange="toggleRow(this, '${u._id}')">
+        </div>
+      </td>
+      <td>
+        <div class="user-cell">
+          <div class="user-av">${u.initials}</div>
+          <div>
+            <div class="user-name">${escHtml(u.name || '—')}</div>
+            <div class="user-email">${escHtml(u.email || '—')}</div>
+          </div>
+        </div>
+      </td>
+      <td><span class="badge badge-${u.role}">${u.role}</span></td>
+      <td><span class="badge badge-${u.tier}">${u.tier}</span></td>
+      <td style="color:var(--cream-60)">${u.files ?? '—'}</td>
+      <td style="color:var(--cream-40);font-size:12px">${u.joinedLabel}</td>
+      <td onclick="event.stopPropagation()">
+        <div class="actions-cell">
+          <button class="action-btn warn" title="Change Role"
+            onclick="openModal('role','${u._id}','${escAttr(u.name)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+          </button>
+          <button class="action-btn warn" title="Change Tier"
+            onclick="openModal('tier','${u._id}','${escAttr(u.name)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+          <button class="action-btn danger" title="Delete"
+            onclick="openModal('delete','${u._id}','${escAttr(u.name)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H8L5 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+  updateSelectAll();
+}
+
+/* ── Pagination ─────────────────────────────────────────────────────────────── */
+function renderPagination() {
+  const totalPages = Math.ceil(totalUsers / PAGE_SIZE);
+  document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
+  const container = document.getElementById('pageBtns');
+  container.innerHTML = '';
+
+  const prev = document.createElement('button');
+  prev.className = 'page-btn';
+  prev.textContent = '‹';
+  prev.disabled = currentPage <= 1;
+  prev.onclick = () => { if (currentPage > 1) { currentPage--; fetchUsers(currentPage); } };
+  container.appendChild(prev);
+
+  // Show up to 5 page numbers
+  const start = Math.max(1, currentPage - 2);
+  const end = Math.min(totalPages, start + 4);
+  for (let i = start; i <= end; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (i === currentPage ? ' active' : '');
+    btn.textContent = i;
+    btn.onclick = ((_i) => () => { currentPage = _i; fetchUsers(currentPage); })(i);
+    container.appendChild(btn);
+  }
+
+  const next = document.createElement('button');
+  next.className = 'page-btn';
+  next.textContent = '›';
+  next.disabled = currentPage >= totalPages;
+  next.onclick = () => { if (currentPage < totalPages) { currentPage++; fetchUsers(currentPage); } };
+  container.appendChild(next);
+}
+
+/* ── Selection ──────────────────────────────────────────────────────────────── */
+function toggleRow(cb, id) {
+  if (cb.checked) selectedIds.add(id);
+  else selectedIds.delete(id);
+  updateBulkBar();
+  updateSelectAll();
+  renderTable();
+}
+
+function toggleAll(masterCb) {
+  if (masterCb.checked) filteredUsers.forEach(u => selectedIds.add(u._id));
+  else filteredUsers.forEach(u => selectedIds.delete(u._id));
+  updateBulkBar();
+  renderTable();
+}
+
+function updateSelectAll() {
+  const masterCb = document.getElementById('selectAll');
+  const visibleIds = filteredUsers.map(u => u._id);
+  const selVis = visibleIds.filter(id => selectedIds.has(id));
+  masterCb.indeterminate = selVis.length > 0 && selVis.length < visibleIds.length;
+  masterCb.checked = selVis.length > 0 && selVis.length === visibleIds.length;
+}
+
+function updateBulkBar() {
+  const count = selectedIds.size;
+  document.getElementById('bulkCount').textContent = count;
+  document.getElementById('bulkBar').classList.toggle('visible', count > 0);
+}
+
+function clearSelection() {
+  selectedIds.clear();
+  updateBulkBar();
+  updateSelectAll();
+  renderTable();
+}
+
+/* ── Modal config ───────────────────────────────────────────────────────────── */
+const MODAL_CFG = {
+  delete: { title: 'Delete User', icon: 'red', btnText: 'Delete', btn: 'btn-danger' },
+  role:   { title: 'Change Role', icon: 'gold', btnText: 'Update Role', btn: 'btn-outline' },
+  tier:   { title: 'Change Tier', icon: 'gold', btnText: 'Update Tier', btn: 'btn-outline' },
+};
+
+function openModal(action, userId, userName) {
+  isBulkAction = false;
+  currentAction = action;
+  currentTargetUser = { _id: userId, name: userName };
+
+  const cfg = MODAL_CFG[action];
+  const descMap = {
+    delete: `Permanently delete <strong>${escHtml(userName)}</strong> and all their data. This cannot be undone.`,
+    role:   `Change the role for <strong>${escHtml(userName)}</strong>.`,
+    tier:   `Change the plan tier for <strong>${escHtml(userName)}</strong>.`,
+  };
+
+  document.getElementById('modalTitle').textContent = cfg.title;
+  document.getElementById('modalDesc').innerHTML = descMap[action];
+  document.getElementById('modalIcon').className = `modal-icon ${cfg.icon}`;
+  document.getElementById('confirmBtn').textContent = cfg.btnText;
+  document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
+  document.getElementById('bulkInfoWrap').innerHTML = '';
+  document.getElementById('confirmInput').value = '';
+  document.getElementById('confirmBtn').disabled = true;
+
+  // Extra controls for role and tier
+  if (action === 'role') {
+    document.getElementById('modalInputLabel').textContent = 'Select new role';
+    document.getElementById('modalExtraWrap').innerHTML = `
+      <select class="role-select" id="rolePickerSelect">
+        <option value="user">user</option>
+        <option value="admin">admin</option>
+        <option value="system_admin">system_admin</option>
+      </select>`;
+    document.getElementById('confirmInput').placeholder = `Type "${userName}" to confirm`;
+    document.getElementById('modalInputLabel').textContent = `Type "${userName}" to confirm`;
+  } else if (action === 'tier') {
+    document.getElementById('modalExtraWrap').innerHTML = `
+      <select class="tier-select" id="tierPickerSelect">
+        <option value="free">free</option>
+        <option value="pro">pro</option>
+      </select>`;
+    document.getElementById('confirmInput').placeholder = `Type "${userName}" to confirm`;
+    document.getElementById('modalInputLabel').textContent = `Type "${userName}" to confirm`;
+  } else {
+    document.getElementById('modalExtraWrap').innerHTML = '';
+    document.getElementById('confirmInput').placeholder = `Type "${userName}" to confirm`;
+    document.getElementById('modalInputLabel').textContent = `Type "${userName}" to confirm`;
+  }
+
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+function bulkAction(action) {
+  if (selectedIds.size === 0) return;
+  isBulkAction = true;
+  currentAction = action;
+  const cfg = MODAL_CFG[action];
+  const count = selectedIds.size;
+
+  document.getElementById('modalTitle').textContent = `${cfg.title} (${count} users)`;
+  document.getElementById('modalDesc').innerHTML = `Permanently delete <strong>${count} users</strong> and all their data. This cannot be undone.`;
+  document.getElementById('modalIcon').className = `modal-icon ${cfg.icon}`;
+  document.getElementById('confirmBtn').textContent = cfg.btnText;
+  document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
+  document.getElementById('modalExtraWrap').innerHTML = '';
+  document.getElementById('bulkInfoWrap').innerHTML = `
+    <div class="bulk-info">Selected user IDs: <strong>${Array.from(selectedIds).join(', ')}</strong></div>`;
+  document.getElementById('modalInputLabel').textContent = 'Type "confirm" to proceed';
+  document.getElementById('confirmInput').placeholder = 'Type "confirm"';
+  document.getElementById('confirmInput').value = '';
+  document.getElementById('confirmBtn').disabled = true;
+  currentTargetUser = { name: 'confirm' };
+  document.getElementById('confirmOverlay').classList.add('open');
+}
+
+function checkConfirm() {
+  const val = document.getElementById('confirmInput').value;
+  document.getElementById('confirmBtn').disabled = val !== currentTargetUser.name;
+}
+
+function closeModal() {
+  document.getElementById('confirmOverlay').classList.remove('open');
+}
+
+/* ── Execute API actions ─────────────────────────────────────────────────────── */
+async function executeAction() {
+  closeModal();
+
+  if (isBulkAction && currentAction === 'delete') {
+    const ids = Array.from(selectedIds);
+    let success = 0, failed = 0;
+    for (const id of ids) {
+      try {
+        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers: AUTH });
+        if (res.ok) {
+          ALL_USERS = ALL_USERS.filter(u => u._id !== id);
+          success++;
+        } else {
+          failed++;
+        }
+      } catch (_) { failed++; }
+    }
+    clearSelection();
+    applyFilters();
+    renderStats();
+    showToast(failed ? `${success} deleted, ${failed} failed` : `${success} users deleted`, failed ? 'warning' : 'success');
+    return;
+  }
+
+  const { _id, name } = currentTargetUser;
+
+  if (currentAction === 'delete') {
+    try {
+      const res = await fetch(`/api/admin/users/${_id}`, { method: 'DELETE', headers: AUTH });
+      if (res.ok) {
+        ALL_USERS = ALL_USERS.filter(u => u._id !== _id);
+        applyFilters();
+        renderStats();
+        showToast(`${name} deleted`, 'success');
+      } else {
+        const d = await res.json();
+        showToast(d.message || 'Delete failed', 'warning');
+      }
+    } catch (_) { showToast('Network error', 'warning'); }
+
+  } else if (currentAction === 'role') {
+    const newRole = document.getElementById('rolePickerSelect')?.value;
+    if (!newRole) return;
+    try {
+      const res = await fetch(`/api/admin/users/${_id}/role`, {
+        method: 'PUT',
+        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+      if (res.ok) {
+        const u = ALL_USERS.find(u => u._id === _id);
+        if (u) u.role = newRole;
+        applyFilters();
+        showToast(`${name}'s role updated to ${newRole}`, 'success');
+      } else {
+        const d = await res.json();
+        showToast(d.message || 'Update failed', 'warning');
+      }
+    } catch (_) { showToast('Network error', 'warning'); }
+
+  } else if (currentAction === 'tier') {
+    const newTier = document.getElementById('tierPickerSelect')?.value;
+    if (!newTier) return;
+    try {
+      const res = await fetch(`/api/admin/users/${_id}/tier`, {
+        method: 'PUT',
+        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: newTier }),
+      });
+      if (res.ok) {
+        const u = ALL_USERS.find(u => u._id === _id);
+        if (u) u.tier = newTier;
+        applyFilters();
+        renderStats();
+        showToast(`${name}'s tier updated to ${newTier}`, 'success');
+      } else {
+        const d = await res.json();
+        showToast(d.message || 'Update failed', 'warning');
+      }
+    } catch (_) { showToast('Network error', 'warning'); }
+  }
+}
+
+/* ── CSV Export ─────────────────────────────────────────────────────────────── */
+function exportCSV() {
+  const rows = [['Name', 'Email', 'Role', 'Tier', 'Joined']];
+  ALL_USERS.forEach(u => rows.push([u.name, u.email, u.role, u.tier, u.joinedLabel]));
+  const csv = rows.map(r => r.map(v => `"${(v || '').replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'learnova-users.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exported', 'success');
+}
+
+/* ── Sign out ───────────────────────────────────────────────────────────────── */
+function logoutAdmin() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = 'index.html';
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = `toast-icon ${type || 'success'}`;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ── Helpers ────────────────────────────────────────────────────────────────── */
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+}
+
+/* ── User Detail Modal ──────────────────────────────────────────────────────── */
+
+function formatDateDisplay(dateStr) {
+  if (!dateStr) return '—';
+  const parts = dateStr.split('-');
+  if (parts.length !== 3) return dateStr;
+  return `${parts[2]}/${parts[1]}/${parts[0]}`;
+}
+
+function switchUdmTab(n) {
+  document.getElementById('udmTab1').classList.toggle('active', n === 1);
+  document.getElementById('udmTab2').classList.toggle('active', n === 2);
+  document.getElementById('udmPanel1').classList.toggle('active', n === 1);
+  document.getElementById('udmPanel2').classList.toggle('active', n === 2);
+}
+
+function openUserModal(userId) {
+  const user = filteredUsers.find(u => u._id === userId || u._id == userId);
+  if (!user) return;
+
+  window._modalUser   = user;
+  window._modalUserId = user._id;
+
+  // Header
+  document.getElementById('modalUserInitials').textContent = user.initials || '?';
+  document.getElementById('modalUserName').textContent     = user.name  || '—';
+  document.getElementById('modalUserEmail').textContent    = user.email || '—';
+
+  // Tab 1 — view mode
+  document.getElementById('vName').textContent  = user.name  || '—';
+  document.getElementById('vEmail').textContent = user.email || '—';
+  document.getElementById('vPhone').textContent = user.phone || '—';
+  document.getElementById('vDob').textContent   = formatDateDisplay(user.dob || '');
+
+  // Reset to view mode
+  cancelProfileEdit();
+
+  // Tab 2 — account
+  const status = user.status || 'active';
+  document.getElementById('accBadgeRole').innerHTML   = `<span class="badge badge-${user.role}">${escHtml(user.role || '—')}</span>`;
+  document.getElementById('accBadgeTier').innerHTML   = `<span class="badge badge-${user.tier}">${escHtml(user.tier || '—')}</span>`;
+  document.getElementById('accBadgeStatus').innerHTML = `<span class="badge badge-${status}">${escHtml(status)}</span>`;
+  document.getElementById('accJoined').textContent    = user.joinedLabel || '—';
+
+  // Reset any open account edits
+  ['role','tier','status'].forEach(f => cancelAccountEdit(f));
+
+  // Default to tab 1
+  switchUdmTab(1);
+
+  document.getElementById('userDetailOverlay').classList.add('open');
+}
+
+function closeUserModal() {
+  document.getElementById('userDetailOverlay').classList.remove('open');
+}
+
+/* ── Tab 1: Profile edit ────────────────────────────────────────────────────── */
+function startProfileEdit() {
+  const user = window._modalUser;
+  if (!user) return;
+  document.getElementById('eeName').value  = user.name  || '';
+  document.getElementById('eeEmail').value = user.email || '';
+  document.getElementById('eePhone').value = user.phone || '';
+  document.getElementById('eeDob').value   = user.dob   || '';
+  document.getElementById('udmViewMode').style.display = 'none';
+  document.getElementById('udmEditMode').style.display = 'block';
+  document.getElementById('udmFormError').style.display = 'none';
+}
+
+function cancelProfileEdit() {
+  document.getElementById('udmViewMode').style.display = 'block';
+  document.getElementById('udmEditMode').style.display = 'none';
+}
+
+async function saveProfile() {
+  const btn  = document.getElementById('udmSaveBtn');
+  const errEl = document.getElementById('udmFormError');
+  const raw = {
+    name : document.getElementById('eeName').value.trim()  || undefined,
+    email: document.getElementById('eeEmail').value.trim() || undefined,
+    phone: document.getElementById('eePhone').value.trim() || undefined,
+    dob  : document.getElementById('eeDob').value.trim()   || undefined,
+  };
+  const body = Object.fromEntries(Object.entries(raw).filter(([,v]) => v !== undefined));
+
+  btn.textContent = 'Saving…';
+  btn.disabled = true;
+  errEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/admin/user/${window._modalUserId}/profile`, {
+      method: 'PUT',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.message || 'Update failed';
+      errEl.style.display = 'block';
+      return;
+    }
+    // Update local arrays
+    const idx = ALL_USERS.findIndex(u => u._id === window._modalUserId);
+    if (idx !== -1) Object.assign(ALL_USERS[idx], body);
+    applyFilters();
+    const updated = { ...window._modalUser, ...body };
+    window._modalUser = updated;
+    document.getElementById('modalUserName').textContent  = updated.name  || '—';
+    document.getElementById('modalUserEmail').textContent = updated.email || '—';
+    document.getElementById('vName').textContent  = updated.name  || '—';
+    document.getElementById('vEmail').textContent = updated.email || '—';
+    document.getElementById('vPhone').textContent = updated.phone || '—';
+    document.getElementById('vDob').textContent   = formatDateDisplay(updated.dob || '');
+    cancelProfileEdit();
+    showToast('Profile updated', 'success');
+  } catch (_) {
+    errEl.textContent = 'Network error — try again';
+    errEl.style.display = 'block';
+  } finally {
+    btn.textContent = 'Save Changes';
+    btn.disabled = false;
+  }
+}
+
+/* ── Tab 2: Account field edit ──────────────────────────────────────────────── */
+const _ACC_FIELDS = ['role','tier','status'];
+
+function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+function startAccountEdit(field) {
+  _ACC_FIELDS.forEach(f => { if (f !== field) cancelAccountEdit(f); });
+  const badge   = document.getElementById(`accBadge${cap(field)}`);
+  const editDiv = document.getElementById(`accEdit${cap(field)}`);
+  const editBtn = document.getElementById(`accEditBtn${cap(field)}`);
+  const sel     = document.getElementById(`accSel${cap(field)}`);
+  badge.style.display   = 'none';
+  editDiv.style.display = 'flex';
+  editBtn.style.display = 'none';
+  const user = window._modalUser;
+  if (user) sel.value = field === 'status' ? (user.status || 'active') : (user[field] || '');
+  document.getElementById(`accErr${cap(field)}`).style.display = 'none';
+}
+
+function cancelAccountEdit(field) {
+  const badge   = document.getElementById(`accBadge${cap(field)}`);
+  const editDiv = document.getElementById(`accEdit${cap(field)}`);
+  const editBtn = document.getElementById(`accEditBtn${cap(field)}`);
+  if (!badge) return;
+  badge.style.display   = '';
+  editDiv.style.display = 'none';
+  editBtn.style.display = '';
+  document.getElementById(`accErr${cap(field)}`).style.display = 'none';
+}
+
+async function saveAccountField(field) {
+  const saveBtn = document.querySelector(`#accEdit${cap(field)} .udm-inline-save`);
+  const errEl   = document.getElementById(`accErr${cap(field)}`);
+  const newVal  = document.getElementById(`accSel${cap(field)}`).value;
+  const origText = saveBtn.textContent;
+  saveBtn.textContent = '…';
+  saveBtn.disabled = true;
+  errEl.style.display = 'none';
+  try {
+    const res = await fetch(`/api/admin/user/${window._modalUserId}/account`, {
+      method: 'PUT',
+      headers: { ...AUTH, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: newVal }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.message || 'Update failed';
+      errEl.style.display = 'block';
+      return;
+    }
+    const idx = ALL_USERS.findIndex(u => u._id === window._modalUserId);
+    if (idx !== -1) ALL_USERS[idx][field] = newVal;
+    window._modalUser[field] = newVal;
+    applyFilters();
+    document.getElementById(`accBadge${cap(field)}`).innerHTML =
+      `<span class="badge badge-${newVal}">${escHtml(newVal)}</span>`;
+    cancelAccountEdit(field);
+    showToast(`${cap(field)} updated to ${newVal}`, 'success');
+  } catch (_) {
+    errEl.textContent = 'Network error';
+    errEl.style.display = 'block';
+  } finally {
+    saveBtn.textContent = origText;
+    saveBtn.disabled = false;
+  }
+}
+
+/* ── Reset password ─────────────────────────────────────────────────────────── */
+async function doResetPassword() {
+  const btn = document.getElementById('udmResetPwBtn');
+  const origHTML = btn.innerHTML;
+  btn.innerHTML = '<span style="color:var(--cream-40)">Resetting…</span>';
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/admin/user/${window._modalUserId}/reset-password`, {
+      method: 'POST',
+      headers: AUTH,
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Password has been reset', 'success');
+    } else {
+      showToast(data.message || 'Reset failed', 'error');
+    }
+  } catch (_) {
+    showToast('Network error', 'error');
+  } finally {
+    btn.innerHTML = origHTML;
+    btn.disabled = false;
+  }
+}
+
+// Legacy wrappers — keep existing row action buttons working
+function modalChangeRole() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('role', u._id, u.name); }
+function modalChangeTier() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('tier', u._id, u.name); }
+function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('delete', u._id, u.name); }
+
+/* ── Close modal on overlay click ──────────────────────────────────────────── */
+document.getElementById('confirmOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+document.getElementById('userDetailOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeUserModal();
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeUserModal();
+    closeModal();
+  }
+});
+
+/* ── Init ───────────────────────────────────────────────────────────────────── */
+fetchStats();
+fetchUsers(1);
+</script>
+</body>
+</html>

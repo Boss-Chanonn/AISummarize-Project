@@ -56,6 +56,7 @@ async def register(user: UserCreate):
         "phone": user.phone or "",
         "role": "user",
         "tier": "free",
+        "status": "active",
         "createdAt": datetime.utcnow()
     })
     return {"message": "Account created — please sign in"}

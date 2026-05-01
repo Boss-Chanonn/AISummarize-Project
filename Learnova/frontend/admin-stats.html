@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learnova — Admin · Stats Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0A0A0A;--surface:#111111;--surface2:#161616;
+  --border:rgba(240,237,232,0.08);--border-md:rgba(240,237,232,0.13);
+  --cream:#F0EDE8;--cream-60:rgba(240,237,232,0.6);--cream-40:rgba(240,237,232,0.4);
+  --cream-25:rgba(240,237,232,0.25);--cream-10:rgba(240,237,232,0.1);--cream-05:rgba(240,237,232,0.05);
+  --gold:#C8B89A;--gold-dim:rgba(200,184,154,0.4);--green:#6B9E6B;--red-soft:#C87850;
+  --serif:'DM Serif Display',serif;--sans:'DM Sans',sans-serif;
+  --radius-sm:6px;--radius-md:8px;--radius-lg:12px;
+}
+html{font-size:16px;-webkit-font-smoothing:antialiased}
+body{background:var(--bg);color:var(--cream);font-family:var(--sans);font-weight:400;line-height:1.6;min-height:100vh;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+button{cursor:pointer;font-family:var(--sans)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:2px}
+
+.app-shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
+
+/* ── Sidebar ── */
+.sidebar{background:var(--bg);border-right:0.5px solid var(--border);display:flex;flex-direction:column;padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
+.sidebar-logo{font-family:var(--serif);font-size:18px;color:var(--cream);padding:0 24px 32px}
+.sidebar-logo span{color:var(--gold)}
+.sidebar-section{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-25);padding:8px 24px;margin-top:6px}
+.sidebar-item{display:flex;align-items:center;gap:10px;padding:9px 24px;font-size:13px;color:var(--cream-40);border-left:2px solid transparent;transition:color 0.15s,background 0.15s;cursor:pointer;text-decoration:none}
+.sidebar-item:hover{color:var(--cream-60);background:var(--cream-05)}
+.sidebar-item.active{color:var(--cream)!important;border-left-color:var(--gold);background:rgba(200,184,154,0.05)}
+.sidebar-item svg{width:15px;height:15px;opacity:0.5;flex-shrink:0}
+.sidebar-item.active svg{opacity:1}
+.admin-badge{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25);margin-left:auto}
+.sidebar-bottom{margin-top:auto;padding:16px 24px 0;border-top:0.5px solid var(--border)}
+.sidebar-admin-info{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--cream-05)}
+.avatar-circle{width:30px;height:30px;border-radius:50%;background:rgba(200,184,154,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--gold);flex-shrink:0}
+.admin-name-small{font-size:12px;color:var(--cream-60)}
+.admin-role-small{font-size:10px;color:var(--gold)}
+
+/* ── Main ── */
+.main{display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Topbar ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:0.5px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
+.topbar-left h1{font-family:var(--serif);font-size:20px;font-weight:400;color:var(--cream)}
+.topbar-left p{font-size:12px;color:var(--cream-40);margin-top:2px}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:500;border:none;transition:all 0.15s;white-space:nowrap;cursor:pointer}
+.btn-outline{background:transparent;color:var(--cream-60);border:0.5px solid var(--border-md)}
+.btn-outline:hover{background:var(--cream-05);color:var(--cream)}
+
+/* ── Content ── */
+.content{padding:28px 32px 40px;flex:1}
+
+/* ── Cards grid ── */
+.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,184,154,0.2),transparent)}
+.stat-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:10px;font-weight:500}
+.stat-value{font-family:var(--serif);font-size:32px;color:var(--cream);line-height:1;margin-bottom:6px}
+.stat-sub{font-size:12px;color:var(--cream-40)}
+.stat-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
+.dot-green{background:var(--green)}
+.dot-gold{background:var(--gold)}
+.dot-red{background:var(--red-soft)}
+
+/* ── Charts grid ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px}
+.chart-title{font-size:12px;font-weight:500;color:var(--cream-60);letter-spacing:0.3px;margin-bottom:18px}
+.chart-wrap{position:relative;height:220px}
+
+/* ── Skeleton ── */
+@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}
+.skeleton{background:var(--surface2);border-radius:var(--radius-md);animation:pulse 1.4s ease-in-out infinite}
+.sk-label{height:10px;width:60%;margin-bottom:12px}
+.sk-value{height:32px;width:45%;margin-bottom:10px}
+.sk-sub{height:10px;width:55%}
+.sk-chart{height:220px;border-radius:var(--radius-md)}
+
+/* ── Error state ── */
+.error-box{background:var(--surface);border:0.5px solid rgba(200,120,80,0.3);border-radius:var(--radius-lg);padding:32px;text-align:center;display:none}
+.error-box.show{display:block}
+.error-icon{font-size:28px;margin-bottom:12px;color:var(--red-soft)}
+.error-msg{font-size:14px;color:var(--cream-40);margin-bottom:20px}
+.btn-retry{background:rgba(200,120,80,0.12);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.25);padding:8px 20px;border-radius:var(--radius-md);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s}
+.btn-retry:hover{background:rgba(200,120,80,0.22)}
+
+/* ── Toast ── */
+.toast{position:fixed;top:24px;right:24px;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:14px 18px;font-size:13px;color:var(--cream-60);z-index:300;display:flex;align-items:center;gap:10px;transform:translateX(120%);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
+.toast.show{transform:translateX(0)}
+.toast-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.toast-icon.success{background:rgba(107,158,107,0.2);color:var(--green)}
+.toast-icon.warning{background:rgba(200,120,80,0.15);color:var(--red-soft)}
+</style>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Learn<span>ova</span></div>
+    <div class="sidebar-section">Overview</div>
+    <a href="dashboard.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <div class="sidebar-section">Admin</div>
+    <a href="admin-users.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      User Management
+    </a>
+    <a href="admin-stats.html" class="sidebar-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Stats Overview
+      <span class="admin-badge">Admin</span>
+    </a>
+    <div class="sidebar-section">Account</div>
+    <div class="sidebar-item" onclick="logoutAdmin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </div>
+    <div class="sidebar-bottom">
+      <div class="sidebar-admin-info">
+        <div class="avatar-circle" id="adminInitials">—</div>
+        <div>
+          <div class="admin-name-small" id="adminName">Loading…</div>
+          <div class="admin-role-small" id="adminRole">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1>Stats Overview</h1>
+        <p>Real-time platform analytics from MongoDB</p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-outline" onclick="loadStats()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Error state -->
+      <div class="error-box" id="errorBox">
+        <div class="error-icon">⚠</div>
+        <div class="error-msg" id="errorMsg">Failed to load stats. Please try again.</div>
+        <button class="btn-retry" onclick="loadStats()">Retry</button>
+      </div>
+
+      <!-- 6 Summary Cards -->
+      <div class="cards-grid" id="cardsGrid">
+        <!-- Skeleton cards -->
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid" id="chartsGrid">
+        <div class="chart-card">
+          <div class="chart-title">New Users — Last 30 Days</div>
+          <div class="chart-wrap"><div class="skeleton sk-chart" id="skUserGrowth"></div><canvas id="chartUserGrowth" style="display:none"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Upload Activity — Last 30 Days</div>
+          <div class="chart-wrap"><div class="skeleton sk-chart" id="skUploadActivity"></div><canvas id="chartUploadActivity" style="display:none"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon success" id="toastIcon">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+/* ── JWT Guard ──────────────────────────────────────────────────────────────── */
+const TOKEN = localStorage.getItem('token');
+const _stored = JSON.parse(localStorage.getItem('user') || 'null');
+if (!TOKEN) {
+  window.location.href = 'index.html';
+}
+
+/* ── Admin identity ─────────────────────────────────────────────────────────── */
+if (_stored) {
+  const initials = (_stored.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  document.getElementById('adminInitials').textContent = initials || '?';
+  document.getElementById('adminName').textContent = _stored.name || 'Admin';
+  document.getElementById('adminRole').textContent = _stored.role === 'system_admin' ? 'System Admin' : 'Admin';
+}
+
+const AUTH = { Authorization: 'Bearer ' + TOKEN };
+
+/* ── Chart instances ────────────────────────────────────────────────────────── */
+let chartGrowth   = null;
+let chartUploads  = null;
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#1a1a1a',
+      borderColor: 'rgba(200,184,154,0.25)',
+      borderWidth: 0.5,
+      titleColor: '#C8B89A',
+      bodyColor: 'rgba(240,237,232,0.6)',
+      padding: 10,
+    },
+  },
+  scales: {
+    x: {
+      grid: { color: 'rgba(240,237,232,0.05)', drawBorder: false },
+      ticks: { color: 'rgba(240,237,232,0.4)', font: { size: 10, family: "'DM Sans', sans-serif" }, maxRotation: 45, autoSkip: true, maxTicksLimit: 8 },
+    },
+    y: {
+      grid: { color: 'rgba(240,237,232,0.05)', drawBorder: false },
+      ticks: { color: 'rgba(240,237,232,0.4)', font: { size: 10, family: "'DM Sans', sans-serif" }, precision: 0 },
+      beginAtZero: true,
+    },
+  },
+};
+
+/* ── Render 6 cards ─────────────────────────────────────────────────────────── */
+function renderCards(s) {
+  document.getElementById('cardsGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Total Users</div>
+      <div class="stat-value">${s.total_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>+${s.new_this_week} this week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Users</div>
+      <div class="stat-value">${s.active_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>${s.active_pct}% of total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pro Users</div>
+      <div class="stat-value">${s.pro_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>${s.pro_pct}% converted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Uploads</div>
+      <div class="stat-value">${s.total_uploads.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>Documents processed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Quizzes</div>
+      <div class="stat-value">${s.total_quizzes.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>Quizzes completed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Score</div>
+      <div class="stat-value">${s.avg_score}%</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>Across all users</div>
+    </div>
+  `;
+}
+
+/* ── Render line chart ──────────────────────────────────────────────────────── */
+function renderLineChart(data) {
+  document.getElementById('skUserGrowth').style.display = 'none';
+  const canvas = document.getElementById('chartUserGrowth');
+  canvas.style.display = 'block';
+  if (chartGrowth) chartGrowth.destroy();
+  chartGrowth = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        data: data.map(d => d.count),
+        borderColor: '#C8B89A',
+        backgroundColor: 'rgba(200,184,154,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#C8B89A',
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: CHART_DEFAULTS,
+  });
+}
+
+/* ── Render bar chart ───────────────────────────────────────────────────────── */
+function renderBarChart(data) {
+  document.getElementById('skUploadActivity').style.display = 'none';
+  const canvas = document.getElementById('chartUploadActivity');
+  canvas.style.display = 'block';
+  if (chartUploads) chartUploads.destroy();
+  chartUploads = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: 'rgba(200,184,154,0.5)',
+        borderColor: 'rgba(200,184,154,0.8)',
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: CHART_DEFAULTS,
+  });
+}
+
+/* ── Load all data ──────────────────────────────────────────────────────────── */
+async function loadStats() {
+  // Show skeleton cards
+  document.getElementById('cardsGrid').innerHTML = `
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+  `;
+  // Show skeleton charts
+  ['skUserGrowth', 'skUploadActivity'].forEach(id => {
+    document.getElementById(id).style.display = 'block';
+  });
+  ['chartUserGrowth', 'chartUploadActivity'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('errorBox').classList.remove('show');
+
+  try {
+    const [statsRes, growthRes, uploadsRes] = await Promise.all([
+      fetch('/api/admin/stats',                { headers: AUTH }),
+      fetch('/api/admin/stats/user-growth',    { headers: AUTH }),
+      fetch('/api/admin/stats/upload-activity',{ headers: AUTH }),
+    ]);
+
+    if (statsRes.status === 401 || statsRes.status === 403) {
+      window.location.href = 'index.html';
+      return;
+    }
+    if (!statsRes.ok || !growthRes.ok || !uploadsRes.ok) {
+      throw new Error('API error');
+    }
+
+    const stats   = await statsRes.json();
+    const growth  = await growthRes.json();
+    const uploads = await uploadsRes.json();
+
+    renderCards(stats);
+    renderLineChart(growth.data);
+    renderBarChart(uploads.data);
+
+  } catch (err) {
+    document.getElementById('cardsGrid').innerHTML = '';
+    document.getElementById('errorBox').classList.add('show');
+    document.getElementById('errorMsg').textContent = 'Failed to load stats. Please try again.';
+    console.error('Stats load error:', err);
+  }
+}
+
+/* ── Role revalidation ──────────────────────────────────────────────────────── */
+async function revalidateRole() {
+  if (!TOKEN) return;
+  try {
+    const res = await fetch('/api/auth/profile', { headers: AUTH });
+    if (!res.ok) { window.location.href = 'index.html'; return; }
+    const user = await res.json();
+    if (!['admin', 'system_admin'].includes(user.role)) {
+      window.location.href = 'index.html';
+    }
+  } catch (_) {}
+}
+
+/* ── Sign out ───────────────────────────────────────────────────────────────── */
+function logoutAdmin() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = 'index.html';
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = `toast-icon ${type || 'success'}`;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────────── */
+revalidateRole();
+loadStats();
+</script>
+</body>
+</html>

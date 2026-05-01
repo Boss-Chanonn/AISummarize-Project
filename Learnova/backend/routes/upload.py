@@ -14,8 +14,8 @@ router = APIRouter()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
-ALLOWED_EXTENSIONS_FREE = {"pdf", "doc", "docx"}
-ALLOWED_EXTENSIONS_PRO = {"pdf", "doc", "docx", "ppt", "pptx"}
+ALLOWED_EXTENSIONS_FREE = {"pdf", "txt", "doc", "docx"}
+ALLOWED_EXTENSIONS_PRO = {"pdf", "txt", "doc", "docx", "ppt", "pptx"}
 
 
 def _extract_text_from_pdf(data: bytes) -> str:

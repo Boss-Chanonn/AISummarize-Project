@@ -2,10 +2,14 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from backend.database.db import users_collection, history_collection
 from backend.middleware.auth_middleware import get_admin_user
+from backend.models.user import AdminUpdateProfile, AdminUpdateAccount
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
+from passlib.context import CryptContext
 
 router = APIRouter()
+
+_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def _serialize_user(u: dict) -> dict:
@@ -128,3 +132,89 @@ async def admin_all_history(
             d["uploadedAt"] = d["uploadedAt"].isoformat()
         result.append(d)
     return {"items": result, "total": total, "page": page, "limit": limit}
+
+
+# ── New fine-grained admin endpoints ─────────────────────────────────────────
+
+@router.put("/user/{user_id}/profile")
+async def admin_update_profile(
+    user_id: str,
+    body: AdminUpdateProfile,
+    current_user: dict = Depends(get_admin_user)
+):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return JSONResponse(status_code=400, content={"message": "Invalid user ID"})
+
+    update_fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not update_fields:
+        return JSONResponse(status_code=400, content={"message": "No fields to update"})
+
+    # If email is changing, make sure it is not taken by another user
+    if "email" in update_fields:
+        clash = await users_collection.find_one(
+            {"email": update_fields["email"], "_id": {"$ne": oid}}
+        )
+        if clash:
+            return JSONResponse(status_code=409, content={"message": "Email already in use"})
+
+    await users_collection.update_one({"_id": oid}, {"$set": update_fields})
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return JSONResponse(status_code=404, content={"message": "User not found"})
+    return _serialize_user(user)
+
+
+@router.put("/user/{user_id}/account")
+async def admin_update_account(
+    user_id: str,
+    body: AdminUpdateAccount,
+    current_user: dict = Depends(get_admin_user)
+):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return JSONResponse(status_code=400, content={"message": "Invalid user ID"})
+
+    update_fields = {}
+    if body.role is not None:
+        if body.role not in ("user", "admin"):
+            return JSONResponse(status_code=400, content={"message": "role must be 'user' or 'admin'"})
+        update_fields["role"] = body.role
+    if body.tier is not None:
+        if body.tier not in ("free", "pro"):
+            return JSONResponse(status_code=400, content={"message": "tier must be 'free' or 'pro'"})
+        update_fields["tier"] = body.tier
+    if body.status is not None:
+        if body.status not in ("active", "inactive"):
+            return JSONResponse(status_code=400, content={"message": "status must be 'active' or 'inactive'"})
+        update_fields["status"] = body.status
+
+    if not update_fields:
+        return JSONResponse(status_code=400, content={"message": "No valid fields to update"})
+
+    await users_collection.update_one({"_id": oid}, {"$set": update_fields})
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return JSONResponse(status_code=404, content={"message": "User not found"})
+    return _serialize_user(user)
+
+
+@router.post("/user/{user_id}/reset-password")
+async def admin_reset_password(
+    user_id: str,
+    current_user: dict = Depends(get_admin_user)
+):
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return JSONResponse(status_code=400, content={"message": "Invalid user ID"})
+
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return JSONResponse(status_code=404, content={"message": "User not found"})
+
+    hashed = _pwd_context.hash("Learnova@2026")
+    await users_collection.update_one({"_id": oid}, {"$set": {"password": hashed}})
+    return {"success": True, "message": "Password reset to default"}

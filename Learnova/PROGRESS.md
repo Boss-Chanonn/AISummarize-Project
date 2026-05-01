@@ -1,5 +1,5 @@
 # Learnova — AI Development Log
-Last updated: 2026-04-29
+Last updated: 2026-05-01
 
 ## CRITICAL RULES FOR ALL AI AGENTS
 1. NEVER modify .css files
@@ -249,6 +249,39 @@ What works now:
 | 2026-04-20 | Created POST /api/auth/logout | Secure server-side logout |
 | 2026-04-20 | Created auth-logout.js | Connect Sign out button to backend |
 | 2026-04-20 | Added auth-logout.js to 5 HTML pages | All pages now logout properly |
+| 2026-05-01 | Created admin-stats.html | Admin Stats Overview page |
+| 2026-05-01 | Created backend/routes/admin_stats.py | 3 new admin stats API routes |
+| 2026-05-01 | Registered admin_stats router in main.py | Routes active at /api/admin/stats |
+| 2026-05-01 | Added Stats Overview link to admin-users.html sidebar | Navigation between admin pages |
+| 2026-05-01 | Added User Detail Modal (row click) to admin-users.html | View user info inline |
+| 2026-05-01 | Redesigned User Detail Modal — 2-tab layout | Tab 1: Profile (view/edit) | Tab 2: Account (role/tier/status/reset-pw) |
+| 2026-05-01 | Added AdminUpdateProfile + AdminUpdateAccount models | backend/models/user.py |
+| 2026-05-01 | Added PUT /api/admin/user/{id}/profile | Edit name, email, phone, dob |
+| 2026-05-01 | Added PUT /api/admin/user/{id}/account | Change role, tier, status |
+| 2026-05-01 | Added POST /api/admin/user/{id}/reset-password | Reset to Learnova@2026 |
+| 2026-05-01 | Added status field to user register document | backend/routes/auth.py |
+
+### Admin Stats Overview — 2026-05-01 ✅
+Status: Completed
+
+Files Created:
+  - frontend/admin-stats.html
+  - backend/routes/admin_stats.py
+
+Files Modified:
+  - backend/main.py (registered admin_stats router)
+  - frontend/admin-users.html (added Stats Overview sidebar link)
+
+API Routes Added:
+  GET /api/admin/stats               — 6 summary stats from MongoDB
+  GET /api/admin/stats/user-growth   — new users per day, last 30 days
+  GET /api/admin/stats/upload-activity — uploads per day, last 30 days
+
+Data Source: Real-time MongoDB (users_collection + history_collection)
+Charts: Chart.js CDN — Line (user growth) + Bar (upload activity)
+Cards: 6 total — Total Users, Active Users, Pro Users, Total Uploads, Quizzes, Avg Score
+Active Users: users who uploaded in the last 30 days (distinct userId in history)
+Auth: JWT guard + role revalidation via /api/auth/profile on every page load
 
 ## Next Steps for Next AI Agent
 1. Read this PROGRESS.md first
