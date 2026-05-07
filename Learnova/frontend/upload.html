@@ -676,30 +676,77 @@ function resetUpload() {
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
 }
 
-function loadResumedQuizFlow() {
+async function loadResumedQuizFlow() {
   const params = new URLSearchParams(window.location.search);
-  const resumeId = parseInt(params.get('resume'), 10);
+  const resumeId = params.get('resume'); // keep as string — MongoDB ObjectID
   const mode = params.get('mode') || 'summary';
   if (!resumeId) return;
-  const item = getHistoryItem(resumeId);
-  if (!item) return;
-  resumedSession = true;
-  currentDoc = { ...item, done: false, score: null, correct: null, total: item.total || 8 };
-  quizData = item.quizFull || [];
-  currentDoc.infoRows = [
-    ['File type', currentDoc.fileType || 'PDF'],
-    ['File size', currentDoc.pageCount ? `${currentDoc.pageCount} pages` : 'Ready'],
-    ['Pages', String(currentDoc.pageCount || 1)],
-    ['Language', 'English'],
-    ['Processed at', getProcessedTime()],
-  ];
-  document.getElementById('breadcrumb-cur').textContent = currentDoc.title;
-  document.getElementById('btn-rescan').style.display = 'flex';
-  document.getElementById('btn-process').style.display = 'none';
-  document.getElementById('btn-quiz').style.display = mode === 'quiz' ? 'none' : 'flex';
-  document.getElementById('btn-process').disabled = false;
-  showSummary(currentDoc);
-  if (mode === 'quiz') startQuiz();
+
+  // Show a brief loading state in the right panel while we fetch
+  document.getElementById('right-panel').innerHTML = `
+    <div class="loading-state">
+      <div class="loading-shell">
+        <div class="loading-label">Loading document</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading your document\u2026</div>
+      </div>
+    </div>`;
+
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/history/' + resumeId, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      console.error('[quiz] Failed to load history item:', res.status);
+      showToast('Could not load document \u2014 please try again');
+      document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Document not found.</div><div class="empty-sub">It may have been deleted.</div></div>`;
+      return;
+    }
+    const item = await res.json();
+
+    // Store IDs so showQuizResults can submit the quiz
+    localStorage.setItem('currentHistoryId', resumeId);
+    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
+
+    resumedSession = true;
+    const qLen = (item.quizFull || []).length;
+    currentDoc = {
+      ...item,
+      id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
+      done: false,
+      score: null,
+      correct: null,
+      total: qLen || item.total || 8
+    };
+    quizData = item.quizFull || [];
+
+    if (!quizData.length) {
+      console.error('[quiz] No quiz data found for history item:', resumeId);
+      showToast('No quiz available for this document');
+    }
+
+    currentDoc.infoRows = [
+      ['File type', currentDoc.fileType || 'PDF'],
+      ['Pages', String(currentDoc.pageCount || 1)],
+      ['Language', 'English'],
+      ['Processed at', getProcessedTime()],
+    ];
+
+    document.getElementById('breadcrumb-cur').textContent = currentDoc.title || 'Document';
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+    document.getElementById('btn-quiz').style.display = (mode === 'quiz' || !quizData.length) ? 'none' : 'flex';
+    document.getElementById('btn-process').disabled = false;
+
+    showSummary(currentDoc);
+    if (mode === 'quiz' && quizData.length) startQuiz();
+
+  } catch (e) {
+    console.error('[quiz] Error loading history item:', e);
+    showToast('Could not load document \u2014 please try again');
+    document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Failed to load document.</div><div class="empty-sub">Check your connection and try again.</div></div>`;
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
