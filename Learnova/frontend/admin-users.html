@@ -1,257 +1,12 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Learnova — Admin · User Management</title>
+<title>Learnova â€” Admin Â· User Management</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
-<style>
-*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#0A0A0A;--surface:#111111;--surface2:#161616;
-  --border:rgba(240,237,232,0.08);--border-md:rgba(240,237,232,0.13);
-  --cream:#F0EDE8;--cream-60:rgba(240,237,232,0.6);--cream-40:rgba(240,237,232,0.4);
-  --cream-25:rgba(240,237,232,0.25);--cream-10:rgba(240,237,232,0.1);--cream-05:rgba(240,237,232,0.05);
-  --gold:#C8B89A;--gold-dim:rgba(200,184,154,0.4);--green:#6B9E6B;--red-soft:#C87850;
-  --serif:'DM Serif Display',serif;--sans:'DM Sans',sans-serif;
-  --radius-sm:6px;--radius-md:8px;--radius-lg:12px;
-}
-html{font-size:16px;-webkit-font-smoothing:antialiased}
-body{background:var(--bg);color:var(--cream);font-family:var(--sans);font-weight:400;line-height:1.6;min-height:100vh;overflow-x:hidden}
-a{color:inherit;text-decoration:none}
-button{cursor:pointer;font-family:var(--sans)}
-input,select{font-family:var(--sans)}
-::-webkit-scrollbar{width:4px}
-::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border-md);border-radius:2px}
-
-.app-shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
-
-/* Sidebar */
-.sidebar{background:var(--bg);border-right:0.5px solid var(--border);display:flex;flex-direction:column;padding:28px 0;position:sticky;top:0;height:100vh;overflow-y:auto}
-.sidebar-logo{font-family:var(--serif);font-size:18px;color:var(--cream);padding:0 24px 32px}
-.sidebar-logo span{color:var(--gold)}
-.sidebar-section{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-25);padding:8px 24px;margin-top:6px}
-.sidebar-item{display:flex;align-items:center;gap:10px;padding:9px 24px;font-size:13px;color:var(--cream-40);border-left:2px solid transparent;transition:color 0.15s,background 0.15s;cursor:pointer}
-.sidebar-item:hover{color:var(--cream-60);background:var(--cream-05)}
-.sidebar-item.active{color:var(--cream)!important;border-left-color:var(--gold);background:rgba(200,184,154,0.05)}
-.sidebar-item svg{width:15px;height:15px;opacity:0.5;flex-shrink:0}
-.sidebar-item.active svg{opacity:1}
-.admin-badge{font-size:9px;letter-spacing:0.8px;text-transform:uppercase;padding:2px 6px;border-radius:3px;background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25);margin-left:auto}
-.sidebar-bottom{margin-top:auto;padding:16px 24px 0;border-top:0.5px solid var(--border)}
-.sidebar-admin-info{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:var(--radius-md);background:var(--cream-05)}
-.avatar-circle{width:30px;height:30px;border-radius:50%;background:rgba(200,184,154,0.15);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;color:var(--gold);flex-shrink:0}
-.admin-name-small{font-size:12px;color:var(--cream-60)}
-.admin-role-small{font-size:10px;color:var(--gold)}
-
-/* Main */
-.main{display:flex;flex-direction:column;min-height:100vh;overflow:hidden}
-
-/* Topbar */
-.topbar{display:flex;align-items:center;justify-content:space-between;padding:20px 32px;border-bottom:0.5px solid var(--border);background:var(--bg);position:sticky;top:0;z-index:10}
-.topbar-left h1{font-family:var(--serif);font-size:20px;font-weight:400;color:var(--cream)}
-.topbar-left p{font-size:12px;color:var(--cream-40);margin-top:2px}
-.topbar-right{display:flex;align-items:center;gap:10px}
-.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:500;border:none;transition:all 0.15s;white-space:nowrap}
-.btn-gold{background:var(--gold);color:#0A0A0A}
-.btn-gold:hover{background:#d4c4a6}
-.btn-outline{background:transparent;color:var(--cream-60);border:0.5px solid var(--border-md)}
-.btn-outline:hover{background:var(--cream-05);color:var(--cream)}
-.btn-danger-outline{background:rgba(200,120,80,0.08);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.25)}
-.btn-danger-outline:hover{background:rgba(200,120,80,0.18)}
-.btn-sm{padding:6px 12px;font-size:12px}
-
-/* Stats */
-.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:24px 32px}
-.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px}
-.stat-label{font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px}
-.stat-value{font-family:var(--serif);font-size:28px;color:var(--cream)}
-.stat-sub{font-size:11px;color:var(--cream-40);margin-top:4px}
-.stat-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
-.dot-green{background:var(--green)}
-.dot-red{background:var(--red-soft)}
-.dot-gold{background:var(--gold)}
-
-/* Content */
-.content{padding:0 32px 32px;flex:1}
-
-/* Bulk action bar */
-.bulk-bar{display:flex;align-items:center;gap:12px;padding:10px 16px;background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.2);border-radius:var(--radius-md);margin-bottom:12px;animation:slideDown 0.2s ease;overflow:hidden;max-height:0;opacity:0;transition:max-height 0.25s ease,opacity 0.2s ease,margin 0.2s ease,padding 0.2s ease}
-.bulk-bar.visible{max-height:60px;opacity:1}
-@keyframes slideDown{from{transform:translateY(-8px);opacity:0}to{transform:translateY(0);opacity:1}}
-.bulk-count{font-size:13px;color:var(--gold);font-weight:500;margin-right:4px}
-.bulk-label{font-size:13px;color:var(--cream-40)}
-.bulk-divider{width:0.5px;height:20px;background:var(--border-md);margin:0 4px}
-.bulk-actions{display:flex;gap:8px;margin-left:auto}
-
-/* Filter bar */
-.filter-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
-.search-wrap{position:relative;flex:1;min-width:240px}
-.search-wrap svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--cream-25);pointer-events:none}
-.search-input{width:100%;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px 9px 36px;font-size:13px;color:var(--cream);outline:none;transition:border-color 0.15s}
-.search-input::placeholder{color:var(--cream-25)}
-.search-input:focus{border-color:var(--gold-dim)}
-.filter-select{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 32px 9px 14px;font-size:13px;color:var(--cream-60);outline:none;cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;min-width:130px}
-.filter-count{font-size:12px;color:var(--cream-40);white-space:nowrap}
-
-/* Table */
-.table-wrap{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden}
-.table{width:100%;border-collapse:collapse}
-.table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25);padding:12px 16px;text-align:left;border-bottom:0.5px solid var(--border);font-weight:500;white-space:nowrap;user-select:none}
-.table th:first-child{padding-left:16px;width:40px}
-.table th.sortable{cursor:pointer;transition:color 0.15s}
-.table th.sortable:hover{color:var(--cream-60)}
-.table th.sorted{color:var(--gold)}
-.sort-icon{display:inline-flex;flex-direction:column;gap:1px;margin-left:5px;vertical-align:middle;opacity:0.4}
-.table th.sorted .sort-icon{opacity:1}
-.sort-icon span{display:block;width:6px;height:1.5px;background:currentColor;border-radius:1px;transition:opacity 0.15s}
-.sort-asc .sort-icon span:first-child{opacity:1}
-.sort-asc .sort-icon span:last-child{opacity:0.3}
-.sort-desc .sort-icon span:first-child{opacity:0.3}
-.sort-desc .sort-icon span:last-child{opacity:1}
-.table th:last-child{text-align:center}
-.table td{padding:13px 16px;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--cream-60);vertical-align:middle}
-.table td:first-child{padding-left:16px;width:40px}
-.table tbody tr{transition:background 0.12s;cursor:pointer}
-.table tbody tr:hover{background:var(--cream-05)}
-.table tbody tr.selected{background:rgba(200,184,154,0.04);}
-.table tbody tr:last-child td{border-bottom:none}
-
-/* Checkbox */
-.cb-wrap{display:flex;align-items:center;justify-content:center}
-.cb{width:15px;height:15px;border-radius:3px;border:0.5px solid var(--border-md);background:transparent;cursor:pointer;appearance:none;-webkit-appearance:none;position:relative;transition:all 0.15s;flex-shrink:0}
-.cb:checked{background:var(--gold);border-color:var(--gold)}
-.cb:checked::after{content:'';position:absolute;left:3px;top:1px;width:5px;height:8px;border:1.5px solid #0A0A0A;border-top:none;border-left:none;transform:rotate(45deg)}
-.cb:indeterminate{background:rgba(200,184,154,0.3);border-color:var(--gold)}
-.cb:indeterminate::after{content:'';position:absolute;left:2px;top:6px;width:9px;height:1.5px;background:#0A0A0A;border-radius:1px}
-
-/* User cell */
-.user-cell{display:flex;align-items:center;gap:12px}
-.user-av{width:32px;height:32px;border-radius:50%;background:rgba(200,184,154,0.12);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;color:var(--gold);flex-shrink:0}
-.user-name{font-size:13px;color:var(--cream);font-weight:500}
-.user-email{font-size:11px;color:var(--cream-40);margin-top:1px}
-
-/* Badges */
-.badge{display:inline-flex;align-items:center;gap:4px;font-size:12px;letter-spacing:0.3px;padding:4px 45px;border-radius:20px;font-weight:500;white-space:nowrap}
-.badge-user{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
-.badge-admin{background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25)}
-.badge-system_admin{background:rgba(200,184,154,0.2);color:var(--gold);border:0.5px solid rgba(200,184,154,0.4)}
-.badge-free{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
-.badge-pro{background:rgba(200,184,154,0.12);color:var(--gold);border:0.5px solid rgba(200,184,154,0.25)}
-.badge-active{background:rgba(107,158,107,0.12);color:var(--green);border:0.5px solid rgba(107,158,107,0.25)}
-.badge-inactive{background:var(--cream-05);color:var(--cream-40);border:0.5px solid var(--border-md)}
-
-/* Score bar */
-.score-bar-wrap{display:flex;align-items:center;gap:8px}
-.score-bar{height:4px;background:var(--cream-10);border-radius:2px;flex:1;overflow:hidden}
-.score-fill{height:100%;border-radius:2px;background:var(--gold)}
-.score-text{font-size:12px;color:var(--cream-60);min-width:30px;text-align:right}
-
-/* Actions */
-.actions-cell{display:flex;align-items:center;justify-content:center;gap:5px}
-.action-btn{width:28px;height:28px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;transition:all 0.15s}
-.action-btn:hover{background:var(--cream-05);color:var(--cream)}
-.action-btn.danger:hover{background:rgba(200,120,80,0.1);color:var(--red-soft);border-color:rgba(200,120,80,0.3)}
-.action-btn.warn:hover{background:rgba(200,184,154,0.08);color:var(--gold);border-color:rgba(200,184,154,0.25)}
-.action-btn svg{width:13px;height:13px}
-
-/* Loading state */
-.loading-row td{text-align:center;padding:48px;color:var(--cream-25);font-size:13px}
-
-/* Confirm Modal */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:200;display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 0.2s}
-.overlay.open{opacity:1;pointer-events:all}
-.modal{background:linear-gradient(180deg,rgba(24,24,24,0.99),rgba(16,16,16,0.99));border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:28px;width:400px;max-width:92vw;transform:translateY(12px);transition:transform 0.2s}
-.overlay.open .modal{transform:translateY(0)}
-.modal-icon{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
-.modal-icon.red{background:rgba(200,120,80,0.12);color:var(--red-soft)}
-.modal-icon.gold{background:rgba(200,184,154,0.12);color:var(--gold)}
-.modal h3{font-family:var(--serif);font-size:18px;font-weight:400;margin-bottom:6px}
-.modal p{font-size:13px;color:var(--cream-40);margin-bottom:20px;line-height:1.6}
-.modal p strong{color:var(--cream)}
-.modal-label{font-size:11px;color:var(--cream-40);margin-bottom:6px;letter-spacing:0.3px}
-.modal-input{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;transition:border-color 0.15s;margin-bottom:20px}
-.modal-input:focus{border-color:var(--gold-dim)}
-.modal-input::placeholder{color:var(--cream-25)}
-.modal-actions{display:flex;gap:10px}
-.modal-actions .btn{flex:1;justify-content:center}
-.btn-danger{background:rgba(200,120,80,0.15);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.3)}
-.btn-danger:hover{background:rgba(200,120,80,0.25)}
-.btn-danger:disabled{opacity:0.3;cursor:not-allowed}
-.bulk-info{background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--radius-md);padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--cream-40)}
-.bulk-info strong{color:var(--cream)}
-
-/* Role picker inside modal */
-.role-select{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;cursor:pointer;margin-bottom:20px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.role-select:focus{border-color:var(--gold-dim)}
-
-/* Tier picker inside modal */
-.tier-select{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:9px 14px;font-size:13px;color:var(--cream);outline:none;cursor:pointer;margin-bottom:20px;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(240,237,232,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
-.tier-select:focus{border-color:var(--gold-dim)}
-
-/* Pagination */
-.pagination{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-top:0.5px solid var(--border)}
-.page-info{font-size:12px;color:var(--cream-40)}
-.page-btns{display:flex;gap:4px}
-.page-btn{width:30px;height:30px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);font-size:12px;display:flex;align-items:center;justify-content:center;transition:all 0.15s;cursor:pointer}
-.page-btn:hover{background:var(--cream-05);color:var(--cream)}
-.page-btn.active{background:rgba(200,184,154,0.12);color:var(--gold);border-color:rgba(200,184,154,0.3)}
-.page-btn:disabled{opacity:0.3;cursor:not-allowed}
-
-/* Toast */
-.toast{position:fixed;top:24px;right:24px;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:14px 18px;font-size:13px;color:var(--cream-60);z-index:300;display:flex;align-items:center;gap:10px;transform:translateX(120%);transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);max-width:300px;box-shadow:0 8px 32px rgba(0,0,0,0.4)}
-.toast.show{transform:translateX(0)}
-.toast-icon{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.toast-icon.success{background:rgba(107,158,107,0.2);color:var(--green)}
-.toast-icon.warning{background:rgba(200,120,80,0.15);color:var(--red-soft)}
-.toast-icon.error{background:rgba(200,120,80,0.2);color:var(--red-soft)}
-
-/* User Detail Modal */
-.user-detail-modal{width:520px;max-width:92vw;padding:0;overflow:hidden;max-height:85vh;display:flex;flex-direction:column}
-.udm-header{padding:20px 20px 0;display:flex;align-items:center;gap:14px;flex-shrink:0}
-.udm-header-info{flex:1;min-width:0}
-.udm-close{width:28px;height:28px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;transition:all 0.15s;cursor:pointer;flex-shrink:0}
-.udm-close:hover{background:var(--cream-05);color:var(--cream)}
-.udm-avatar{width:40px;height:40px;border-radius:50%;background:rgba(200,184,154,0.12);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:500;color:var(--gold);flex-shrink:0}
-.udm-name{font-family:var(--serif);font-size:18px;font-weight:400;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.udm-email{font-size:12px;color:var(--cream-40);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-/* Tabs */
-.udm-tabs{display:flex;border-bottom:0.5px solid var(--border);padding:0 20px;margin-top:16px;flex-shrink:0}
-.udm-tab{padding:10px 16px;font-size:13px;color:var(--cream-40);cursor:pointer;border-bottom:2px solid transparent;transition:color 0.15s,border-color 0.15s;margin-bottom:-0.5px}
-.udm-tab:hover{color:var(--cream-60)}
-.udm-tab.active{color:var(--cream);border-bottom-color:var(--gold)}
-/* Tab panels */
-.udm-panels{flex:1;overflow-y:auto}
-.udm-panel{display:none;padding:24px 20px 20px}
-.udm-panel.active{display:block}
-/* Profile fields */
-.udm-field-row{display:flex;align-items:flex-start;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)}
-.udm-field-row:last-child{border-bottom:none}
-.udm-field-label{font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--cream-25);margin-bottom:3px}
-.udm-field-value{font-size:14px;color:var(--cream)}
-.udm-field-left{flex:1;min-width:0}
-.udm-edit-area{width:100%;background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:8px 12px;font-size:13px;color:var(--cream);outline:none;font-family:var(--sans);transition:border-color 0.15s}
-.udm-edit-area:focus{border-color:var(--gold-dim)}
-.udm-edit-header{display:flex;justify-content:flex-end;margin-bottom:12px}
-.udm-form-error{font-size:12px;color:var(--red-soft);margin-top:8px}
-/* Account rows */
-.udm-account-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:0.5px solid var(--border)}
-.udm-account-row:last-of-type{border-bottom:none}
-.udm-account-left{flex:1}
-.udm-account-label{font-size:12px;letter-spacing:0.4px;text-transform:uppercase;color:var(--cream-25);margin-bottom:4px}
-.udm-account-value{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream)}
-.udm-inline-select{background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:5px 10px;font-size:12px;color:var(--cream);outline:none;cursor:pointer;font-family:var(--sans)}
-.udm-inline-select:focus{border-color:var(--gold-dim)}
-.udm-inline-save{padding:4px 10px;font-size:12px;border-radius:var(--radius-sm);border:0.5px solid var(--gold-dim);background:rgba(200,184,154,0.08);color:var(--gold);cursor:pointer;font-family:var(--sans);transition:all 0.15s}
-.udm-inline-save:hover{background:rgba(200,184,154,0.15)}
-.udm-inline-cancel{width:22px;height:22px;border-radius:var(--radius-sm);border:0.5px solid var(--border-md);background:transparent;color:var(--cream-40);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all 0.15s;font-size:14px;line-height:1}
-.udm-inline-cancel:hover{background:var(--cream-05);color:var(--cream)}
-.udm-row-error{font-size:11px;color:var(--red-soft);margin-top:4px}
-/* Reset password section */
-.udm-reset-section{border-top:0.5px solid var(--border);padding-top:16px;margin-top:8px}
-.udm-reset-label{font-size:13px;color:var(--cream);font-weight:500;margin-bottom:2px}
-.udm-reset-sub{font-size:11px;color:var(--cream-40);margin-bottom:12px}
-</style>
+<link rel="stylesheet" href="css/admin-base.css">
+<link rel="stylesheet" href="css/admin-users.css">
 </head>
 <body>
 <div class="app-shell">
@@ -281,9 +36,9 @@ input,select{font-family:var(--sans)}
     </div>
     <div class="sidebar-bottom">
       <div class="sidebar-admin-info">
-        <div class="avatar-circle" id="adminInitials">—</div>
+        <div class="avatar-circle" id="adminInitials">â€”</div>
         <div>
-          <div class="admin-name-small" id="adminName">Loading…</div>
+          <div class="admin-name-small" id="adminName">Loadingâ€¦</div>
           <div class="admin-role-small" id="adminRole">Admin</div>
         </div>
       </div>
@@ -309,23 +64,23 @@ input,select{font-family:var(--sans)}
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-label">Total Users</div>
-        <div class="stat-value" id="statTotal">—</div>
-        <div class="stat-sub" id="statTotalSub">Loading…</div>
+        <div class="stat-value" id="statTotal">â€”</div>
+        <div class="stat-sub" id="statTotalSub">Loadingâ€¦</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Pro Users</div>
-        <div class="stat-value" id="statPro">—</div>
-        <div class="stat-sub" id="statProSub"><span class="stat-dot dot-gold"></span>—</div>
+        <div class="stat-value" id="statPro">â€”</div>
+        <div class="stat-sub" id="statProSub"><span class="stat-dot dot-gold"></span>â€”</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Free Users</div>
-        <div class="stat-value" id="statFree">—</div>
-        <div class="stat-sub" id="statFreeSub"><span class="stat-dot dot-green"></span>—</div>
+        <div class="stat-value" id="statFree">â€”</div>
+        <div class="stat-sub" id="statFreeSub"><span class="stat-dot dot-green"></span>â€”</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Admins</div>
-        <div class="stat-value" id="statAdmins">—</div>
-        <div class="stat-sub" id="statAdminsSub"><span class="stat-dot dot-gold"></span>—</div>
+        <div class="stat-value" id="statAdmins">â€”</div>
+        <div class="stat-sub" id="statAdminsSub"><span class="stat-dot dot-gold"></span>â€”</div>
       </div>
     </div>
 
@@ -349,7 +104,7 @@ input,select{font-family:var(--sans)}
       <div class="filter-bar">
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input class="search-input" type="text" placeholder="Search by name or email…" id="searchInput" oninput="applyFilters()">
+          <input class="search-input" type="text" placeholder="Search by name or emailâ€¦" id="searchInput" oninput="applyFilters()">
         </div>
         <select class="filter-select" id="roleFilter" onchange="applyFilters()">
           <option value="">All Roles</option>
@@ -362,7 +117,7 @@ input,select{font-family:var(--sans)}
           <option value="free">Free</option>
           <option value="pro">Pro</option>
         </select>
-        <span class="filter-count" id="filterCount">Loading…</span>
+        <span class="filter-count" id="filterCount">Loadingâ€¦</span>
       </div>
 
       <!-- Table -->
@@ -399,7 +154,7 @@ input,select{font-family:var(--sans)}
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr class="loading-row"><td colspan="7">Loading users…</td></tr>
+            <tr class="loading-row"><td colspan="7">Loading usersâ€¦</td></tr>
           </tbody>
         </table>
         <div class="pagination">
@@ -419,8 +174,8 @@ input,select{font-family:var(--sans)}
     <div class="udm-header">
       <div class="udm-avatar" id="modalUserInitials">?</div>
       <div class="udm-header-info">
-        <div class="udm-name" id="modalUserName">—</div>
-        <div class="udm-email" id="modalUserEmail">—</div>
+        <div class="udm-name" id="modalUserName">â€”</div>
+        <div class="udm-email" id="modalUserEmail">â€”</div>
       </div>
       <button class="udm-close" onclick="closeUserModal()" title="Close">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -442,25 +197,25 @@ input,select{font-family:var(--sans)}
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Full Name</div>
-              <div class="udm-field-value" id="vName">—</div>
+              <div class="udm-field-value" id="vName">â€”</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Email</div>
-              <div class="udm-field-value" id="vEmail">—</div>
+              <div class="udm-field-value" id="vEmail">â€”</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Phone</div>
-              <div class="udm-field-value" id="vPhone">—</div>
+              <div class="udm-field-value" id="vPhone">â€”</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Date of Birth</div>
-              <div class="udm-field-value" id="vDob">—</div>
+              <div class="udm-field-value" id="vDob">â€”</div>
             </div>
           </div>
           <div style="display:flex;justify-content:center;margin-top:16px">
@@ -507,14 +262,14 @@ input,select{font-family:var(--sans)}
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Role</span>
               <div class="udm-account-value">
-                <span id="accBadgeRole">—</span>
+                <span id="accBadgeRole">â€”</span>
                 <div id="accEditRole" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelRole">
                     <option value="user">user</option>
                     <option value="admin">admin</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('role')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('role')" title="Cancel">×</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('role')" title="Cancel">Ã—</button>
                 </div>
               </div>
             </div>
@@ -530,14 +285,14 @@ input,select{font-family:var(--sans)}
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Tier</span>
               <div class="udm-account-value">
-                <span id="accBadgeTier">—</span>
+                <span id="accBadgeTier">â€”</span>
                 <div id="accEditTier" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelTier">
                     <option value="free">free</option>
                     <option value="pro">pro</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('tier')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('tier')" title="Cancel">×</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('tier')" title="Cancel">Ã—</button>
                 </div>
               </div>
             </div>
@@ -553,14 +308,14 @@ input,select{font-family:var(--sans)}
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Status</span>
               <div class="udm-account-value">
-                <span id="accBadgeStatus">—</span>
+                <span id="accBadgeStatus">â€”</span>
                 <div id="accEditStatus" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelStatus">
                     <option value="active">active</option>
                     <option value="inactive">inactive</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('status')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('status')" title="Cancel">×</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('status')" title="Cancel">Ã—</button>
                 </div>
               </div>
             </div>
@@ -575,7 +330,7 @@ input,select{font-family:var(--sans)}
           <div class="udm-account-left">
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Member Since</span>
-              <span id="accJoined" style="font-size:13px;color:var(--cream-60);font-weight:400">—</span>
+              <span id="accJoined" style="font-size:13px;color:var(--cream-60);font-weight:400">â€”</span>
             </div>
           </div>
         </div>
@@ -609,7 +364,7 @@ input,select{font-family:var(--sans)}
     <div id="bulkInfoWrap"></div>
     <div id="modalExtraWrap"></div>
     <div class="modal-label" id="modalInputLabel">Type username to confirm</div>
-    <input class="modal-input" id="confirmInput" placeholder="Enter username…" oninput="checkConfirm()">
+    <input class="modal-input" id="confirmInput" placeholder="Enter usernameâ€¦" oninput="checkConfirm()">
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
       <button class="btn btn-danger" id="confirmBtn" disabled onclick="executeAction()">Confirm</button>
@@ -626,7 +381,7 @@ input,select{font-family:var(--sans)}
 </div>
 
 <script>
-/* ── JWT Guard ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ JWT Guard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const TOKEN = localStorage.getItem('token');
 const _stored = JSON.parse(localStorage.getItem('user') || 'null');
 if (!TOKEN) {
@@ -635,7 +390,7 @@ if (!TOKEN) {
   window.location.href = 'index.html';
 }
 
-/* ── Admin identity ─────────────────────────────────────────────────────────── */
+/* â”€â”€ Admin identity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 if (_stored) {
   const initials = (_stored.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
   document.getElementById('adminInitials').textContent = initials || '?';
@@ -645,7 +400,7 @@ if (_stored) {
 
 const AUTH = { Authorization: 'Bearer ' + TOKEN };
 
-/* ── State ──────────────────────────────────────────────────────────────────── */
+/* â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 let ALL_USERS = [];
 let filteredUsers = [];
 let selectedIds = new Set();
@@ -658,7 +413,7 @@ let currentPage = 1;
 const PAGE_SIZE = 20;
 let totalUsers = 0;
 
-/* ── Fetch users from API ───────────────────────────────────────────────────── */
+/* â”€â”€ Fetch users from API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function fetchUsers(page = 1) {
   try {
     const res = await fetch(`/api/admin/users?page=${page}&limit=${PAGE_SIZE}`, { headers: AUTH });
@@ -670,7 +425,7 @@ async function fetchUsers(page = 1) {
     ALL_USERS = (data.users || []).map(u => ({
       ...u,
       initials: (u.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?',
-      joinedLabel: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
+      joinedLabel: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”',
       joined: u.createdAt || '',
     }));
     totalUsers = data.total || ALL_USERS.length;
@@ -679,11 +434,11 @@ async function fetchUsers(page = 1) {
     renderStats();
     renderPagination();
   } catch (e) {
-    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
+    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users â€” check your connection</td></tr>';
   }
 }
 
-/* ── Fetch admin dashboard stats ────────────────────────────────────────────── */
+/* â”€â”€ Fetch admin dashboard stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function fetchStats() {
   try {
     const res = await fetch('/api/admin/dashboard', { headers: AUTH });
@@ -706,7 +461,7 @@ function renderStats() {
   document.getElementById('statAdminsSub').innerHTML = `<span class="stat-dot dot-gold"></span>privileged accounts`;
 }
 
-/* ── Filters ────────────────────────────────────────────────────────────────── */
+/* â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function applyFilters() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const role = document.getElementById('roleFilter').value;
@@ -726,7 +481,7 @@ function applyFilters() {
   clearSelection();
 }
 
-/* ── Sort ───────────────────────────────────────────────────────────────────── */
+/* â”€â”€ Sort â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function sortBy(col) {
   document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
   if (sortCol === col) {
@@ -755,7 +510,7 @@ function applySort() {
   renderTable();
 }
 
-/* ── Render table ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Render table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   if (!filteredUsers.length) {
@@ -775,14 +530,14 @@ function renderTable() {
         <div class="user-cell">
           <div class="user-av">${u.initials}</div>
           <div>
-            <div class="user-name">${escHtml(u.name || '—')}</div>
-            <div class="user-email">${escHtml(u.email || '—')}</div>
+            <div class="user-name">${escHtml(u.name || 'â€”')}</div>
+            <div class="user-email">${escHtml(u.email || 'â€”')}</div>
           </div>
         </div>
       </td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
       <td><span class="badge badge-${u.tier}">${u.tier}</span></td>
-      <td style="color:var(--cream-60)">${u.files ?? '—'}</td>
+      <td style="color:var(--cream-60)">${u.files ?? 'â€”'}</td>
       <td style="color:var(--cream-40);font-size:12px">${u.joinedLabel}</td>
       <td onclick="event.stopPropagation()">
         <div class="actions-cell">
@@ -805,7 +560,7 @@ function renderTable() {
   updateSelectAll();
 }
 
-/* ── Pagination ─────────────────────────────────────────────────────────────── */
+/* â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function renderPagination() {
   const totalPages = Math.ceil(totalUsers / PAGE_SIZE);
   document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
@@ -814,7 +569,7 @@ function renderPagination() {
 
   const prev = document.createElement('button');
   prev.className = 'page-btn';
-  prev.textContent = '‹';
+  prev.textContent = 'â€¹';
   prev.disabled = currentPage <= 1;
   prev.onclick = () => { if (currentPage > 1) { currentPage--; fetchUsers(currentPage); } };
   container.appendChild(prev);
@@ -832,13 +587,13 @@ function renderPagination() {
 
   const next = document.createElement('button');
   next.className = 'page-btn';
-  next.textContent = '›';
+  next.textContent = 'â€º';
   next.disabled = currentPage >= totalPages;
   next.onclick = () => { if (currentPage < totalPages) { currentPage++; fetchUsers(currentPage); } };
   container.appendChild(next);
 }
 
-/* ── Selection ──────────────────────────────────────────────────────────────── */
+/* â”€â”€ Selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function toggleRow(cb, id) {
   if (cb.checked) selectedIds.add(id);
   else selectedIds.delete(id);
@@ -875,7 +630,7 @@ function clearSelection() {
   renderTable();
 }
 
-/* ── Modal config ───────────────────────────────────────────────────────────── */
+/* â”€â”€ Modal config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const MODAL_CFG = {
   delete: { title: 'Delete User', icon: 'red', btnText: 'Delete', btn: 'btn-danger' },
   role:   { title: 'Change Role', icon: 'gold', btnText: 'Update Role', btn: 'btn-outline' },
@@ -963,7 +718,7 @@ function closeModal() {
   document.getElementById('confirmOverlay').classList.remove('open');
 }
 
-/* ── Execute API actions ─────────────────────────────────────────────────────── */
+/* â”€â”€ Execute API actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function executeAction() {
   closeModal();
 
@@ -1047,7 +802,7 @@ async function executeAction() {
   }
 }
 
-/* ── CSV Export ─────────────────────────────────────────────────────────────── */
+/* â”€â”€ CSV Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function exportCSV() {
   const rows = [['Name', 'Email', 'Role', 'Tier', 'Joined']];
   ALL_USERS.forEach(u => rows.push([u.name, u.email, u.role, u.tier, u.joinedLabel]));
@@ -1059,14 +814,14 @@ function exportCSV() {
   showToast('CSV exported', 'success');
 }
 
-/* ── Sign out ───────────────────────────────────────────────────────────────── */
+/* â”€â”€ Sign out â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function logoutAdmin() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   window.location.href = 'index.html';
 }
 
-/* ── Toast ──────────────────────────────────────────────────────────────────── */
+/* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
@@ -1076,7 +831,7 @@ function showToast(msg, type) {
   toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-/* ── Helpers ────────────────────────────────────────────────────────────────── */
+/* â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -1084,10 +839,10 @@ function escAttr(s) {
   return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
-/* ── User Detail Modal ──────────────────────────────────────────────────────── */
+/* â”€â”€ User Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 
 function formatDateDisplay(dateStr) {
-  if (!dateStr) return '—';
+  if (!dateStr) return 'â€”';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -1109,24 +864,24 @@ function openUserModal(userId) {
 
   // Header
   document.getElementById('modalUserInitials').textContent = user.initials || '?';
-  document.getElementById('modalUserName').textContent     = user.name  || '—';
-  document.getElementById('modalUserEmail').textContent    = user.email || '—';
+  document.getElementById('modalUserName').textContent     = user.name  || 'â€”';
+  document.getElementById('modalUserEmail').textContent    = user.email || 'â€”';
 
-  // Tab 1 — view mode
-  document.getElementById('vName').textContent  = user.name  || '—';
-  document.getElementById('vEmail').textContent = user.email || '—';
-  document.getElementById('vPhone').textContent = user.phone || '—';
+  // Tab 1 â€” view mode
+  document.getElementById('vName').textContent  = user.name  || 'â€”';
+  document.getElementById('vEmail').textContent = user.email || 'â€”';
+  document.getElementById('vPhone').textContent = user.phone || 'â€”';
   document.getElementById('vDob').textContent   = formatDateDisplay(user.dob || '');
 
   // Reset to view mode
   cancelProfileEdit();
 
-  // Tab 2 — account
+  // Tab 2 â€” account
   const status = user.status || 'active';
-  document.getElementById('accBadgeRole').innerHTML   = `<span class="badge badge-${user.role}">${escHtml(user.role || '—')}</span>`;
-  document.getElementById('accBadgeTier').innerHTML   = `<span class="badge badge-${user.tier}">${escHtml(user.tier || '—')}</span>`;
+  document.getElementById('accBadgeRole').innerHTML   = `<span class="badge badge-${user.role}">${escHtml(user.role || 'â€”')}</span>`;
+  document.getElementById('accBadgeTier').innerHTML   = `<span class="badge badge-${user.tier}">${escHtml(user.tier || 'â€”')}</span>`;
   document.getElementById('accBadgeStatus').innerHTML = `<span class="badge badge-${status}">${escHtml(status)}</span>`;
-  document.getElementById('accJoined').textContent    = user.joinedLabel || '—';
+  document.getElementById('accJoined').textContent    = user.joinedLabel || 'â€”';
 
   // Reset any open account edits
   ['role','tier','status'].forEach(f => cancelAccountEdit(f));
@@ -1141,7 +896,7 @@ function closeUserModal() {
   document.getElementById('userDetailOverlay').classList.remove('open');
 }
 
-/* ── Tab 1: Profile edit ────────────────────────────────────────────────────── */
+/* â”€â”€ Tab 1: Profile edit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function startProfileEdit() {
   const user = window._modalUser;
   if (!user) return;
@@ -1170,7 +925,7 @@ async function saveProfile() {
   };
   const body = Object.fromEntries(Object.entries(raw).filter(([,v]) => v !== undefined));
 
-  btn.textContent = 'Saving…';
+  btn.textContent = 'Savingâ€¦';
   btn.disabled = true;
   errEl.style.display = 'none';
 
@@ -1192,16 +947,16 @@ async function saveProfile() {
     applyFilters();
     const updated = { ...window._modalUser, ...body };
     window._modalUser = updated;
-    document.getElementById('modalUserName').textContent  = updated.name  || '—';
-    document.getElementById('modalUserEmail').textContent = updated.email || '—';
-    document.getElementById('vName').textContent  = updated.name  || '—';
-    document.getElementById('vEmail').textContent = updated.email || '—';
-    document.getElementById('vPhone').textContent = updated.phone || '—';
+    document.getElementById('modalUserName').textContent  = updated.name  || 'â€”';
+    document.getElementById('modalUserEmail').textContent = updated.email || 'â€”';
+    document.getElementById('vName').textContent  = updated.name  || 'â€”';
+    document.getElementById('vEmail').textContent = updated.email || 'â€”';
+    document.getElementById('vPhone').textContent = updated.phone || 'â€”';
     document.getElementById('vDob').textContent   = formatDateDisplay(updated.dob || '');
     cancelProfileEdit();
     showToast('Profile updated', 'success');
   } catch (_) {
-    errEl.textContent = 'Network error — try again';
+    errEl.textContent = 'Network error â€” try again';
     errEl.style.display = 'block';
   } finally {
     btn.textContent = 'Save Changes';
@@ -1209,7 +964,7 @@ async function saveProfile() {
   }
 }
 
-/* ── Tab 2: Account field edit ──────────────────────────────────────────────── */
+/* â”€â”€ Tab 2: Account field edit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 const _ACC_FIELDS = ['role','tier','status'];
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -1244,7 +999,7 @@ async function saveAccountField(field) {
   const errEl   = document.getElementById(`accErr${cap(field)}`);
   const newVal  = document.getElementById(`accSel${cap(field)}`).value;
   const origText = saveBtn.textContent;
-  saveBtn.textContent = '…';
+  saveBtn.textContent = 'â€¦';
   saveBtn.disabled = true;
   errEl.style.display = 'none';
   try {
@@ -1276,11 +1031,11 @@ async function saveAccountField(field) {
   }
 }
 
-/* ── Reset password ─────────────────────────────────────────────────────────── */
+/* â”€â”€ Reset password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 async function doResetPassword() {
   const btn = document.getElementById('udmResetPwBtn');
   const origHTML = btn.innerHTML;
-  btn.innerHTML = '<span style="color:var(--cream-40)">Resetting…</span>';
+  btn.innerHTML = '<span style="color:var(--cream-40)">Resettingâ€¦</span>';
   btn.disabled = true;
   try {
     const res = await fetch(`/api/admin/user/${window._modalUserId}/reset-password`, {
@@ -1301,12 +1056,12 @@ async function doResetPassword() {
   }
 }
 
-// Legacy wrappers — keep existing row action buttons working
+// Legacy wrappers â€” keep existing row action buttons working
 function modalChangeRole() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('role', u._id, u.name); }
 function modalChangeTier() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('tier', u._id, u.name); }
 function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('delete', u._id, u.name); }
 
-/* ── Close modal on overlay click ──────────────────────────────────────────── */
+/* â”€â”€ Close modal on overlay click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 document.getElementById('confirmOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
@@ -1320,7 +1075,7 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-/* ── Init ───────────────────────────────────────────────────────────────────── */
+/* â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 fetchStats();
 fetchUsers(1);
 </script>
