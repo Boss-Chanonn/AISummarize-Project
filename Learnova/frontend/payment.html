@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova — Payment Details</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .payment-shell {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .order-summary-box {
+      background: var(--cream-05);
+      border: 0.5px solid var(--gold-dim);
+      border-radius: var(--radius-lg);
+      padding: 20px 22px;
+      margin-bottom: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .order-plan-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gold);
+      font-family: var(--serif);
+      margin-bottom: 3px;
+    }
+    .order-plan-desc {
+      font-size: 12px;
+      color: var(--cream-25);
+    }
+    .order-price {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--cream);
+      font-family: var(--serif);
+      white-space: nowrap;
+    }
+
+    .payment-form-card {
+      background: var(--cream-05);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px 24px;
+    }
+
+    .card-number-wrapper { position: relative; }
+    .card-brand {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 11px;
+      color: var(--cream-25);
+      pointer-events: none;
+      letter-spacing: 0.5px;
+    }
+
+    .form-row-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .secure-badges {
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 0.5px solid var(--border);
+    }
+    .secure-badge-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--cream-25);
+    }
+
+    .field-error {
+      font-size: 11px;
+      color: #e57373;
+      margin-top: 4px;
+      display: none;
+    }
+    .field-error.show { display: block; }
+    .input.invalid { border-color: rgba(229, 115, 115, 0.6); }
+
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--cream-25);
+      text-decoration: none;
+      margin-bottom: 20px;
+      transition: color 0.15s;
+    }
+    .back-link:hover { color: var(--cream-60); }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+
+    <div class="page-header fade-up" style="margin-bottom: 8px;">
+      <div>
+        <div class="page-title">Payment Details</div>
+        <div class="page-subtitle" style="color:var(--cream-25);font-size:13px;">Mock payment — no real charges will be made</div>
+      </div>
+    </div>
+
+    <div class="payment-shell fade-up fade-up-1 reveal reveal-delay-1">
+      <a href="billing.html" class="back-link">← Back to plans</a>
+
+      <div class="order-summary-box" id="order-summary">
+        <div>
+          <div class="order-plan-name" id="order-plan-name">Learnova Pro</div>
+          <div class="order-plan-desc" id="order-plan-desc">Loading...</div>
+        </div>
+        <div class="order-price" id="order-price">—</div>
+      </div>
+
+      <div class="payment-form-card">
+        <div class="form-field">
+          <label class="field-label" for="card-number">Card Number</label>
+          <div class="card-number-wrapper">
+            <input class="input" id="card-number" type="text" placeholder="1234 5678 9012 3456"
+              maxlength="19" autocomplete="cc-number" inputmode="numeric"/>
+            <span class="card-brand" id="card-brand"></span>
+          </div>
+          <div class="field-error" id="err-card-number">Please enter a valid 16-digit card number</div>
+        </div>
+
+        <div class="form-field">
+          <label class="field-label" for="card-name">Cardholder Name</label>
+          <input class="input" id="card-name" type="text" placeholder="Name on card"
+            autocomplete="cc-name"/>
+          <div class="field-error" id="err-card-name">Please enter the cardholder name</div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="form-field">
+            <label class="field-label" for="card-expiry">Expiry Date</label>
+            <input class="input" id="card-expiry" type="text" placeholder="MM/YY"
+              maxlength="5" autocomplete="cc-exp" inputmode="numeric"/>
+            <div class="field-error" id="err-card-expiry">Enter a valid MM/YY date</div>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="card-cvv">CVV</label>
+            <input class="input" id="card-cvv" type="password" placeholder="•••"
+              maxlength="3" autocomplete="cc-csc" inputmode="numeric"/>
+            <div class="field-error" id="err-card-cvv">CVV must be 3 digits</div>
+          </div>
+        </div>
+
+        <div class="secure-badges">
+          <div class="secure-badge-item">🔒 Mock Secure Payment</div>
+          <div class="secure-badge-item">💳 All major cards accepted</div>
+        </div>
+
+        <button class="btn btn-primary" id="btn-review"
+          onclick="reviewOrder()"
+          style="width:100%;justify-content:center;margin-top:20px">
+          Review Order →
+        </button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/animations.js"></script>
+<script src="js/app.js"></script>
+<script src="js/billing.js"></script>
+<script>
+  // Auth guard
+  (function () {
+    const token = localStorage.getItem('token');
+    if (!token) { window.location.replace('index.html'); }
+  })();
+
+  document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
+
+  // Load order summary from sessionStorage
+  (function () {
+    const plan = sessionStorage.getItem('selected_plan') || 'monthly';
+    const isYearly = plan === 'yearly';
+    document.getElementById('order-plan-name').textContent = 'Learnova Pro ✨';
+    document.getElementById('order-plan-desc').textContent = isYearly ? 'Yearly plan · Save 36%' : 'Monthly plan';
+    document.getElementById('order-price').textContent = isYearly ? '$99.99/yr' : '$12.99/mo';
+    if (!sessionStorage.getItem('selected_plan')) {
+      window.location.replace('billing.html');
+    }
+  })();
+
+  // Card number formatting — spaces every 4 digits
+  document.getElementById('card-number').addEventListener('input', function (e) {
+    let val = e.target.value.replace(/\D/g, '').substring(0, 16);
+    e.target.value = val.replace(/(.{4})/g, '$1 ').trim();
+    // Detect card brand (simple)
+    const brandEl = document.getElementById('card-brand');
+    if (val.startsWith('4'))       brandEl.textContent = 'VISA';
+    else if (/^5[1-5]/.test(val)) brandEl.textContent = 'MC';
+    else if (val.startsWith('34') || val.startsWith('37')) brandEl.textContent = 'AMEX';
+    else brandEl.textContent = '';
+  });
+
+  // Expiry formatting — MM/YY
+  document.getElementById('card-expiry').addEventListener('input', function (e) {
+    let val = e.target.value.replace(/\D/g, '').substring(0, 4);
+    if (val.length >= 3) val = val.substring(0, 2) + '/' + val.substring(2);
+    e.target.value = val;
+  });
+
+  // CVV — digits only
+  document.getElementById('card-cvv').addEventListener('input', function (e) {
+    e.target.value = e.target.value.replace(/\D/g, '').substring(0, 3);
+  });
+
+  function showError(fieldId, errorId, show) {
+    const field = document.getElementById(fieldId);
+    const err   = document.getElementById(errorId);
+    if (show) {
+      field.classList.add('invalid');
+      err.classList.add('show');
+    } else {
+      field.classList.remove('invalid');
+      err.classList.remove('show');
+    }
+    return show;
+  }
+
+  function reviewOrder() {
+    const cardNumberRaw = document.getElementById('card-number').value.replace(/\s/g, '');
+    const cardName      = document.getElementById('card-name').value.trim();
+    const cardExpiry    = document.getElementById('card-expiry').value.trim();
+    const cardCvv       = document.getElementById('card-cvv').value.trim();
+
+    let hasError = false;
+
+    // Card number: must be exactly 16 digits
+    if (!/^\d{16}$/.test(cardNumberRaw)) {
+      hasError = showError('card-number', 'err-card-number', true) || hasError;
+    } else {
+      showError('card-number', 'err-card-number', false);
+    }
+
+    // Name: required
+    if (!cardName) {
+      hasError = showError('card-name', 'err-card-name', true) || hasError;
+    } else {
+      showError('card-name', 'err-card-name', false);
+    }
+
+    // Expiry: MM/YY, not expired
+    const expiryMatch = /^(0[1-9]|1[0-2])\/(\d{2})$/.exec(cardExpiry);
+    let expiryValid = Boolean(expiryMatch);
+    if (expiryMatch) {
+      const now = new Date();
+      const expMonth = parseInt(expiryMatch[1], 10);
+      const expYear  = 2000 + parseInt(expiryMatch[2], 10);
+      if (expYear < now.getFullYear() || (expYear === now.getFullYear() && expMonth < now.getMonth() + 1)) {
+        expiryValid = false;
+      }
+    }
+    if (!expiryValid) {
+      hasError = showError('card-expiry', 'err-card-expiry', true) || hasError;
+    } else {
+      showError('card-expiry', 'err-card-expiry', false);
+    }
+
+    // CVV: 3 digits
+    if (!/^\d{3}$/.test(cardCvv)) {
+      hasError = showError('card-cvv', 'err-card-cvv', true) || hasError;
+    } else {
+      showError('card-cvv', 'err-card-cvv', false);
+    }
+
+    if (hasError) return;
+
+    // Save to sessionStorage — NEVER save full card number
+    const paymentData = {
+      card_name:  cardName,
+      card_last4: cardNumberRaw.slice(-4),
+      plan_type:  sessionStorage.getItem('selected_plan') || 'monthly',
+    };
+    sessionStorage.setItem('payment_data', JSON.stringify(paymentData));
+
+    window.location.href = 'confirm.html';
+  }
+</script>
+</body>
+</html>

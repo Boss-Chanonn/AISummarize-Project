@@ -95,7 +95,7 @@
     </div>
 
     <div class="bottom-actions fade-up fade-up-3">
-      <a href="index.html" class="btn">Back to dashboard</a>
+      <a href="dashboard.html" class="btn">Back to dashboard</a>
       <button class="btn" id="btn-retake">Retake quiz</button>
       <a href="module.html" class="btn btn-gold" id="btn-module">View learning module →</a>
     </div>
@@ -104,51 +104,66 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
-<script src="js/mock-api.js"></script>
 <script src="js/app.js"></script>
-<script src="js/auth-logout.js"></script>
 <script>
+// Auth guard — redirect to login if no token
+(function() {
+  const token = localStorage.getItem('token');
+  if (!token) { window.location.replace('index.html'); }
+})();
+
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('history');
 
 async function loadResults() {
   const params = new URLSearchParams(window.location.search);
-  const id = parseInt(params.get('id') || '0');
+  const id = params.get('id') || '';
   try {
     const token = localStorage.getItem('token') || '';
-    const res = await fetch('/api/results?id=' + id,
+    const res = await fetch('/api/results?id=' + encodeURIComponent(id),
       token ? { headers: { 'Authorization': 'Bearer ' + token } } : {}
     );
     const data = await res.json();
     if (!res.ok) { showResultsError(data.message); return; }
 
-    document.getElementById('result-doc-title').textContent = data.title + ' · ' + data.total + ' questions';
-    document.getElementById('score-ring-text').textContent = data.score + '%';
-    document.getElementById('score-ring-label').textContent = data.correct + ' of ' + data.total + ' correct';
+    const an = data.analysis || {};
+    const quizFull = data.quizFull || [];
+    const userAnswers = data.userAnswers || [];
+    const correct = data.correct || 0;
+    const total = data.total || quizFull.length;
+
+    document.getElementById('result-doc-title').textContent = (data.title || '') + ' · ' + total + ' questions';
+    document.getElementById('score-ring-text').textContent = (data.score || 0) + '%';
+    document.getElementById('score-ring-label').textContent = correct + ' of ' + total + ' correct';
 
     document.getElementById('feedback-panels').innerHTML =
       '<div class="fb-panel strength">' +
         '<div class="fb-head"><span class="fb-dot fb-dot-s"></span><span class="fb-title">Strengths</span></div>' +
-        '<div class="tag-cloud">' + (data.strengths || []).map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('') + '</div>' +
+        '<div class="tag-cloud">' + (an.strengths || []).map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('') + '</div>' +
       '</div>' +
       '<div class="fb-panel weakness">' +
         '<div class="fb-head"><span class="fb-dot fb-dot-w"></span><span class="fb-title">Needs work</span></div>' +
-        '<div class="tag-cloud">' + (data.weaknesses || []).map(s => `<span class="badge badge-red">${escapeHtml(s)}</span>`).join('') + '</div>' +
+        '<div class="tag-cloud">' + (an.weaknesses || []).map(s => `<span class="badge badge-red">${escapeHtml(s)}</span>`).join('') + '</div>' +
       '</div>' +
       '<div class="fb-panel">' +
         '<div class="fb-head"><span class="fb-dot fb-dot-r"></span><span class="fb-title">Study next</span></div>' +
-        '<div class="tag-cloud">' + (data.studyNext || []).map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('') + '</div>' +
+        '<div class="tag-cloud">' + (an.studyNext || []).map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('') + '</div>' +
       '</div>';
 
-    document.getElementById('q-list').innerHTML = (data.questions || []).map(q =>
-      `<div class="q-item ${q.correct ? 'correct' : 'wrong'}">` +
-        `<div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>` +
-        `<div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct && q.answer ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>` +
-      `</div>`
-    ).join('');
+    document.getElementById('q-list').innerHTML = quizFull.map((q, i) => {
+      const chosen = userAnswers[i];
+      const isCorrect = chosen === q.correct;
+      const yourAnswer = chosen !== undefined ? (q.opts[chosen] || 'No answer') : 'No answer';
+      const correctAnswer = q.opts[q.correct] || '';
+      return `<div class="q-item ${isCorrect ? 'correct' : 'wrong'}">` +
+        `<div class="q-row"><span class="q-mark ${isCorrect ? 'c' : 'w'}">${isCorrect ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>` +
+        `<div class="q-ans">Your answer: ${escapeHtml(yourAnswer)}${!isCorrect && correctAnswer ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(correctAnswer)}</span>` : ''}</div>` +
+      `</div>`;
+    }).join('');
 
-    document.getElementById('btn-module').href = 'module.html?historyId=' + data.id;
+    const hid = data._id || id;
+    document.getElementById('btn-module').href = 'module.html?historyId=' + hid;
     document.getElementById('btn-retake').onclick = function() {
-      window.location.href = 'upload.html?resume=' + data.id + '&mode=quiz';
+      window.location.href = 'upload.html?resume=' + hid + '&mode=quiz';
     };
 
     setTimeout(function() {

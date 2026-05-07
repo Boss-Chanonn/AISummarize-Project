@@ -1,0 +1,327 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learnova — Admin · Stats Overview</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/admin-base.css">
+<link rel="stylesheet" href="css/admin-stats.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">Learn<span>ova</span></div>
+    <div class="sidebar-section">Overview</div>
+    <a href="dashboard.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Dashboard
+    </a>
+    <div class="sidebar-section">Admin</div>
+    <a href="admin-users.html" class="sidebar-item">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      User Management
+    </a>
+    <a href="admin-stats.html" class="sidebar-item active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      Stats Overview
+      <span class="admin-badge">Admin</span>
+    </a>
+    <div class="sidebar-section">Account</div>
+    <div class="sidebar-item" onclick="logoutAdmin()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Sign Out
+    </div>
+    <div class="sidebar-bottom">
+      <div class="sidebar-admin-info">
+        <div class="avatar-circle" id="adminInitials">—</div>
+        <div>
+          <div class="admin-name-small" id="adminName">Loading…</div>
+          <div class="admin-role-small" id="adminRole">Admin</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1>Stats Overview</h1>
+        <p>Real-time platform analytics from MongoDB</p>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-outline" onclick="loadStats()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Error state -->
+      <div class="error-box" id="errorBox">
+        <div class="error-icon">⚠</div>
+        <div class="error-msg" id="errorMsg">Failed to load stats. Please try again.</div>
+        <button class="btn-retry" onclick="loadStats()">Retry</button>
+      </div>
+
+      <!-- 6 Summary Cards -->
+      <div class="cards-grid" id="cardsGrid">
+        <!-- Skeleton cards -->
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+        <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+      </div>
+
+      <!-- Charts -->
+      <div class="charts-grid" id="chartsGrid">
+        <div class="chart-card">
+          <div class="chart-title">New Users — Last 30 Days</div>
+          <div class="chart-wrap"><div class="skeleton sk-chart" id="skUserGrowth"></div><canvas id="chartUserGrowth" style="display:none"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">Upload Activity — Last 30 Days</div>
+          <div class="chart-wrap"><div class="skeleton sk-chart" id="skUploadActivity"></div><canvas id="chartUploadActivity" style="display:none"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon success" id="toastIcon">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <span id="toastMsg">Done</span>
+</div>
+
+<script>
+/* ── JWT Guard ──────────────────────────────────────────────────────────────── */
+const TOKEN = localStorage.getItem('token');
+const _stored = JSON.parse(localStorage.getItem('user') || 'null');
+if (!TOKEN) {
+  window.location.href = 'index.html';
+}
+
+/* ── Admin identity ─────────────────────────────────────────────────────────── */
+if (_stored) {
+  const initials = (_stored.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  document.getElementById('adminInitials').textContent = initials || '?';
+  document.getElementById('adminName').textContent = _stored.name || 'Admin';
+  document.getElementById('adminRole').textContent = _stored.role === 'system_admin' ? 'System Admin' : 'Admin';
+}
+
+const AUTH = { Authorization: 'Bearer ' + TOKEN };
+
+/* ── Chart instances ────────────────────────────────────────────────────────── */
+let chartGrowth   = null;
+let chartUploads  = null;
+
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: '#1a1a1a',
+      borderColor: 'rgba(200,184,154,0.25)',
+      borderWidth: 0.5,
+      titleColor: '#C8B89A',
+      bodyColor: 'rgba(240,237,232,0.6)',
+      padding: 10,
+    },
+  },
+  scales: {
+    x: {
+      grid: { color: 'rgba(240,237,232,0.05)', drawBorder: false },
+      ticks: { color: 'rgba(240,237,232,0.4)', font: { size: 10, family: "'DM Sans', sans-serif" }, maxRotation: 45, autoSkip: true, maxTicksLimit: 8 },
+    },
+    y: {
+      grid: { color: 'rgba(240,237,232,0.05)', drawBorder: false },
+      ticks: { color: 'rgba(240,237,232,0.4)', font: { size: 10, family: "'DM Sans', sans-serif" }, precision: 0 },
+      beginAtZero: true,
+    },
+  },
+};
+
+/* ── Render 6 cards ─────────────────────────────────────────────────────────── */
+function renderCards(s) {
+  document.getElementById('cardsGrid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Total Users</div>
+      <div class="stat-value">${s.total_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>+${s.new_this_week} this week</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Users</div>
+      <div class="stat-value">${s.active_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>${s.active_pct}% of total</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Pro Users</div>
+      <div class="stat-value">${s.pro_users.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>${s.pro_pct}% converted</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Uploads</div>
+      <div class="stat-value">${s.total_uploads.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>Documents processed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Quizzes</div>
+      <div class="stat-value">${s.total_quizzes.toLocaleString()}</div>
+      <div class="stat-sub"><span class="stat-dot dot-gold"></span>Quizzes completed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Avg Score</div>
+      <div class="stat-value">${s.avg_score}%</div>
+      <div class="stat-sub"><span class="stat-dot dot-green"></span>Across all users</div>
+    </div>
+  `;
+}
+
+/* ── Render line chart ──────────────────────────────────────────────────────── */
+function renderLineChart(data) {
+  document.getElementById('skUserGrowth').style.display = 'none';
+  const canvas = document.getElementById('chartUserGrowth');
+  canvas.style.display = 'block';
+  if (chartGrowth) chartGrowth.destroy();
+  chartGrowth = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        data: data.map(d => d.count),
+        borderColor: '#C8B89A',
+        backgroundColor: 'rgba(200,184,154,0.08)',
+        borderWidth: 1.5,
+        pointRadius: 2,
+        pointHoverRadius: 4,
+        pointBackgroundColor: '#C8B89A',
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: CHART_DEFAULTS,
+  });
+}
+
+/* ── Render bar chart ───────────────────────────────────────────────────────── */
+function renderBarChart(data) {
+  document.getElementById('skUploadActivity').style.display = 'none';
+  const canvas = document.getElementById('chartUploadActivity');
+  canvas.style.display = 'block';
+  if (chartUploads) chartUploads.destroy();
+  chartUploads = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: data.map(d => d.date),
+      datasets: [{
+        data: data.map(d => d.count),
+        backgroundColor: 'rgba(200,184,154,0.5)',
+        borderColor: 'rgba(200,184,154,0.8)',
+        borderWidth: 1,
+        borderRadius: 3,
+      }],
+    },
+    options: CHART_DEFAULTS,
+  });
+}
+
+/* ── Load all data ──────────────────────────────────────────────────────────── */
+async function loadStats() {
+  // Show skeleton cards
+  document.getElementById('cardsGrid').innerHTML = `
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+    <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
+  `;
+  // Show skeleton charts
+  ['skUserGrowth', 'skUploadActivity'].forEach(id => {
+    document.getElementById(id).style.display = 'block';
+  });
+  ['chartUserGrowth', 'chartUploadActivity'].forEach(id => {
+    document.getElementById(id).style.display = 'none';
+  });
+  document.getElementById('errorBox').classList.remove('show');
+
+  try {
+    const [statsRes, growthRes, uploadsRes] = await Promise.all([
+      fetch('/api/admin/stats',                { headers: AUTH }),
+      fetch('/api/admin/stats/user-growth',    { headers: AUTH }),
+      fetch('/api/admin/stats/upload-activity',{ headers: AUTH }),
+    ]);
+
+    if (statsRes.status === 401 || statsRes.status === 403) {
+      window.location.href = 'index.html';
+      return;
+    }
+    if (!statsRes.ok || !growthRes.ok || !uploadsRes.ok) {
+      throw new Error('API error');
+    }
+
+    const stats   = await statsRes.json();
+    const growth  = await growthRes.json();
+    const uploads = await uploadsRes.json();
+
+    renderCards(stats);
+    renderLineChart(growth.data);
+    renderBarChart(uploads.data);
+
+  } catch (err) {
+    document.getElementById('cardsGrid').innerHTML = '';
+    document.getElementById('errorBox').classList.add('show');
+    document.getElementById('errorMsg').textContent = 'Failed to load stats. Please try again.';
+    console.error('Stats load error:', err);
+  }
+}
+
+/* ── Role revalidation ──────────────────────────────────────────────────────── */
+async function revalidateRole() {
+  if (!TOKEN) return;
+  try {
+    const res = await fetch('/api/auth/profile', { headers: AUTH });
+    if (!res.ok) { window.location.href = 'index.html'; return; }
+    const user = await res.json();
+    if (!['admin', 'system_admin'].includes(user.role)) {
+      window.location.href = 'index.html';
+    }
+  } catch (_) {}
+}
+
+/* ── Sign out ───────────────────────────────────────────────────────────────── */
+function logoutAdmin() {
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = 'index.html';
+}
+
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
+function showToast(msg, type) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = `toast-icon ${type || 'success'}`;
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+/* ── Init ───────────────────────────────────────────────────────────────────── */
+revalidateRole();
+loadStats();
+</script>
+</body>
+</html>

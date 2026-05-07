@@ -12,7 +12,7 @@ const LEARNOVA_USER = {
   phone: '',
   password: '',
   passwordMask: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
-  tier: 'free', /* 'free' | 'pro' */
+  tier: (_storedUser && _storedUser.tier) || 'free',
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
@@ -211,7 +211,7 @@ async function logoutUser() {
   } finally {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = 'landing.html';
+    window.location.href = 'index.html';
   }
 }
 
@@ -219,7 +219,7 @@ function handleSidebarAccountAction(action) {
   closeSidebarAccountMenu();
   if (action === 'profile') openEditProfile();
   if (action === 'accessibility') openSettings('accessibility');
-  if (action === 'plan') openSettings('plan');
+  if (action === 'plan') window.location.href = 'billing.html';
   if (action === 'signout') logoutUser();
 }
 
@@ -436,11 +436,8 @@ function saveProfile() {
   syncUserUI();
 }
 function upgradeToPro() {
-  LEARNOVA_USER.tier = 'pro';
-  closeSettings();
-  showToast('Welcome to Learnova Pro!');
-  syncUserUI();
-  setTimeout(() => openSettings('plan'), 400);
+  if (typeof closeSettings === 'function') closeSettings();
+  window.location.href = 'billing.html';
 }
 
 /* â”€â”€ Profile modal â”€â”€ */
@@ -501,7 +498,7 @@ function renderSidebar(activePage) {
   <aside class="sidebar">
     <div class="sidebar-logo">Learnova</div>
     <div class="sidebar-section">Main</div>
-    <a href="index.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="index.html">
+    <a href="dashboard.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="dashboard.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
       Dashboard
     </a>
@@ -544,10 +541,29 @@ function renderSidebar(activePage) {
 
 document.addEventListener('DOMContentLoaded', () => {
   loadPrefs();
-  const page = location.pathname.split('/').pop() || 'index.html';
+  const page = location.pathname.split('/').pop() || 'dashboard.html';
   document.querySelectorAll('.sidebar-item[data-page]').forEach(el => {
     if (el.dataset.page === page) el.classList.add('active');
   });
+
+  // Silently revalidate tier from DB on every page load
+  const token = localStorage.getItem('token');
+  if (token) {
+    fetch('/api/auth/profile', { headers: { 'Authorization': 'Bearer ' + token } })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        const freshTier = data.tier || 'free';
+        if (freshTier !== LEARNOVA_USER.tier) {
+          LEARNOVA_USER.tier = freshTier;
+          const stored = JSON.parse(localStorage.getItem('user') || '{}');
+          stored.tier = freshTier;
+          localStorage.setItem('user', JSON.stringify(stored));
+          syncUserUI();
+        }
+      })
+      .catch(() => {/* network error — keep showing cached value */});
+  }
 });
 
 document.addEventListener('click', (event) => {
