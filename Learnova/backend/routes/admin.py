@@ -122,14 +122,33 @@ async def admin_all_history(
     cursor = history_collection.find({}).sort("uploadedAt", -1).skip(skip).limit(limit)
     items = await cursor.to_list(length=limit)
     total = await history_collection.count_documents({})
+
+    # Batch-load user names/emails
+    raw_ids = [item.get("userId") for item in items if item.get("userId")]
+    oid_list = []
+    for uid in raw_ids:
+        try:
+            oid_list.append(ObjectId(uid))
+        except Exception:
+            pass
+    user_map = {}
+    if oid_list:
+        async for u in users_collection.find({"_id": {"$in": oid_list}}, {"name": 1, "email": 1}):
+            user_map[str(u["_id"])] = {"name": u.get("name", ""), "email": u.get("email", "")}
+
     result = []
     for item in items:
         d = dict(item)
         d["_id"] = str(d["_id"])
-        d.pop("quizFull", None)
-        d.pop("summary", None)
+        d.pop("quizFull", None)          # too heavy for list view
         if isinstance(d.get("uploadedAt"), datetime):
             d["uploadedAt"] = d["uploadedAt"].isoformat()
+        if isinstance(d.get("completedAt"), datetime):
+            d["completedAt"] = d["completedAt"].isoformat()
+        uid = d.get("userId", "")
+        u_info = user_map.get(uid, {})
+        d["userName"] = u_info.get("name", "Unknown")
+        d["userEmail"] = u_info.get("email", "")
         result.append(d)
     return {"items": result, "total": total, "page": page, "limit": limit}
 

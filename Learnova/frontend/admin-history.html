@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learnova — Admin · History</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/admin-sidebar.js"></script>
+</head>
+<body>
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="adminSidebar"></aside>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1>Upload History</h1>
+        <p>All document uploads across the platform</p>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- Filter bar -->
+      <div class="filter-bar" style="margin-bottom:16px">
+        <div class="search-wrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input class="search-input" type="text" placeholder="Search by document title or user…" id="searchInput" oninput="applyFilter()">
+        </div>
+        <select class="filter-select" id="statusFilter" onchange="applyFilter()">
+          <option value="">All Status</option>
+          <option value="done">Quiz done</option>
+          <option value="pending">No quiz yet</option>
+        </select>
+        <span class="filter-count" id="filterCount">Loading…</span>
+      </div>
+
+      <!-- History list -->
+      <div style="display:flex;flex-direction:column;gap:8px" id="historyList">
+        <div class="history-item" style="justify-content:center;padding:32px;font-size:13px;color:var(--cream-25)">Loading…</div>
+      </div>
+
+      <!-- Pagination -->
+      <div class="pagination" id="paginationWrap" style="margin-top:20px">
+        <span class="page-info" id="pageInfo">Page 1</span>
+        <div class="page-btns" id="pageBtns"></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <div class="toast-icon success" id="toastIcon">
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+  </div>
+  <span id="toastMsg">Done</span>
+</div>
+
+<!-- Summary modal -->
+<div class="sum-modal-backdrop" id="sumBackdrop" onclick="if(event.target===this)closeSumModal()">
+  <div class="sum-modal">
+    <div class="sum-modal-head">
+      <div class="sum-modal-title" id="sumModalTitle"></div>
+      <button class="sum-modal-close" onclick="closeSumModal()">✕</button>
+    </div>
+    <div class="sum-modal-body" id="sumModalBody"></div>
+  </div>
+</div>
+
+<script>
+/* ── State ─────────────────────────────────────────────────────────────────── */
+var ALL_ITEMS   = [];
+var FILT_ITEMS  = [];
+var _store      = {};     // id → full item, for modal lookup
+var currentPage = 1;
+var totalItems  = 0;
+var PAGE_SIZE   = 20;
+
+/* ── Fetch ─────────────────────────────────────────────────────────────────── */
+async function fetchHistory(page) {
+  page = page || 1;
+  try {
+    var res = await fetch('/api/admin/history?page=' + page + '&limit=' + PAGE_SIZE, { headers: AUTH });
+    if (res.status === 401 || res.status === 403) { window.location.href = 'index.html'; return; }
+    var data = await res.json();
+    ALL_ITEMS  = data.items || [];
+    totalItems = data.total || ALL_ITEMS.length;
+    currentPage = data.page || page;
+    ALL_ITEMS.forEach(function(h) { _store[h._id] = h; });
+    applyFilter();
+    renderPagination();
+  } catch (e) {
+    document.getElementById('historyList').innerHTML =
+      '<div class="history-item" style="padding:32px;text-align:center;font-size:13px;color:var(--cream-25)">Failed to load — check your connection</div>';
+  }
+}
+
+/* ── Filter ────────────────────────────────────────────────────────────────── */
+function applyFilter() {
+  var search = document.getElementById('searchInput').value.toLowerCase();
+  var status = document.getElementById('statusFilter').value;
+  FILT_ITEMS = ALL_ITEMS.filter(function(h) {
+    var ms = !search ||
+      (h.title  || '').toLowerCase().includes(search) ||
+      (h.userName  || '').toLowerCase().includes(search) ||
+      (h.userEmail || '').toLowerCase().includes(search);
+    var mst = !status ||
+      (status === 'done'    && h.done) ||
+      (status === 'pending' && !h.done);
+    return ms && mst;
+  });
+  document.getElementById('filterCount').textContent =
+    'Showing ' + FILT_ITEMS.length + ' of ' + totalItems + ' uploads';
+  renderList();
+}
+
+/* ── Render list ───────────────────────────────────────────────────────────── */
+function renderList() {
+  var el = document.getElementById('historyList');
+  if (!FILT_ITEMS.length) {
+    el.innerHTML = '<div class="history-item" style="padding:32px;text-align:center;font-size:13px;color:var(--cream-25);font-style:italic">No uploads match the current filter.</div>';
+    return;
+  }
+  el.innerHTML = FILT_ITEMS.map(function(h) {
+    var hid      = h._id;
+    var an       = h.analysis || {};
+    var strengths  = an.strengths  || [];
+    var weaknesses = an.weaknesses || [];
+    var studyNext  = an.studyNext  || [];
+    var dateLabel  = h.uploadedAt
+      ? new Date(h.uploadedAt).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' })
+      : '';
+    var uInitials  = (h.userName || 'U').split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2);
+
+    var expandedHtml = h.done
+      ? '<div class="mini-result">'
+        + '  <div class="mr-top">'
+        + '    <div>'
+        + '      <div class="mr-score">' + h.score + '%</div>'
+        + '      <div class="mr-correct">' + h.correct + ' of ' + h.total + ' correct</div>'
+        + '    </div>'
+        + '    <div style="flex:1">'
+        + (strengths.length  ? '<div class="mr-section">Strengths</div><div class="mr-tags">' + strengths.map(function(s){ return '<span class="badge badge-green">' + escHtml(s) + '</span>'; }).join('') + '</div>' : '')
+        + (weaknesses.length ? '<div class="mr-section">Needs work</div><div class="mr-tags">' + weaknesses.map(function(s){ return '<span class="badge badge-red">' + escHtml(s) + '</span>'; }).join('') + '</div>' : '')
+        + (studyNext.length  ? '<div class="mr-section">Study next</div><div class="mr-tags">' + studyNext.map(function(s){ return '<span class="badge badge-gold">' + escHtml(s) + '</span>'; }).join('') + '</div>' : '')
+        + '    </div>'
+        + '  </div>'
+        + '  <div class="mr-actions" onclick="event.stopPropagation()">'
+        + '    <button class="btn" onclick="event.stopPropagation();openSumModal(\'' + hid + '\')">View Summary</button>'
+        + '  </div>'
+        + '</div>'
+      : '';
+
+    return '<div class="history-item history-item-anim" id="ahi-' + hid + '" onclick="toggleItem(\'' + hid + '\')">'
+      + '  <div class="hi-row">'
+      + '    <div class="hi-left">'
+      + '      <div class="hi-dot' + (h.done ? ' done' : '') + '"></div>'
+      + '      <div style="min-width:0;flex:1">'
+      + '        <div class="hi-title">' + escHtml(h.title || 'Untitled') + '</div>'
+      + '        <div class="hi-meta" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      + '          <div style="display:flex;align-items:center;gap:5px">'
+      + '            <div style="width:18px;height:18px;border-radius:50%;background:rgba(200,184,154,0.15);color:var(--gold);font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0">' + escHtml(uInitials) + '</div>'
+      + '            <span style="color:var(--cream-40)">' + escHtml(h.userName || 'Unknown') + '</span>'
+      + '          </div>'
+      + '          <span style="color:var(--border-md)">·</span>'
+      + '          <span>' + escHtml(h.fileType || 'File') + (dateLabel ? ' · ' + dateLabel : '') + '</span>'
+      + '        </div>'
+      + '      </div>'
+      + '    </div>'
+      + '    <div class="hi-right">'
+      + '      <div class="hi-score' + (!h.done ? ' na' : '') + '">' + (h.done ? h.score + '%' : 'No quiz yet') + '</div>'
+      + '      <span class="hi-chevron">▾</span>'
+      + '    </div>'
+      + '  </div>'
+      + expandedHtml
+      + '</div>';
+  }).join('');
+}
+
+function getSummarySnippet(h) {
+  var summary = h.summary || {};
+  var body = summary.body;
+  if (!body) return 'No summary available.';
+  var text = Array.isArray(body) ? body[0] : body;
+  return text ? (text.length > 200 ? text.slice(0, 200) + '…' : text) : 'No summary available.';
+}
+
+/* ── Toggle expand ─────────────────────────────────────────────────────────── */
+function toggleItem(id) {
+  var el = document.getElementById('ahi-' + id);
+  var wasOpen = el.classList.contains('open');
+  document.querySelectorAll('.history-item').forEach(function(e) { e.classList.remove('open'); });
+  if (!wasOpen) el.classList.add('open');
+}
+
+/* ── Pagination ────────────────────────────────────────────────────────────── */
+function renderPagination() {
+  var totalPages = Math.ceil(totalItems / PAGE_SIZE);
+  document.getElementById('pageInfo').textContent = 'Page ' + currentPage + ' of ' + totalPages;
+  var container = document.getElementById('pageBtns');
+  container.innerHTML = '';
+
+  var prev = document.createElement('button');
+  prev.className = 'page-btn';
+  prev.textContent = '‹';
+  prev.disabled = currentPage <= 1;
+  prev.onclick = function() { if (currentPage > 1) fetchHistory(currentPage - 1); };
+  container.appendChild(prev);
+
+  var start = Math.max(1, currentPage - 2);
+  var end   = Math.min(totalPages, start + 4);
+  for (var i = start; i <= end; i++) {
+    (function(_i) {
+      var btn = document.createElement('button');
+      btn.className = 'page-btn' + (_i === currentPage ? ' active' : '');
+      btn.textContent = _i;
+      btn.onclick = function() { fetchHistory(_i); };
+      container.appendChild(btn);
+    })(i);
+  }
+
+  var next = document.createElement('button');
+  next.className = 'page-btn';
+  next.textContent = '›';
+  next.disabled = currentPage >= totalPages;
+  next.onclick = function() { if (currentPage < totalPages) fetchHistory(currentPage + 1); };
+  container.appendChild(next);
+}
+
+/* ── Summary modal ─────────────────────────────────────────────────────────── */
+function openSumModal(id) {
+  var h = _store[id] || {};
+  var summary = h.summary || {};
+  var body = summary.body
+    ? (Array.isArray(summary.body) ? summary.body : [summary.body])
+    : [];
+  var takeaways = summary.takeaways
+    ? (Array.isArray(summary.takeaways) ? summary.takeaways : [summary.takeaways])
+    : [];
+  document.getElementById('sumModalTitle').textContent = h.title || 'Summary';
+  document.getElementById('sumModalBody').innerHTML =
+    '<div class="sum-modal-badge">AI Summary</div>' +
+    body.map(function(p) { return '<p class="sum-modal-para">' + escHtml(p) + '</p>'; }).join('') +
+    (takeaways.length
+      ? '<div><div class="sum-modal-kp-label">Key takeaways</div><div class="sum-modal-kp">'
+        + takeaways.map(function(t) {
+            return '<div class="sum-modal-kp-item"><span class="sum-modal-kp-dash">—</span><span>' + escHtml(t) + '</span></div>';
+          }).join('')
+        + '</div></div>'
+      : '') +
+    (!body.length && !takeaways.length
+      ? '<p class="sum-modal-para" style="color:var(--cream-25);font-style:italic">No summary available for this document.</p>'
+      : '');
+  document.getElementById('sumBackdrop').classList.add('open');
+}
+
+function closeSumModal() {
+  document.getElementById('sumBackdrop').classList.remove('open');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeSumModal();
+});
+
+/* ── Toast ─────────────────────────────────────────────────────────────────── */
+function showToast(msg, type) {
+  var toast = document.getElementById('toast');
+  document.getElementById('toastMsg').textContent = msg;
+  document.getElementById('toastIcon').className = 'toast-icon ' + (type || 'success');
+  toast.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function() { toast.classList.remove('show'); }, 3000);
+}
+
+/* ── Helpers ───────────────────────────────────────────────────────────────── */
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── Init ──────────────────────────────────────────────────────────────────── */
+fetchHistory(1);
+</script>
+</body>
+</html>
