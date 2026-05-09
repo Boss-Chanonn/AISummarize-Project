@@ -1,96 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova — Confirm Order</title>
+  <title>Learnova â€” Confirm Order</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .confirm-shell {
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    .confirm-summary-box {
-      background: var(--cream-05);
-      border: 0.5px solid var(--gold-dim);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      margin-bottom: 24px;
-    }
-    .confirm-summary-title {
-      font-size: 12px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: var(--cream-25);
-      margin-bottom: 16px;
-    }
-    .confirm-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 10px 0;
-      border-bottom: 0.5px solid var(--border);
-    }
-    .confirm-row:last-child { border-bottom: none; }
-    .confirm-row-label { font-size: 12px; color: var(--cream-25); }
-    .confirm-row-value { font-size: 13px; color: var(--cream-60); text-align: right; }
-    .confirm-row-value.gold { color: var(--gold); font-weight: 600; }
-
-    .confirm-total-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 18px;
-      padding-top: 18px;
-      border-top: 0.5px solid var(--border-md);
-    }
-    .confirm-total-label { font-size: 13px; color: var(--cream-60); font-weight: 600; }
-    .confirm-total-amount {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--gold);
-      font-family: var(--serif);
-    }
-
-    .confirm-buttons {
-      display: flex;
-      gap: 12px;
-    }
-    .confirm-buttons .btn { flex: 1; justify-content: center; }
-
-    .confirm-error {
-      font-size: 12px;
-      color: #e57373;
-      margin-top: 10px;
-      display: none;
-      text-align: center;
-    }
-    .confirm-error.show { display: block; }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--cream-25);
-      text-decoration: none;
-      margin-bottom: 20px;
-      transition: color 0.15s;
-    }
-    .back-link:hover { color: var(--cream-60); }
-
-    .lock-note {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--cream-25);
-      margin-top: 14px;
-    }
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -105,36 +19,36 @@
     </div>
 
     <div class="confirm-shell fade-up fade-up-1 reveal reveal-delay-1">
-      <a href="payment.html" class="back-link">← Back to payment</a>
+      <a href="payment.html" class="back-link">â† Back to payment</a>
 
       <div class="confirm-summary-box">
         <div class="confirm-summary-title">Order Summary</div>
         <div class="confirm-row">
           <span class="confirm-row-label">Plan</span>
-          <span class="confirm-row-value gold" id="summary-plan">—</span>
+          <span class="confirm-row-value gold" id="summary-plan">â€”</span>
         </div>
         <div class="confirm-row">
           <span class="confirm-row-label">Card</span>
-          <span class="confirm-row-value" id="summary-card">—</span>
+          <span class="confirm-row-value" id="summary-card">â€”</span>
         </div>
         <div class="confirm-row">
           <span class="confirm-row-label">Name</span>
-          <span class="confirm-row-value" id="summary-name">—</span>
+          <span class="confirm-row-value" id="summary-name">â€”</span>
         </div>
         <div class="confirm-total-row">
           <span class="confirm-total-label">Total due today</span>
-          <span class="confirm-total-amount" id="summary-amount">—</span>
+          <span class="confirm-total-amount" id="summary-amount">â€”</span>
         </div>
       </div>
 
       <div class="confirm-buttons">
-        <a href="payment.html" class="btn" style="text-decoration:none;display:flex;align-items:center;">← Back</a>
+        <a href="payment.html" class="btn" style="text-decoration:none;display:flex;align-items:center;">â† Back</a>
         <button class="btn btn-primary" id="btn-confirm" onclick="submitPayment()">
           Confirm &amp; Pay
         </button>
       </div>
       <div class="confirm-error" id="confirm-error">Payment failed. Please try again.</div>
-      <div class="lock-note">🔒 Mock payment — no real charges will be made</div>
+      <div class="lock-note">ðŸ”’ Mock payment â€” no real charges will be made</div>
     </div>
 
   </main>
@@ -168,11 +82,11 @@
     const period   = isYearly ? '/year' : '/month';
 
     document.getElementById('summary-plan').textContent =
-      'Learnova Pro ✨ — ' + (isYearly ? 'Yearly' : 'Monthly');
+      'Learnova Pro âœ¨ â€” ' + (isYearly ? 'Yearly' : 'Monthly');
     document.getElementById('summary-card').textContent =
-      '•••• •••• •••• ' + (paymentData.card_last4 || '????');
+      'â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ ' + (paymentData.card_last4 || '????');
     document.getElementById('summary-name').textContent =
-      paymentData.card_name || '—';
+      paymentData.card_name || 'â€”';
     document.getElementById('summary-amount').textContent = amount + period;
   })();
 

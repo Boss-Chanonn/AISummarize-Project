@@ -1,103 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova — Upload Document</title>
+  <title>Learnova â€” Upload Document</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .upload-layout{display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:calc(100vh - 80px)}
-    .panel{padding:36px 40px}
-    .panel-left{border-right:0.5px solid var(--border);background:linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))}
-    .panel-right{background:linear-gradient(180deg, rgba(240,237,232,0.045), rgba(240,237,232,0.02))}
-    .upload-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-    .upload-input-shell{transition:grid-template-rows 0.35s cubic-bezier(0.16,1,0.3,1),opacity 0.25s ease}
-    .upload-input-shell-inner{overflow:hidden}
-    .upload-summary-shell{display:none}
-    .panel-left.summary-mode .upload-input-shell{display:none!important}
-    .panel-left.summary-mode .upload-summary-shell{display:block}
-    .panel-left.compact .upload-summary-shell{display:none}
-    .panel-left.compact .upload-input-shell{grid-template-rows:0fr;opacity:0}
-    .panel-left.compact .upload-panel-head{margin-bottom:0}
-    .upload-compact-file{display:none;padding:14px 16px;border:0.5px solid rgba(200,184,154,0.22);background:rgba(200,184,154,0.06);border-radius:var(--radius-md);align-items:center;gap:12px;animation:fadeUp 0.22s ease}
-    .panel-left.compact .upload-compact-file{display:flex}
-    .upload-compact-file.live{box-shadow:0 10px 30px rgba(0,0,0,0.12);transform:translateY(0);transition:box-shadow 0.28s ease,transform 0.28s ease}
-    .compact-file-name{font-size:13px;color:var(--cream-60);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .compact-file-meta{font-size:11px;color:var(--cream-25);margin-top:2px}
-    .doc-info-card{display:flex;align-items:center;gap:18px;padding:22px;border:0.5px solid rgba(200,184,154,0.22);background:rgba(200,184,154,0.06);border-radius:var(--radius-lg);margin-bottom:26px}
-    .doc-info-main{min-width:0;flex:1}
-    .doc-info-name{font-size:14px;color:var(--cream);font-weight:500}
-    .doc-info-meta{font-size:12px;color:var(--cream-25);margin-top:6px}
-    .doc-info-rows{display:flex;flex-direction:column}
-    .doc-info-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:0.5px solid var(--border)}
-    .doc-info-row:last-child{border-bottom:none}
-    .doc-info-key{font-size:11px;color:var(--cream-25)}
-    .doc-info-value{font-size:13px;color:var(--cream-60);text-align:right}
-    .doc-upload-btn{width:100%;justify-content:center;margin-top:28px}
-    .upload-zone{border:0.5px dashed var(--border-md);border-radius:var(--radius-md);padding:44px 28px;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;margin-bottom:18px}
-    .upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(200,184,154,0.03)}
-    .upload-icon{margin:0 auto 16px;opacity:0.3;display:block}
-    .upload-main{font-size:14px;color:var(--cream-60);margin-bottom:5px}
-    .upload-sub{font-size:12px;color:var(--cream-25)}
-    #file-input{display:none}
-    .or-divider{display:flex;align-items:center;gap:12px;margin:14px 0}
-    .or-line{flex:1;height:0.5px;background:var(--border)}
-    .or-text{font-size:11px;color:var(--cream-25)}
-    .file-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
-    .file-attached{display:flex;align-items:center;gap:10px;padding:10px 13px;background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.22);border-radius:var(--radius-md)}
-    .file-icon-box{width:28px;height:32px;background:rgba(200,184,154,0.12);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--gold);flex-shrink:0}
-    .file-name{font-size:12px;color:var(--cream-60);flex:1}
-    .file-size{font-size:11px;color:var(--cream-25)}
-    .file-remove{background:none;border:none;color:var(--cream-25);font-size:14px;cursor:pointer;padding:2px 4px}
-    .file-remove:hover{color:var(--red-soft)}
-    /* Pro gate banner */
-    .pro-gate{background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.22);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    .pro-gate-text{font-size:12px;color:var(--gold)}
-    .loading-state{text-align:center;padding:60px 20px}
-    .loading-spinner{width:28px;height:28px;border:1.5px solid var(--border-md);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .loading-text{font-size:14px;color:var(--cream-40);font-family:var(--serif);font-style:italic}
-    .loading-shell{max-width:420px;margin:0 auto}
-    .loading-label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-25);margin-bottom:10px}
-    .loading-bar{height:5px;border-radius:999px;background:var(--cream-10);overflow:hidden;margin:18px 0 14px}
-    .loading-bar-fill{height:100%;width:0;background:linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 70%, #fff 30%));border-radius:999px;transition:width 0.35s cubic-bezier(0.16,1,0.3,1)}
-    .loading-pct{font-size:12px;color:var(--gold);font-family:var(--serif);margin-bottom:16px}
-    .loading-steps{display:flex;flex-direction:column;gap:8px;text-align:left}
-    .loading-step{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--cream-25);padding:9px 12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--cream-05)}
-    .loading-step.active{color:var(--cream-60);border-color:rgba(200,184,154,0.24);background:rgba(200,184,154,0.06)}
-    .loading-step.done{color:var(--green);border-color:rgba(107,158,107,0.22);background:rgba(107,158,107,0.05)}
-    .loading-step-dot{width:8px;height:8px;border-radius:50%;background:var(--cream-25);flex-shrink:0}
-    .loading-step.active .loading-step-dot{background:var(--gold);box-shadow:0 0 0 6px rgba(200,184,154,0.08)}
-    .loading-step.done .loading-step-dot{background:var(--green)}
-    .empty-state{text-align:center;padding:60px 20px}
-    .empty-icon{opacity:0.15;margin:0 auto 16px;display:block}
-    .empty-text{font-size:14px;color:var(--cream-25);font-family:var(--serif);font-style:italic}
-    .empty-sub{font-size:12px;color:var(--cream-25);margin-top:6px;opacity:0.6}
-
-    /* Quiz styles */
-    .quiz-container{padding:0}
-    .quiz-q-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-    .quiz-q-num{font-size:11px;color:var(--cream-25);letter-spacing:0.5px}
-    .quiz-q-prog{height:2px;background:var(--border);border-radius:1px;margin-bottom:28px}
-    .quiz-q-prog-fill{height:2px;background:var(--gold);border-radius:1px;transition:width 0.3s}
-    .quiz-question{font-family:var(--serif);font-size:18px;font-weight:400;letter-spacing:-0.3px;line-height:1.4;margin-bottom:24px;color:var(--cream)}
-    .quiz-options{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
-    .quiz-opt{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.15s,background 0.15s;text-align:left;width:100%;color:var(--cream-60);font-size:13px;font-family:var(--sans);line-height:1.45}
-    .quiz-opt:hover{border-color:var(--gold);color:var(--cream)}
-    .quiz-opt.selected{border-color:var(--gold);background:rgba(200,184,154,0.07);color:var(--cream)}
-    .quiz-opt.correct{border-color:var(--green);background:rgba(107,158,107,0.08);color:var(--cream)}
-    .quiz-opt.wrong{border-color:var(--red-soft);background:rgba(200,120,80,0.06);color:var(--cream)}
-    .opt-letter{width:22px;height:22px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin-top:1px}
-    .quiz-opt.selected .opt-letter{background:var(--gold);color:var(--bg)}
-    .quiz-opt.correct .opt-letter{background:var(--green);color:#fff}
-    .quiz-opt.wrong .opt-letter{background:var(--red-soft);color:#fff}
-    .quiz-nav{display:flex;justify-content:space-between;align-items:center}
-    .quiz-feedback-inline{margin-top:12px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;line-height:1.6;display:none}
-    .quiz-feedback-inline.correct{background:rgba(107,158,107,0.08);border:0.5px solid rgba(107,158,107,0.22);color:var(--green);display:block}
-    .quiz-feedback-inline.wrong{background:rgba(200,120,80,0.06);border:0.5px solid rgba(200,120,80,0.2);color:var(--red-soft);display:block}
-
-    @media(max-width:860px){.upload-layout{grid-template-columns:1fr}.panel-left{border-right:none;border-bottom:0.5px solid var(--border)}}
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -111,7 +18,7 @@
       </div>
       <div style="display:flex;gap:10px" id="top-actions">
         <button class="btn" id="btn-rescan" style="display:none" onclick="resetUpload()">New upload</button>
-        <button class="btn btn-primary" id="btn-quiz" style="display:none" onclick="startQuiz()">Start quiz →</button>
+        <button class="btn btn-primary" id="btn-quiz" style="display:none" onclick="startQuiz()">Start quiz â†’</button>
       </div>
     </div>
 
@@ -133,7 +40,7 @@
           <div class="upload-input-shell-inner">
             <!-- Pro multi-file gate -->
             <div id="pro-gate-banner" style="display:none" class="pro-gate">
-              <span class="pro-gate-text">Multi-file &amp; PPTX upload — Pro feature</span>
+              <span class="pro-gate-text">Multi-file &amp; PPTX upload â€” Pro feature</span>
               <button class="btn btn-gold" style="padding:5px 12px;font-size:11px" onclick="openSettings('plan')">Upgrade</button>
             </div>
 
@@ -144,17 +51,17 @@
                 <path d="M8 28h20"/><path d="M6 10a4 4 0 014-4h16a4 4 0 014 4"/>
               </svg>
               <div class="upload-main" id="upload-main-text">Drop your file here</div>
-              <div class="upload-sub" id="upload-sub-text">PDF or TXT · up to 10 MB</div>
+              <div class="upload-sub" id="upload-sub-text">PDF or TXT Â· up to 10 MB</div>
             </div>
             <input type="file" id="file-input" accept=".pdf,.txt" onchange="handleFileInput(this.files)"/>
 
             <div class="or-divider"><div class="or-line"></div><span class="or-text">or paste text</span><div class="or-line"></div></div>
-            <textarea class="input" id="paste-area" rows="4" placeholder="Paste text of your article or notes here…" style="resize:vertical" oninput="checkContent()"></textarea>
+            <textarea class="input" id="paste-area" rows="4" placeholder="Paste text of your article or notes hereâ€¦" style="resize:vertical" oninput="checkContent()"></textarea>
 
             <div class="file-list" id="file-list"></div>
 
             <button class="btn btn-primary" id="btn-process" style="width:100%;justify-content:center;margin-top:16px;display:none" onclick="processDocument()">
-              Summarise with AI →
+              Summarise with AI â†’
             </button>
           </div>
         </div>
@@ -190,14 +97,14 @@ function updateUploadUI() {
   const fileInput = document.getElementById('file-input');
   if (isPro()) {
     fileInput.accept = '.pdf,.txt,.pptx,.ppt';
-    document.getElementById('upload-sub-text').textContent = 'PDF, TXT, PPTX · up to 10 MB · multiple files supported';
+    document.getElementById('upload-sub-text').textContent = 'PDF, TXT, PPTX Â· up to 10 MB Â· multiple files supported';
     fileInput.multiple = true;
     gate.style.display = 'none';
   } else {
     fileInput.accept = '.pdf,.txt';
     fileInput.multiple = false;
     gate.style.display = 'flex';
-    document.getElementById('upload-sub-text').textContent = 'PDF or TXT · up to 10 MB (free plan)';
+    document.getElementById('upload-sub-text').textContent = 'PDF or TXT Â· up to 10 MB (free plan)';
   }
 }
 
@@ -230,7 +137,7 @@ function renderFileList() {
     return `<div class="file-attached">
       <div class="file-icon-box" style="color:${extColor(ext.toLowerCase())}">${ext}</div>
       <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div><div class="file-size">${(f.size/1024).toFixed(0)} KB</div></div>
-      <button class="file-remove" onclick="removeFile(${i})">✕</button>
+      <button class="file-remove" onclick="removeFile(${i})">âœ•</button>
     </div>`;
   }).join('');
   syncCompactFile();
@@ -288,7 +195,7 @@ function buildPastedSummary(pasted) {
   return {
     id: currentDoc.id || 1,
     title: 'Pasted text',
-    meta: `.txt · ${formatChars(charCount)}`,
+    meta: `.txt Â· ${formatChars(charCount)}`,
     fileType: 'TXT',
     pageCount: 1,
     score: null,
@@ -305,7 +212,7 @@ function buildPastedSummary(pasted) {
     summary: {
       pages: '1 pages condensed',
       title: 'Pasted Text',
-      authors: 'Uploaded document · 2026',
+      authors: 'Uploaded document Â· 2026',
       body: [
         'This 1-page document explores the subject matter presented in "Pasted text". The AI has processed the full text and identified the core themes and arguments.',
         'The document presents a structured analysis with clear sections covering background, methodology (where applicable), findings, and recommendations for further study or practice.',
@@ -333,7 +240,7 @@ function buildUploadedFileSummary() {
   return {
     ...currentDoc,
     title: file.name,
-    meta: `.${ext.toLowerCase()} · ${sizeLabel}`,
+    meta: `.${ext.toLowerCase()} Â· ${sizeLabel}`,
     fileType: ext,
     pageCount: currentDoc.pageCount || 1,
     infoRows: [
@@ -459,7 +366,7 @@ async function processDocument() {
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
-    showToast(e.message || 'Processing failed — please try again');
+    showToast(e.message || 'Processing failed â€” please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
 }
@@ -470,7 +377,7 @@ function showProcessingState() {
       <div class="loading-shell">
         <div class="loading-label">Processing document</div>
         <div class="loading-spinner"></div>
-        <div class="loading-text" id="loading-text">Reading your document…</div>
+        <div class="loading-text" id="loading-text">Reading your documentâ€¦</div>
         <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
         <div class="loading-pct" id="loading-pct">0%</div>
         <div class="loading-steps" id="loading-steps">
@@ -487,10 +394,10 @@ function showProcessingState() {
 
 function updateProcessingState(progress, activeIndex) {
   const labels = [
-    'Reading your document…',
-    'Finding the most relevant ideas…',
-    'Writing your summary and quiz…',
-    'Almost ready…'
+    'Reading your documentâ€¦',
+    'Finding the most relevant ideasâ€¦',
+    'Writing your summary and quizâ€¦',
+    'Almost readyâ€¦'
   ];
   const bar = document.getElementById('loading-bar-fill');
   const pct = document.getElementById('loading-pct');
@@ -509,7 +416,7 @@ function showSummary(data) {
   quizData = data.quizData || data.quizFull || [];
   setSummaryMode(true);
   renderDocumentInfo();
-  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, { ctaLabel: 'Take quiz →', ctaHandler: 'startQuiz()', ctaHint: quizData.length + ' questions ready' })}</div>`;
+  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, { ctaLabel: 'Take quiz â†’', ctaHandler: 'startQuiz()', ctaHint: quizData.length + ' questions ready' })}</div>`;
   if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), summaryHTML, 'backward');
   else document.getElementById('right-panel').innerHTML = summaryHTML;
   syncCompactFile();
@@ -541,7 +448,7 @@ function renderQuestion(direction='forward') {
       <div class="quiz-nav">
         <button class="btn" onclick="skipQuestion()" id="btn-skip" style="font-size:12px">Skip</button>
         <button class="btn btn-primary" id="btn-next" style="display:none" onclick="nextQuestion()">
-          ${currentQ+1 < quizData.length ? 'Next question →' : 'See results →'}
+          ${currentQ+1 < quizData.length ? 'Next question â†’' : 'See results â†’'}
         </button>
       </div>
     </div>`;
@@ -560,7 +467,7 @@ function selectAnswer(i) {
     else if (j === i && i !== q.correct) el.classList.add('wrong');
     el.style.pointerEvents = 'none';
   });
-  if (i === q.correct) { fb.className='quiz-feedback-inline correct'; fb.textContent='Correct — '+q.explanation; }
+  if (i === q.correct) { fb.className='quiz-feedback-inline correct'; fb.textContent='Correct â€” '+q.explanation; }
   else { fb.className='quiz-feedback-inline wrong'; fb.textContent='Incorrect. '+q.explanation; }
   document.getElementById('btn-skip').style.display = 'none';
   document.getElementById('btn-next').style.display = 'inline-flex';
@@ -591,14 +498,14 @@ async function showQuizResults() {
       ${quizData.map((q,i) => {
         const a = answers[i]; const isCorrect = a && a.chosen === a.correct;
         return `<div style="padding:10px 14px;border-radius:var(--radius-md);border:0.5px solid ${isCorrect?'rgba(107,158,107,0.22)':'rgba(200,120,80,0.18)'};background:${isCorrect?'rgba(107,158,107,0.04)':'rgba(200,120,80,0.03)'};font-size:12px">
-          <span style="color:${isCorrect?'var(--green)':'var(--red-soft)'};margin-right:8px">${isCorrect?'✓':'✗'}</span>
-          <span style="color:var(--cream-60)">${q.q.substring(0,60)}…</span>
+          <span style="color:${isCorrect?'var(--green)':'var(--red-soft)'};margin-right:8px">${isCorrect?'âœ“':'âœ—'}</span>
+          <span style="color:var(--cream-60)">${q.q.substring(0,60)}â€¦</span>
         </div>`;
       }).join('')}
     </div>
     <div style="display:flex;gap:8px;padding-top:16px;border-top:0.5px solid var(--border)" class="result-step">
       <button class="btn" onclick="startQuiz()">Retake quiz</button>
-      <button class="btn btn-primary" id="btn-full-results" disabled>Saving…</button>
+      <button class="btn btn-primary" id="btn-full-results" disabled>Savingâ€¦</button>
     </div>
     </div>`;
   if (window.LN) {
@@ -642,18 +549,18 @@ async function showQuizResults() {
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Full results →';
+      btn.textContent = 'Full results â†’';
       btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
     }
-    showToast('Quiz complete — ' + pct + '% saved');
+    showToast('Quiz complete â€” ' + pct + '% saved');
   } catch (e) {
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'Full results →';
+      btn.textContent = 'Full results â†’';
       btn.onclick = function() { window.location.href = 'results.html'; };
     }
-    showToast('Quiz complete — ' + pct + '%');
+    showToast('Quiz complete â€” ' + pct + '%');
   }
 }
 
@@ -678,7 +585,7 @@ function resetUpload() {
 
 async function loadResumedQuizFlow() {
   const params = new URLSearchParams(window.location.search);
-  const resumeId = params.get('resume'); // keep as string — MongoDB ObjectID
+  const resumeId = params.get('resume'); // keep as string â€” MongoDB ObjectID
   const mode = params.get('mode') || 'summary';
   if (!resumeId) return;
 
