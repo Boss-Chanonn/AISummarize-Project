@@ -155,7 +155,18 @@ function renderList() {
         + '    <button class="btn" onclick="event.stopPropagation();openSumModal(\'' + hid + '\')">View Summary</button>'
         + '  </div>'
         + '</div>'
-      : '';
+      : '<div class="mini-result">'
+        + '  <div class="mr-top">'
+        + '    <div>'
+        + '      <div class="mr-score" style="font-size:18px">No quiz yet</div>'
+        + '      <div class="mr-correct">This upload has not been taken as a quiz</div>'
+        + '    </div>'
+        + '    <div style="flex:1"></div>'
+        + '  </div>'
+        + '  <div class="mr-actions" style="justify-content:center;gap:10px;margin-top:14px" onclick="event.stopPropagation()">'
+        + '    <button class="btn" onclick="event.stopPropagation();openSumModal(\'' + hid + '\')">View Summary</button>'
+        + '  </div>'
+        + '</div>';
 
     return '<div class="history-item history-item-anim" id="ahi-' + hid + '" onclick="toggleItem(\'' + hid + '\')">'
       + '  <div class="hi-row">'
