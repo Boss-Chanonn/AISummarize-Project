@@ -1,0 +1,667 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova â€” Upload Document</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content" style="padding:0">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:0.5px solid var(--border);background:radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.07), transparent 42%), linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-25)">
+        <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
+        <span style="color:var(--border-md)">/</span>
+        <span style="color:var(--cream-60)" id="breadcrumb-cur">New document</span>
+      </div>
+      <div style="display:flex;gap:10px" id="top-actions">
+        <button class="btn" id="btn-rescan" style="display:none" onclick="resetUpload()">New upload</button>
+        <button class="btn btn-primary" id="btn-quiz" style="display:none" onclick="startQuiz()">Start quiz â†’</button>
+      </div>
+    </div>
+
+    <div class="upload-layout">
+      <div class="panel panel-left fade-up">
+        <div class="upload-panel-head">
+          <div class="section-label" style="margin:0" id="upload-panel-label">Upload document</div>
+        </div>
+        <div class="upload-compact-file" id="upload-compact-file">
+          <div class="file-icon-box" id="compact-file-icon">PDF</div>
+          <div style="min-width:0;flex:1">
+            <div class="compact-file-name" id="compact-file-name">Document ready</div>
+            <div class="compact-file-meta" id="compact-file-meta">Quiz in progress</div>
+          </div>
+        </div>
+        <div class="upload-summary-shell" id="upload-summary-shell"></div>
+
+        <div class="upload-input-shell" id="upload-input-shell" style="display:grid;grid-template-rows:1fr">
+          <div class="upload-input-shell-inner">
+            <!-- Pro multi-file gate -->
+            <div id="pro-gate-banner" style="display:none" class="pro-gate">
+              <span class="pro-gate-text">Multi-file &amp; PPTX upload â€” Pro feature</span>
+              <button class="btn btn-gold" style="padding:5px 12px;font-size:11px" onclick="openSettings('plan')">Upgrade</button>
+            </div>
+
+            <div class="upload-zone" id="drop-zone" onclick="triggerFileInput()"
+                 ondragover="handleDrag(event,true)" ondragleave="handleDrag(event,false)" ondrop="handleDrop(event)">
+              <svg class="upload-icon" width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.1">
+                <path d="M18 26V14M12 20l6-6 6 6"/>
+                <path d="M8 28h20"/><path d="M6 10a4 4 0 014-4h16a4 4 0 014 4"/>
+              </svg>
+              <div class="upload-main" id="upload-main-text">Drop your file here</div>
+              <div class="upload-sub" id="upload-sub-text">PDF or TXT Â· up to 10 MB</div>
+            </div>
+            <input type="file" id="file-input" accept=".pdf,.txt" onchange="handleFileInput(this.files)"/>
+
+            <div class="or-divider"><div class="or-line"></div><span class="or-text">or paste text</span><div class="or-line"></div></div>
+            <textarea class="input" id="paste-area" rows="4" placeholder="Paste text of your article or notes hereâ€¦" style="resize:vertical" oninput="checkContent()"></textarea>
+
+            <div class="file-list" id="file-list"></div>
+
+            <button class="btn btn-primary" id="btn-process" style="width:100%;justify-content:center;margin-top:16px;display:none" onclick="processDocument()">
+              Summarise with AI â†’
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel panel-right fade-up fade-up-2" id="right-panel">
+        <div class="empty-state">
+          <svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1">
+            <path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/>
+          </svg>
+          <div class="empty-text">Your summary will appear here.</div>
+          <div class="empty-sub">Upload a document or paste text to begin.</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/app.js"></script>
+<script>
+document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
+
+let uploadedFiles = [];
+let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
+let resumedSession = false;
+let processingTimer = null;
+
+function isPro() { return LEARNOVA_USER.tier === 'pro'; }
+
+function updateUploadUI() {
+  const gate = document.getElementById('pro-gate-banner');
+  const fileInput = document.getElementById('file-input');
+  if (isPro()) {
+    fileInput.accept = '.pdf,.txt,.pptx,.ppt';
+    document.getElementById('upload-sub-text').textContent = 'PDF, TXT, PPTX Â· up to 10 MB Â· multiple files supported';
+    fileInput.multiple = true;
+    gate.style.display = 'none';
+  } else {
+    fileInput.accept = '.pdf,.txt';
+    fileInput.multiple = false;
+    gate.style.display = 'flex';
+    document.getElementById('upload-sub-text').textContent = 'PDF or TXT Â· up to 10 MB (free plan)';
+  }
+}
+
+function triggerFileInput() { document.getElementById('file-input').click(); }
+function handleDrag(e, entering) { e.preventDefault(); document.getElementById('drop-zone').classList.toggle('drag', entering); }
+function handleDrop(e) {
+  e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag');
+  handleFileInput(e.dataTransfer.files);
+}
+function handleFileInput(files) {
+  if (!files || !files.length) return;
+  const allowed = isPro() ? ['.pdf','.txt','.pptx','.ppt'] : ['.pdf','.txt'];
+  const newFiles = Array.from(files).filter(f => {
+    const ext = '.' + f.name.split('.').pop().toLowerCase();
+    if (!allowed.includes(ext)) { showToast(ext.toUpperCase() + ' upload requires Pro'); return false; }
+    if (f.size > 10*1024*1024) { showToast(f.name + ' exceeds 10 MB limit'); return false; }
+    return true;
+  });
+  if (!isPro() && newFiles.length > 0) uploadedFiles = [newFiles[0]];
+  else uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+  renderFileList();
+  checkContent();
+  document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected';
+}
+function renderFileList() {
+  const list = document.getElementById('file-list');
+  const extColor = ext => ext==='pptx'||ext==='ppt'?'#B89AE8':ext==='txt'?'var(--green)':'var(--gold)';
+  list.innerHTML = uploadedFiles.map((f,i) => {
+    const ext = f.name.split('.').pop().toUpperCase();
+    return `<div class="file-attached">
+      <div class="file-icon-box" style="color:${extColor(ext.toLowerCase())}">${ext}</div>
+      <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div><div class="file-size">${(f.size/1024).toFixed(0)} KB</div></div>
+      <button class="file-remove" onclick="removeFile(${i})">âœ•</button>
+    </div>`;
+  }).join('');
+  syncCompactFile();
+}
+function removeFile(i) {
+  uploadedFiles.splice(i,1);
+  renderFileList();
+  checkContent();
+  document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 0 ? 'New document' : (uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected');
+}
+function checkContent() {
+  const hasPaste = document.getElementById('paste-area').value.trim().length > 30;
+  const hasFiles = uploadedFiles.length > 0;
+  document.getElementById('btn-process').style.display = (hasPaste||hasFiles) ? 'flex' : 'none';
+  if (!hasFiles && hasPaste) document.getElementById('breadcrumb-cur').textContent = 'Pasted text';
+  if (!hasFiles && !hasPaste) document.getElementById('breadcrumb-cur').textContent = 'New document';
+  syncCompactFile();
+}
+
+let quizData = []; // populated from POST /api/upload
+
+let quizMode = false, currentQ = 0, answers = [], answered = false;
+
+function getActiveUploadLabel() {
+  if (uploadedFiles.length === 1) return uploadedFiles[0].name;
+  if (uploadedFiles.length > 1) return uploadedFiles.length + ' files selected';
+  if (resumedSession && currentDoc && currentDoc.title) return currentDoc.title;
+  const pasted = document.getElementById('paste-area').value.trim();
+  return pasted ? 'Pasted text' : 'Document ready';
+}
+
+function hasPastedText() {
+  return document.getElementById('paste-area').value.trim().length > 30;
+}
+
+function isTextOnlyUpload() {
+  return uploadedFiles.length === 0 && hasPastedText();
+}
+
+function formatChars(count) {
+  return `${count} chars`;
+}
+
+function getProcessedTime() {
+  return new Date().toLocaleTimeString('en-NZ', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }).toLowerCase();
+}
+
+function buildPastedSummary(pasted) {
+  const charCount = pasted.length;
+  const processedAt = getProcessedTime();
+  return {
+    id: currentDoc.id || 1,
+    title: 'Pasted text',
+    meta: `.txt Â· ${formatChars(charCount)}`,
+    fileType: 'TXT',
+    pageCount: 1,
+    score: null,
+    correct: null,
+    total: 8,
+    done: false,
+    infoRows: [
+      ['File type', 'TXT'],
+      ['File size', formatChars(charCount)],
+      ['Pages', '1'],
+      ['Language', 'English'],
+      ['Processed at', processedAt],
+    ],
+    summary: {
+      pages: '1 pages condensed',
+      title: 'Pasted Text',
+      authors: 'Uploaded document Â· 2026',
+      body: [
+        'This 1-page document explores the subject matter presented in "Pasted text". The AI has processed the full text and identified the core themes and arguments.',
+        'The document presents a structured analysis with clear sections covering background, methodology (where applicable), findings, and recommendations for further study or practice.',
+        'Based on the content, the author(s) advance a position supported by evidence and examples throughout. Understanding the key claims will prepare you for the comprehension quiz.'
+      ],
+      takeaways: [
+        'The document presents core ideas over 1 pages that form the basis of the quiz questions below.',
+        'Key claims are supported by evidence, examples, or theoretical frameworks drawn from the text.',
+        'Review the summary carefully before taking the quiz to maximise your comprehension score.'
+      ],
+    },
+    strengths: [],
+    weaknesses: [],
+    studyNext: [],
+    questions: [],
+  };
+}
+
+function buildUploadedFileSummary() {
+  const file = uploadedFiles[0];
+  if (!file) return { ...currentDoc };
+  const ext = file.name.split('.').pop().toUpperCase();
+  const sizeLabel = file.size < 1024 * 1024 ? `${Math.max(1, Math.round(file.size / 1024))} KB` : `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+  const processedAt = getProcessedTime();
+  return {
+    ...currentDoc,
+    title: file.name,
+    meta: `.${ext.toLowerCase()} Â· ${sizeLabel}`,
+    fileType: ext,
+    pageCount: currentDoc.pageCount || 1,
+    infoRows: [
+      ['File type', ext],
+      ['File size', sizeLabel],
+      ['Pages', String(currentDoc.pageCount || 1)],
+      ['Language', 'English'],
+      ['Processed at', processedAt],
+    ],
+  };
+}
+
+function buildCurrentDocument() {
+  if (isTextOnlyUpload()) return buildPastedSummary(document.getElementById('paste-area').value.trim());
+  if (uploadedFiles.length > 0) return buildUploadedFileSummary();
+  return { ...currentDoc };
+}
+
+function renderDocumentInfo() {
+  const mount = document.getElementById('upload-summary-shell');
+  if (!mount || !currentDoc) return;
+  mount.innerHTML = `
+    <div class="doc-info-card">
+      <div class="file-icon-box" style="width:64px;height:72px;font-size:13px">${currentDoc.fileType || 'TXT'}</div>
+      <div class="doc-info-main">
+        <div class="doc-info-name">${currentDoc.title}</div>
+        <div class="doc-info-meta">${currentDoc.meta || ''}</div>
+      </div>
+      <span class="badge badge-green">Processed</span>
+    </div>
+    <div class="doc-info-rows">
+      ${(currentDoc.infoRows || []).map(([key, value]) => `
+        <div class="doc-info-row">
+          <div class="doc-info-key">${key}</div>
+          <div class="doc-info-value">${value}</div>
+        </div>
+      `).join('')}
+    </div>
+    <button class="btn doc-upload-btn" onclick="resetUpload()">Upload new document</button>
+  `;
+}
+
+function setSummaryMode(active) {
+  const panel = document.querySelector('.panel-left');
+  panel.classList.toggle('summary-mode', active);
+  document.getElementById('upload-panel-label').textContent = active ? 'Document info' : 'Upload document';
+}
+
+function syncCompactFile() {
+  const compactName = document.getElementById('compact-file-name');
+  const compactMeta = document.getElementById('compact-file-meta');
+  const compactIcon = document.getElementById('compact-file-icon');
+  const hasFiles = uploadedFiles.length > 0;
+  const ext = hasFiles ? uploadedFiles[0].name.split('.').pop().toUpperCase() : (currentDoc.fileType || 'TXT');
+  compactIcon.textContent = ext;
+  compactName.textContent = currentDoc && currentDoc.title ? currentDoc.title : getActiveUploadLabel();
+  compactMeta.textContent = quizMode ? 'Quiz in progress' : 'Summary ready';
+}
+
+function setUploadCollapsed(collapsed) {
+  document.querySelector('.panel-left').classList.toggle('compact', collapsed);
+  syncCompactFile();
+  const compact = document.getElementById('upload-compact-file');
+  compact.classList.toggle('live', collapsed);
+}
+
+async function processDocument() {
+  showProcessingState();
+  document.getElementById('btn-process').disabled = true;
+  const file = uploadedFiles[0];
+  const hasPaste = hasPastedText();
+  const _token = localStorage.getItem('token') || '';
+
+  // Build FormData for real file upload
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+  } else if (hasPaste) {
+    const pastedText = document.getElementById('paste-area') ? document.getElementById('paste-area').value : '';
+    formData.append('text_content', pastedText);
+    formData.append('title', 'Pasted text');
+  }
+
+  let step = 0;
+  const progressMarks = [18, 42, 71, 100];
+  const animPromise = new Promise(function(resolve) {
+    processingTimer = setInterval(function() {
+      step++;
+      updateProcessingState(progressMarks[Math.min(step, progressMarks.length - 1)], step);
+      if (step >= progressMarks.length - 1) {
+        clearInterval(processingTimer);
+        processingTimer = null;
+        resolve();
+      }
+    }, 520);
+  });
+  const fetchPromise = fetch('/api/upload', {
+    method: 'POST',
+    headers: { 'Authorization': 'Bearer ' + _token },
+    body: formData
+  });
+  try {
+    const results = await Promise.all([animPromise, fetchPromise]);
+    const fetchRes = results[1];
+    const data = await fetchRes.json();
+    if (fetchRes.status === 401 || fetchRes.status === 403) {
+      localStorage.removeItem('token');
+      window.location.href = 'index.html';
+      return;
+    }
+    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
+    // Store historyId so quiz/results pages can use it
+    if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
+    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+    setTimeout(function() {
+      showSummary(data);
+      document.getElementById('btn-rescan').style.display = 'flex';
+      document.getElementById('btn-quiz').style.display = 'flex';
+      document.getElementById('btn-process').style.display = 'none';
+    }, 260);
+  } catch (e) {
+    clearInterval(processingTimer);
+    processingTimer = null;
+    document.getElementById('btn-process').disabled = false;
+    showToast(e.message || 'Processing failed â€” please try again');
+    document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
+  }
+}
+
+function showProcessingState() {
+  const html = `
+    <div class="loading-state">
+      <div class="loading-shell">
+        <div class="loading-label">Processing document</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Reading your documentâ€¦</div>
+        <div class="loading-bar"><div class="loading-bar-fill" id="loading-bar-fill"></div></div>
+        <div class="loading-pct" id="loading-pct">0%</div>
+        <div class="loading-steps" id="loading-steps">
+          <div class="loading-step active"><span class="loading-step-dot"></span><span>Reading pages and extracting content</span></div>
+          <div class="loading-step"><span class="loading-step-dot"></span><span>Identifying key concepts and themes</span></div>
+          <div class="loading-step"><span class="loading-step-dot"></span><span>Building your summary and quiz set</span></div>
+          <div class="loading-step"><span class="loading-step-dot"></span><span>Finalising learning state</span></div>
+        </div>
+      </div>
+    </div>`;
+  if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
+  else document.getElementById('right-panel').innerHTML = html;
+}
+
+function updateProcessingState(progress, activeIndex) {
+  const labels = [
+    'Reading your documentâ€¦',
+    'Finding the most relevant ideasâ€¦',
+    'Writing your summary and quizâ€¦',
+    'Almost readyâ€¦'
+  ];
+  const bar = document.getElementById('loading-bar-fill');
+  const pct = document.getElementById('loading-pct');
+  const text = document.getElementById('loading-text');
+  if (bar) bar.style.width = progress + '%';
+  if (pct) pct.textContent = progress + '%';
+  if (text) text.textContent = labels[Math.min(activeIndex, labels.length - 1)];
+  document.querySelectorAll('#loading-steps .loading-step').forEach((node, idx) => {
+    node.classList.toggle('done', idx < activeIndex);
+    node.classList.toggle('active', idx === activeIndex);
+  });
+}
+
+function showSummary(data) {
+  currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
+  quizData = data.quizData || data.quizFull || [];
+  setSummaryMode(true);
+  renderDocumentInfo();
+  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, { ctaLabel: 'Take quiz â†’', ctaHandler: 'startQuiz()', ctaHint: quizData.length + ' questions ready' })}</div>`;
+  if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), summaryHTML, 'backward');
+  else document.getElementById('right-panel').innerHTML = summaryHTML;
+  syncCompactFile();
+}
+
+function startQuiz() {
+  quizMode = true; currentQ = 0; answers = []; answered = false;
+  document.getElementById('btn-quiz').style.display = 'none';
+  setUploadCollapsed(true);
+  renderQuestion('forward');
+}
+
+function renderQuestion(direction='forward') {
+  answered = false;
+  const q = quizData[currentQ];
+  const pct = Math.round((currentQ/quizData.length)*100);
+  const html = `
+    <div class="quiz-container">
+      <div class="quiz-q-header">
+        <span class="quiz-q-num">Question ${currentQ+1} of ${quizData.length}</span>
+        <span style="font-size:11px;color:var(--cream-25)">${quizData.length - currentQ - 1} remaining</span>
+      </div>
+      <div class="quiz-q-prog"><div class="quiz-q-prog-fill" style="width:${pct}%"></div></div>
+      <div class="quiz-question">${q.q}</div>
+      <div class="quiz-options">
+        ${q.opts.map((o,i) => `<button class="quiz-opt" onclick="selectAnswer(${i})" id="opt-${i}"><span class="opt-letter">${'ABCD'[i]}</span>${o}</button>`).join('')}
+      </div>
+      <div class="quiz-feedback-inline" id="qfeedback"></div>
+      <div class="quiz-nav">
+        <button class="btn" onclick="skipQuestion()" id="btn-skip" style="font-size:12px">Skip</button>
+        <button class="btn btn-primary" id="btn-next" style="display:none" onclick="nextQuestion()">
+          ${currentQ+1 < quizData.length ? 'Next question â†’' : 'See results â†’'}
+        </button>
+      </div>
+    </div>`;
+  if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, direction);
+  else document.getElementById('right-panel').innerHTML = html;
+}
+
+function selectAnswer(i) {
+  if (answered) return;
+  answered = true;
+  const q = quizData[currentQ];
+  answers.push({ chosen: i, correct: q.correct });
+  const fb = document.getElementById('qfeedback');
+  document.querySelectorAll('.quiz-opt').forEach((el,j) => {
+    if (j === q.correct) el.classList.add('correct');
+    else if (j === i && i !== q.correct) el.classList.add('wrong');
+    el.style.pointerEvents = 'none';
+  });
+  if (i === q.correct) { fb.className='quiz-feedback-inline correct'; fb.textContent='Correct â€” '+q.explanation; }
+  else { fb.className='quiz-feedback-inline wrong'; fb.textContent='Incorrect. '+q.explanation; }
+  document.getElementById('btn-skip').style.display = 'none';
+  document.getElementById('btn-next').style.display = 'inline-flex';
+}
+function skipQuestion() { answers.push({ chosen:-1, correct:quizData[currentQ].correct }); nextQuestion(); }
+function nextQuestion() {
+  currentQ++;
+  if (currentQ >= quizData.length) { showQuizResults(); return; }
+  renderQuestion('forward');
+}
+
+async function showQuizResults() {
+  const correctCount = answers.filter(a => a.chosen === a.correct).length;
+  const pct = Math.round((correctCount/quizData.length)*100);
+  const circ = 251.2; const offset = circ - (pct/100)*circ;
+  const html = `
+    <div class="quiz-results">
+    <div style="text-align:center;margin-bottom:24px" class="result-step">
+      <svg width="100" height="100" viewBox="0 0 110 110">
+        <circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>
+        <circle cx="55" cy="55" r="40" fill="none" stroke="var(--gold)" stroke-width="7" stroke-linecap="round"
+          stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>
+        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor">${pct}%</text>
+      </svg>
+      <div style="font-size:12px;color:var(--cream-25);margin-top:4px">${correctCount} of ${quizData.length} correct</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px" class="result-step">
+      ${quizData.map((q,i) => {
+        const a = answers[i]; const isCorrect = a && a.chosen === a.correct;
+        return `<div style="padding:10px 14px;border-radius:var(--radius-md);border:0.5px solid ${isCorrect?'rgba(107,158,107,0.22)':'rgba(200,120,80,0.18)'};background:${isCorrect?'rgba(107,158,107,0.04)':'rgba(200,120,80,0.03)'};font-size:12px">
+          <span style="color:${isCorrect?'var(--green)':'var(--red-soft)'};margin-right:8px">${isCorrect?'âœ“':'âœ—'}</span>
+          <span style="color:var(--cream-60)">${q.q.substring(0,60)}â€¦</span>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:8px;padding-top:16px;border-top:0.5px solid var(--border)" class="result-step">
+      <button class="btn" onclick="startQuiz()">Retake quiz</button>
+      <button class="btn btn-primary" id="btn-full-results" disabled>Savingâ€¦</button>
+    </div>
+    </div>`;
+  if (window.LN) {
+    window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
+    setTimeout(() => {
+      const panel = document.getElementById('right-panel');
+      window.LN.revealSequence(panel.querySelectorAll('.result-step'), 110);
+      const ring = panel.querySelector('circle[stroke="var(--gold)"]');
+      if (ring) window.LN.animateScoreRing(ring, pct);
+    }, 220);
+  } else {
+    document.getElementById('right-panel').innerHTML = html;
+  }
+  // Build per-question details for saving
+  const questionDetails = quizData.map((q, i) => {
+    const a = answers[i];
+    const chosenIdx = a ? a.chosen : -1;
+    const isCorrect = a ? a.chosen === a.correct : false;
+    return {
+      q: q.q,
+      correct: isCorrect,
+      your: chosenIdx >= 0 ? q.opts[chosenIdx] : '(skipped)',
+      answer: isCorrect ? null : q.opts[q.correct]
+    };
+  });
+  // Save to history via submit-quiz endpoint
+  try {
+    const token = localStorage.getItem('token') || '';
+    const historyId = localStorage.getItem('currentHistoryId') || '';
+    const userAnswerIndices = answers.map(a => a.chosen);
+    let savedId = historyId;
+    if (historyId) {
+      const saveRes = await fetch('/api/history/' + historyId + '/submit-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ answers: userAnswerIndices })
+      });
+      const saved = await saveRes.json();
+      savedId = saved._id || historyId;
+    }
+    const btn = document.getElementById('btn-full-results');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Full results â†’';
+      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+    }
+    showToast('Quiz complete â€” ' + pct + '% saved');
+  } catch (e) {
+    const btn = document.getElementById('btn-full-results');
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Full results â†’';
+      btn.onclick = function() { window.location.href = 'results.html'; };
+    }
+    showToast('Quiz complete â€” ' + pct + '%');
+  }
+}
+
+function resetUpload() {
+  if (processingTimer) {
+    clearInterval(processingTimer);
+    processingTimer = null;
+  }
+  uploadedFiles = []; document.getElementById('file-list').innerHTML = '';
+  document.getElementById('file-input').value = ''; document.getElementById('paste-area').value = '';
+  document.getElementById('breadcrumb-cur').textContent = 'New document';
+  document.getElementById('btn-rescan').style.display = 'none'; document.getElementById('btn-quiz').style.display = 'none';
+  document.getElementById('btn-process').style.display = 'none'; document.getElementById('btn-process').disabled = false;
+  quizMode = false;
+  resumedSession = false;
+  currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
+  quizData = [];
+  setSummaryMode(false);
+  setUploadCollapsed(false);
+  document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
+}
+
+async function loadResumedQuizFlow() {
+  const params = new URLSearchParams(window.location.search);
+  const resumeId = params.get('resume'); // keep as string â€” MongoDB ObjectID
+  const mode = params.get('mode') || 'summary';
+  if (!resumeId) return;
+
+  // Show a brief loading state in the right panel while we fetch
+  document.getElementById('right-panel').innerHTML = `
+    <div class="loading-state">
+      <div class="loading-shell">
+        <div class="loading-label">Loading document</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading your document\u2026</div>
+      </div>
+    </div>`;
+
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/history/' + resumeId, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      console.error('[quiz] Failed to load history item:', res.status);
+      showToast('Could not load document \u2014 please try again');
+      document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Document not found.</div><div class="empty-sub">It may have been deleted.</div></div>`;
+      return;
+    }
+    const item = await res.json();
+
+    // Store IDs so showQuizResults can submit the quiz
+    localStorage.setItem('currentHistoryId', resumeId);
+    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
+
+    resumedSession = true;
+    const qLen = (item.quizFull || []).length;
+    currentDoc = {
+      ...item,
+      id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
+      done: false,
+      score: null,
+      correct: null,
+      total: qLen || item.total || 8
+    };
+    quizData = item.quizFull || [];
+
+    if (!quizData.length) {
+      console.error('[quiz] No quiz data found for history item:', resumeId);
+      showToast('No quiz available for this document');
+    }
+
+    currentDoc.infoRows = [
+      ['File type', currentDoc.fileType || 'PDF'],
+      ['Pages', String(currentDoc.pageCount || 1)],
+      ['Language', 'English'],
+      ['Processed at', getProcessedTime()],
+    ];
+
+    document.getElementById('breadcrumb-cur').textContent = currentDoc.title || 'Document';
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+    document.getElementById('btn-quiz').style.display = (mode === 'quiz' || !quizData.length) ? 'none' : 'flex';
+    document.getElementById('btn-process').disabled = false;
+
+    showSummary(currentDoc);
+    if (mode === 'quiz' && quizData.length) startQuiz();
+
+  } catch (e) {
+    console.error('[quiz] Error loading history item:', e);
+    showToast('Could not load document \u2014 please try again');
+    document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Failed to load document.</div><div class="empty-sub">Check your connection and try again.</div></div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateUploadUI();
+  syncCompactFile();
+  loadResumedQuizFlow();
+});
+</script>
+<script src="js/animations.js"></script>
+</body>
+</html>

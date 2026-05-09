@@ -1,0 +1,12 @@
+services:
+  # Application service — runs the FastAPI backend
+  app:
+    build: .                          # Build image from current directory (uses Dockerfile)
+    ports:
+      - "8000:8000"                   # Map host port 8000 to container port 8000
+    env_file:
+      - .env                          # Load environment variables from .env file
+    environment:
+      - PYTHONUNBUFFERED=1            # Flush Python print() output immediately
+    volumes:
+      - .:/app                        # Mount current directory for hot reload during development

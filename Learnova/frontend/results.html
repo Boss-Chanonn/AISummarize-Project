@@ -1,0 +1,134 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova â€” Quiz Results</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+
+    <div class="results-header fade-up">
+      <div style="max-width:420px">
+        <div class="rh-tag">Quiz complete</div>
+        <div class="rh-title">Here's how you <em>performed.</em></div>
+        <div class="rh-doc" id="result-doc-title">Loadingâ€¦</div>
+      </div>
+      <div class="score-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="40" fill="none" stroke="rgba(240,237,232,0.06)" stroke-width="7"/>
+          <circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7"
+            stroke-linecap="round"
+            stroke-dasharray="251.2"
+            stroke-dashoffset="251.2"
+            transform="rotate(-90 55 55)"
+            id="score-ring-circle" style="stroke-dashoffset:251.2"/>
+          <text x="55" y="55" text-anchor="middle" dominant-baseline="central"
+            font-family="DM Serif Display,serif" font-size="24" fill="#F0EDE8" id="score-ring-text">â€”</text>
+        </svg>
+        <div class="ring-label" id="score-ring-label">â€” of â€” correct</div>
+      </div>
+    </div>
+
+    <div class="feedback-panels fade-up fade-up-1 reveal reveal-delay-1" id="feedback-panels"></div>
+
+    <div class="fade-up fade-up-2 reveal reveal-delay-2">
+      <div class="section-label">Question breakdown</div>
+      <div class="q-list" id="q-list"></div>
+    </div>
+
+    <div class="bottom-actions fade-up fade-up-3">
+      <a href="dashboard.html" class="btn">Back to dashboard</a>
+      <button class="btn" id="btn-retake">Retake quiz</button>
+      <a href="module.html" class="btn btn-gold" id="btn-module">View learning module â†’</a>
+    </div>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/app.js"></script>
+<script>
+// Auth guard â€” redirect to login if no token
+(function() {
+  const token = localStorage.getItem('token');
+  if (!token) { window.location.replace('index.html'); }
+})();
+
+document.getElementById('sidebar-mount').innerHTML = renderSidebar('history');
+
+async function loadResults() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id') || '';
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/results?id=' + encodeURIComponent(id),
+      token ? { headers: { 'Authorization': 'Bearer ' + token } } : {}
+    );
+    const data = await res.json();
+    if (!res.ok) { showResultsError(data.message); return; }
+
+    const an = data.analysis || {};
+    const quizFull = data.quizFull || [];
+    const userAnswers = data.userAnswers || [];
+    const correct = data.correct || 0;
+    const total = data.total || quizFull.length;
+
+    document.getElementById('result-doc-title').textContent = (data.title || '') + ' Â· ' + total + ' questions';
+    document.getElementById('score-ring-text').textContent = (data.score || 0) + '%';
+    document.getElementById('score-ring-label').textContent = correct + ' of ' + total + ' correct';
+
+    document.getElementById('feedback-panels').innerHTML =
+      '<div class="fb-panel strength">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-s"></span><span class="fb-title">Strengths</span></div>' +
+        '<div class="tag-cloud">' + (an.strengths || []).map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('') + '</div>' +
+      '</div>' +
+      '<div class="fb-panel weakness">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-w"></span><span class="fb-title">Needs work</span></div>' +
+        '<div class="tag-cloud">' + (an.weaknesses || []).map(s => `<span class="badge badge-red">${escapeHtml(s)}</span>`).join('') + '</div>' +
+      '</div>' +
+      '<div class="fb-panel">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-r"></span><span class="fb-title">Study next</span></div>' +
+        '<div class="tag-cloud">' + (an.studyNext || []).map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('') + '</div>' +
+      '</div>';
+
+    document.getElementById('q-list').innerHTML = quizFull.map((q, i) => {
+      const chosen = userAnswers[i];
+      const isCorrect = chosen === q.correct;
+      const yourAnswer = chosen !== undefined ? (q.opts[chosen] || 'No answer') : 'No answer';
+      const correctAnswer = q.opts[q.correct] || '';
+      return `<div class="q-item ${isCorrect ? 'correct' : 'wrong'}">` +
+        `<div class="q-row"><span class="q-mark ${isCorrect ? 'c' : 'w'}">${isCorrect ? 'âœ“' : 'âœ—'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>` +
+        `<div class="q-ans">Your answer: ${escapeHtml(yourAnswer)}${!isCorrect && correctAnswer ? ` &nbsp;Â·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(correctAnswer)}</span>` : ''}</div>` +
+      `</div>`;
+    }).join('');
+
+    const hid = data._id || id;
+    document.getElementById('btn-module').href = 'module.html?historyId=' + hid;
+    document.getElementById('btn-retake').onclick = function() {
+      window.location.href = 'upload.html?resume=' + hid + '&mode=quiz';
+    };
+
+    setTimeout(function() {
+      const ring = document.getElementById('score-ring-circle');
+      if (ring && window.LN) window.LN.animateScoreRing(ring, data.score);
+    }, 300);
+  } catch (e) {
+    showResultsError('Could not load results.');
+  }
+}
+
+function showResultsError(msg) {
+  document.querySelector('main.main-content').innerHTML =
+    '<div style="padding:60px 40px;color:var(--cream-25);font-size:14px">' + (msg || 'Result not found') +
+    ' â€” <a href="upload.html" style="color:var(--gold)">Take a new quiz â†’</a></div>';
+}
+
+loadResults();
+</script>
+<script src="js/animations.js"></script>
+</body>
+</html>

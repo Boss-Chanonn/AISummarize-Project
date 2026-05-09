@@ -1,0 +1,285 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova â€” Learn smarter</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="landing">
+  <nav class="land-nav fade-up">
+    <div class="land-nav-logo">Learnova</div>
+    <div class="land-nav-links">
+      <a href="#features">Features</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#pricing">Pricing</a>
+    </div>
+    <div class="land-nav-cta">
+      <button class="btn" onclick="openModal('login')">Sign in</button>
+      <button class="btn-primary btn" onclick="openModal('register')">Get started</button>
+    </div>
+  </nav>
+
+  <div class="hero fade-up fade-up-1">
+    <div class="hero-copy">
+      <div class="hero-badge"><span class="badge-dot"></span>AI-powered learning</div>
+      <h1>Learn <em>smarter,</em><br>not harder.</h1>
+      <p>Upload any research paper or document. Get an instant AI summary, test your understanding with a generated quiz, and discover exactly where to focus next.</p>
+      <div class="hero-actions">
+        <button class="btn-primary btn" onclick="openModal('register')">Get started free</button>
+        <button class="hero-ghost" onclick="window.location.href='dashboard.html'">
+          Go to dashboard <span>â†’</span>
+        </button>
+      </div>
+    </div>
+    <div class="hero-panel fade-up fade-up-2">
+      <div class="hero-panel-top">
+        <div>
+          <div class="hero-panel-kicker">Live preview</div>
+          <div class="hero-panel-title">From upload to study plan in minutes.</div>
+        </div>
+        <div class="hero-panel-badge">Free</div>
+      </div>
+      <div class="hero-preview">
+        <div class="hero-preview-card">
+          <div class="hero-preview-label">AI Summary</div>
+          <div class="hero-preview-title">Systematic review of AI in higher education</div>
+          <div class="hero-preview-copy">Core findings, research gaps, and next-study prompts extracted into a readable brief.</div>
+        </div>
+        <div class="hero-preview-card">
+          <div class="hero-preview-label">Quiz Snapshot</div>
+          <div class="hero-preview-score">
+            <div class="hero-score-ring">78%</div>
+            <div class="hero-score-meta">Adaptive quiz feedback highlights strengths, weak spots, and what to revise next.</div>
+          </div>
+        </div>
+        <div class="hero-preview-card">
+          <div class="hero-preview-label">Recommended next</div>
+          <div class="hero-preview-copy">Learning module, revision prompts, and calendar-ready study actions built from your results.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section class="landing-section" id="features">
+    <div class="section-shell">
+      <div class="landing-section-head">
+        <div>
+          <div class="landing-kicker">Features</div>
+          <div class="landing-section-title">Study tools that match the dashboard experience.</div>
+        </div>
+        <div class="landing-section-copy">Everything on the intro page now points to real product sections, using the same palette, typography, and card treatment as the main app.</div>
+      </div>
+      <div class="feature-strip">
+        <div class="feature fade-up-2">
+          <div class="feat-num">01</div>
+          <div class="feat-accent"></div>
+          <div class="feat-title">Instant summaries</div>
+          <div class="feat-desc">AI extracts the core ideas from any academic document in seconds â€” no more reading 30 pages to find the point.</div>
+        </div>
+        <div class="feature fade-up-3">
+          <div class="feat-num">02</div>
+          <div class="feat-accent"></div>
+          <div class="feat-title">Adaptive quizzes</div>
+          <div class="feat-desc">Test your understanding with questions generated directly from your material. Active recall, not passive re-reading.</div>
+        </div>
+        <div class="feature fade-up-4">
+          <div class="feat-num">03</div>
+          <div class="feat-accent"></div>
+          <div class="feat-title">Personalised feedback</div>
+          <div class="feat-desc">Know your strengths, gaps, and exactly what to study next â€” with curated resources scheduled in your calendar.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="landing-section" id="how-it-works">
+    <div class="section-shell">
+      <div class="landing-section-head">
+        <div>
+          <div class="landing-kicker">How It Works</div>
+          <div class="landing-section-title">A simple flow from upload to revision.</div>
+        </div>
+        <div class="landing-section-copy">The landing page now explains the same journey users see inside Learnova: upload content, review AI outputs, then continue into personalised study.</div>
+      </div>
+      <div class="process-grid">
+        <div class="process-card">
+          <div class="process-step">Step 01</div>
+          <div class="process-title">Upload your material</div>
+          <div class="process-copy">Add a PDF, PPTX, or text-based study resource and let Learnova process it into a cleaner study format.</div>
+        </div>
+        <div class="process-card">
+          <div class="process-step">Step 02</div>
+          <div class="process-title">Review summary and quiz</div>
+          <div class="process-copy">Read the AI summary, answer adaptive quiz questions, and get a clear view of your understanding.</div>
+        </div>
+        <div class="process-card">
+          <div class="process-step">Step 03</div>
+          <div class="process-title">Follow the next study plan</div>
+          <div class="process-copy">Use learning modules, feedback, and calendar-ready actions to keep moving through your study goals.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="landing-section" id="pricing">
+    <div class="section-shell">
+      <div class="landing-section-head">
+        <div>
+          <div class="landing-kicker">Pricing</div>
+          <div class="landing-section-title">Start free, upgrade when you need more depth.</div>
+        </div>
+        <div class="landing-section-copy">This pricing section mirrors the plan and billing language inside the app, so users get the same plan story before and after signing in.</div>
+      </div>
+      <div class="pricing-grid">
+        <div class="pricing-card">
+          <div class="pricing-title">Learnova Free</div>
+          <div class="pricing-price">$0</div>
+          <div class="pricing-copy">Good for core summaries, generated quizzes, and getting started with everyday revision.</div>
+          <div class="pricing-list">
+            <div class="pricing-item"><span>â€”</span><span>Essential document uploads</span></div>
+            <div class="pricing-item"><span>â€”</span><span>AI summary generation</span></div>
+            <div class="pricing-item"><span>â€”</span><span>Basic quiz feedback</span></div>
+          </div>
+        </div>
+        <div class="pricing-card pricing-card-highlight">
+          <div class="pricing-title">Learnova Pro</div>
+          <div class="pricing-price">$12/month</div>
+          <div class="pricing-copy">For students who want unlimited uploads, richer feedback, and a more complete revision workflow.</div>
+          <div class="pricing-list">
+            <div class="pricing-item"><span>â€”</span><span>Unlimited document uploads</span></div>
+            <div class="pricing-item"><span>â€”</span><span>PPTX / PowerPoint support</span></div>
+            <div class="pricing-item"><span>â€”</span><span>Multi-file upload sessions</span></div>
+            <div class="pricing-item"><span>â€”</span><span>Advanced personalised feedback</span></div>
+            <div class="pricing-item"><span>â€”</span><span>Full learning modules and calendar integration</span></div>
+          </div>
+          <button class="btn btn-primary" style="width:100%;justify-content:center" onclick="openModal('register')">Get started with Pro</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Auth modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal-box">
+    <div class="modal-close-row">
+      <button class="modal-close" onclick="closeModalDirect()">âœ•</button>
+    </div>
+    <div id="modal-content"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/app.js"></script>
+<script>
+const loginHTML = `
+  <h2>Welcome back.</h2>
+  <p class="modal-sub">Sign in to your account to continue.</p>
+  <div class="form-field">
+    <label class="field-label">Email address</label>
+    <input class="input" type="email" placeholder="you@university.ac.nz" id="login-email"/>
+  </div>
+  <div class="form-field">
+    <label class="field-label">Password</label>
+    <input class="input" type="password" placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" id="login-password"/>
+  </div>
+  <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="login-btn" onclick="loginUser()">Sign in</button>
+  <div class="modal-footer">No account? <a href="#" onclick="openModal('register')">Register free</a></div>`;
+
+const registerHTML = `
+  <h2>Create account.</h2>
+  <p class="modal-sub">Start learning smarter today â€” it's free.</p>
+  <div class="form-field">
+    <label class="field-label">Full name</label>
+    <input class="input" type="text" placeholder="Your full name" id="register-name"/>
+  </div>
+  <div class="form-field">
+    <label class="field-label">Email address</label>
+    <input class="input" type="email" placeholder="you@university.ac.nz" id="register-email"/>
+  </div>
+  <div class="form-field">
+    <label class="field-label">Date of birth</label>
+    <input class="input" type="date" id="register-dob"/>
+  </div>
+  <div class="form-field">
+    <label class="field-label">Password</label>
+    <input class="input" type="password" placeholder="Min. 8 characters" id="register-password"/>
+  </div>
+  <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="register-btn" onclick="registerUser()">Create account</button>
+  <div class="modal-footer">Already have an account? <a href="#" onclick="openModal('login')">Sign in</a></div>`;
+
+function openModal(type) {
+  document.getElementById('modal-content').innerHTML = type === 'login' ? loginHTML : registerHTML;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
+}
+function closeModalDirect() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+
+async function loginUser() {
+  const email = document.getElementById('login-email').value;
+  const password = document.getElementById('login-password').value;
+  const btn = document.getElementById('login-btn');
+  if (!email || !password) { showToast('Please fill in all fields'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Signing inâ€¦';
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await response.json();
+    if (!response.ok) { showToast(data.message || 'Login failed'); return; }
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    const role = data.user && data.user.role;
+    if (role === 'admin' || role === 'system_admin') {
+      window.location.href = 'admin-users.html';
+    } else {
+      window.location.href = 'dashboard.html';
+    }
+  } catch (error) {
+    console.error('Error:', error);
+    showToast('Unable to connect to server');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Sign in';
+  }
+}
+
+async function registerUser() {
+  const name = document.getElementById('register-name').value;
+  const email = document.getElementById('register-email').value;
+  const dob = document.getElementById('register-dob').value;
+  const password = document.getElementById('register-password').value;
+  const btn = document.getElementById('register-btn');
+  if (!name || !email || !dob || !password) { showToast('Please fill in all fields including date of birth'); return; }
+  btn.disabled = true;
+  btn.textContent = 'Creating accountâ€¦';
+  try {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, dob, password })
+    });
+    const data = await response.json();
+    if (!response.ok) { showToast(data.message || 'Registration failed'); return; }
+    showToast(data.message || 'Account created â€” please sign in');
+    openModal('login');
+  } catch (error) {
+    console.error('Error:', error);
+    showToast('Unable to connect to server');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Create account';
+  }
+}
+</script>
+</body>
+</html>

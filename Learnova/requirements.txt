@@ -1,0 +1,16 @@
+fastapi
+uvicorn[standard]
+motor
+pymongo
+python-jose[cryptography]
+bcrypt==4.0.1
+passlib[bcrypt]
+python-multipart
+python-dotenv
+pydantic[email]
+PyPDF2
+python-docx
+python-pptx
+httpx
+boto3
+slowapi
