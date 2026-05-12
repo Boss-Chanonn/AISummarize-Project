@@ -1529,7 +1529,15 @@ function renderActivityLogs(logs) {
     return;
   }
 
-  activityList.innerHTML = filtered.map(log => {
+  const header = '<div class="log-col-header">'
+    + '<span class="lch-type">Type</span>'
+    + '<span class="lch-ip">IP Address</span>'
+    + '<span class="lch-user">Username</span>'
+    + '<span class="lch-api">Endpoint</span>'
+    + '<span class="lch-time">Time</span>'
+    + '</div>';
+
+  const rows = filtered.map(log => {
     const eventType = classifyLogType(log);
     const labelMap = {
       login: 'LOGIN',
@@ -1539,15 +1547,20 @@ function renderActivityLogs(logs) {
       admin: 'ADMIN',
       error: 'ERROR'
     };
-    const desc = (log.method || 'GET') + ' ' + (log.path || '-') + ' -> ' + (log.status || '-');
+    const method = escapeHtml(log.method || 'GET');
+    const path = escapeHtml(log.path || '-');
+    const status = escapeHtml(String(log.status || '-'));
+    const username = log.user_email ? escapeHtml(log.user_email) : '<span class="event-anon">guest</span>';
     return '<div class="log-row-item">'
-      + '<span class="event-indicator ei-' + eventType + '"></span>'
-      + '<span class="event-label">' + labelMap[eventType] + '</span>'
-      + '<span class="event-user">' + escapeHtml(log.ip || '-') + '</span>'
-      + '<span class="event-desc">' + escapeHtml(desc) + '</span>'
-      + '<span class="event-time">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</span>'
+      + '<span class="log-col lc-type"><span class="event-indicator ei-' + eventType + '"></span><span class="event-label">' + labelMap[eventType] + '</span></span>'
+      + '<span class="log-col lc-ip">' + escapeHtml(log.ip || '-') + '</span>'
+      + '<span class="log-col lc-user">' + username + '</span>'
+      + '<span class="log-col lc-api"><span class="lc-method">' + method + '</span> ' + path + ' <span class="lc-status">' + status + '</span></span>'
+      + '<span class="log-col lc-time">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</span>'
       + '</div>';
   }).join('');
+
+  activityList.innerHTML = header + rows;
 }
 
 function renderAuditTrail(logs) {

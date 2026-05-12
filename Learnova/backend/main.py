@@ -9,6 +9,7 @@ from backend.middleware.security import SecurityHeadersMiddleware
 from backend.database.db import client, token_blocklist_collection, system_logs_collection
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from jose import jwt as _jwt
 import os
 
 load_dotenv()
@@ -34,17 +35,30 @@ app.add_middleware(
 
 
 # Activity logging middleware
+_LOG_SECRET = os.getenv("SECRET_KEY", "changeme")
+
 @app.middleware("http")
 async def log_activity(request: Request, call_next):
     response = await call_next(request)
     # Only log API calls (not static files)
     if request.url.path.startswith("/api/"):
         try:
+            user_email = None
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer "):
+                try:
+                    payload = _jwt.decode(
+                        auth_header[7:], _LOG_SECRET, algorithms=["HS256"]
+                    )
+                    user_email = payload.get("email")
+                except Exception:
+                    pass
             await system_logs_collection.insert_one({
                 "method": request.method,
                 "path": request.url.path,
                 "status": response.status_code,
                 "ip": request.client.host if request.client else "unknown",
+                "user_email": user_email,
                 "timestamp": datetime.now(timezone.utc),
             })
         except Exception:
