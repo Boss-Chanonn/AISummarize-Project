@@ -756,6 +756,8 @@ const SYS_STATE = {
   collections: [],
   openCollection: '',
   collectionDocs: {},
+  selectedDocs: new Set(),
+  dbDeleteTarget: { collection: '', ids: [] },
   logs: [],
   filteredLogs: []
 };
@@ -1363,24 +1365,86 @@ async function expandCollection(name) {
 function renderCollectionDocs(name, docs) {
   const detail = document.getElementById('collectionDetail');
   if (!detail) return;
+
+  SYS_STATE.selectedDocs = new Set();
+
   const rows = docs.map(item => {
-    return '<div class="doc-row" data-doc-json="' + escapeHtml(JSON.stringify(item)) + '">' + escapeHtml(JSON.stringify(item, null, 2)) + '</div>';
+    const id = escapeHtml(String(item._id || ''));
+    const json = escapeHtml(JSON.stringify(item, null, 2));
+    return '<div class="doc-row" data-doc-id="' + id + '" data-doc-json="' + escapeHtml(JSON.stringify(item)) + '">'
+      + '<input class="doc-checkbox" type="checkbox" data-doc-id="' + id + '">'
+      + '<span class="doc-content">' + json + '</span>'
+      + '</div>';
   }).join('');
 
+  const loadedCount = docs.length;
   detail.innerHTML = '<div class="collection-detail">'
     + '<div class="collection-detail-header">'
-    + '<span class="collection-detail-title">' + escapeHtml(name) + ' Collection</span>'
+    + '<span class="collection-detail-title">' + escapeHtml(name) + ' — ' + loadedCount + ' documents loaded</span>'
+    + '<div style="display:flex;gap:8px;align-items:center">'
+    + '<label class="doc-select-all-wrap"><input type="checkbox" id="sys-select-all"> Select all</label>'
     + '<button class="btn btn-outline btn-sm" type="button" id="sys-collapse-collection">Collapse</button>'
     + '</div>'
-    + '<div class="doc-list" id="sys-doc-list">' + (rows || '<div class="doc-row">No documents</div>') + '</div>'
+    + '</div>'
+    + '<div class="doc-list" id="sys-doc-list">' + (rows || '<div class="doc-row"><span class="doc-content">No documents</span></div>') + '</div>'
     + '<div class="collection-detail-footer">'
     + '<input class="detail-search" id="sys-detail-search" type="text" placeholder="Search by content...">'
     + '<div class="sys-collection-actions">'
-    + '<button class="btn btn-outline btn-sm" type="button" id="sys-delete-selected" disabled>Delete Selected</button>'
-    + '<button class="btn btn-danger btn-sm" type="button" id="sys-clear-all" disabled>Clear All</button>'
+    + '<button class="btn btn-outline btn-sm" type="button" id="sys-delete-selected" disabled>Delete Selected (<span id="sys-delete-count">0</span>)</button>'
+    + '<button class="btn btn-danger btn-sm" type="button" id="sys-clear-all">Clear All (' + loadedCount + ')</button>'
     + '</div>'
     + '</div>'
     + '</div>';
+}
+
+function updateDeleteSelectedBtn() {
+  const btn = document.getElementById('sys-delete-selected');
+  const countEl = document.getElementById('sys-delete-count');
+  if (!btn) return;
+  const count = SYS_STATE.selectedDocs.size;
+  btn.disabled = count === 0;
+  if (countEl) countEl.textContent = String(count);
+}
+
+function openSysDbDeleteModal(collection, ids, mode) {
+  SYS_STATE.dbDeleteTarget = { collection, ids };
+  const title = document.getElementById('sysDbDeleteTitle');
+  const msg = document.getElementById('sysDbDeleteMsg');
+  if (title) title.textContent = mode === 'all' ? 'Clear All Documents' : 'Delete Selected Documents';
+  if (msg) {
+    if (mode === 'all') {
+      msg.innerHTML = 'This will permanently delete all <strong>' + ids.length + '</strong> loaded documents from <strong>' + escapeHtml(collection) + '</strong>. This cannot be undone.';
+    } else {
+      msg.innerHTML = 'Delete <strong>' + ids.length + '</strong> selected document' + (ids.length !== 1 ? 's' : '') + ' from <strong>' + escapeHtml(collection) + '</strong>? This cannot be undone.';
+    }
+  }
+  document.getElementById('sysDbDeleteOverlay')?.classList.add('open');
+}
+
+function closeSysDbDeleteModal() {
+  SYS_STATE.dbDeleteTarget = { collection: '', ids: [] };
+  document.getElementById('sysDbDeleteOverlay')?.classList.remove('open');
+}
+
+async function deleteSelectedDocs() {
+  const { collection, ids } = SYS_STATE.dbDeleteTarget;
+  if (!collection || !ids.length) return;
+  const confirmBtn = document.getElementById('sysDbDeleteConfirmBtn');
+  if (confirmBtn) confirmBtn.disabled = true;
+  try {
+    const result = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(collection) + '/documents', {
+      method: 'DELETE',
+      body: JSON.stringify({ ids })
+    });
+    closeSysDbDeleteModal();
+    showToast('Deleted ' + (result.deleted || ids.length) + ' document' + (ids.length !== 1 ? 's' : ''), 2800);
+    SYS_STATE.selectedDocs = new Set();
+    await expandCollection(collection);
+  } catch (err) {
+    showToast(err.message || 'Failed to delete', 3200);
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
 }
 
 function filterCollectionDocs(query) {
@@ -1616,6 +1680,7 @@ function bindSystemAdminEvents() {
       closeSysAccountMenu();
       closeSysRoleModal();
       closeSysDeleteModal();
+      closeSysDbDeleteModal();
     }
   });
 
@@ -1667,6 +1732,12 @@ function bindSystemAdminEvents() {
     if (event.target.id === 'sysDeleteOverlay') closeSysDeleteModal();
   });
 
+  document.getElementById('sysDbDeleteCancelBtn')?.addEventListener('click', closeSysDbDeleteModal);
+  document.getElementById('sysDbDeleteConfirmBtn')?.addEventListener('click', deleteSelectedDocs);
+  document.getElementById('sysDbDeleteOverlay')?.addEventListener('click', event => {
+    if (event.target.id === 'sysDbDeleteOverlay') closeSysDbDeleteModal();
+  });
+
   document.getElementById('dbTableBody')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-expand-collection]');
     if (!btn) return;
@@ -1681,15 +1752,59 @@ function bindSystemAdminEvents() {
     }
   });
 
+  document.getElementById('collectionDetail')?.addEventListener('change', event => {
+    const selectAll = event.target.closest('#sys-select-all');
+    if (selectAll) {
+      const checked = selectAll.checked;
+      document.querySelectorAll('.doc-checkbox').forEach(cb => {
+        cb.checked = checked;
+        const id = cb.getAttribute('data-doc-id') || '';
+        if (!id) return;
+        if (checked) {
+          SYS_STATE.selectedDocs.add(id);
+        } else {
+          SYS_STATE.selectedDocs.delete(id);
+        }
+        cb.closest('.doc-row')?.classList.toggle('doc-row-selected', checked);
+      });
+      updateDeleteSelectedBtn();
+      return;
+    }
+    const checkbox = event.target.closest('.doc-checkbox');
+    if (checkbox) {
+      const id = checkbox.getAttribute('data-doc-id') || '';
+      if (!id) return;
+      if (checkbox.checked) {
+        SYS_STATE.selectedDocs.add(id);
+      } else {
+        SYS_STATE.selectedDocs.delete(id);
+        const selectAllEl = document.getElementById('sys-select-all');
+        if (selectAllEl) selectAllEl.checked = false;
+      }
+      checkbox.closest('.doc-row')?.classList.toggle('doc-row-selected', checkbox.checked);
+      updateDeleteSelectedBtn();
+    }
+  });
+
   document.getElementById('collectionDetail')?.addEventListener('click', event => {
     const collapse = event.target.closest('#sys-collapse-collection');
     if (collapse) {
       if (SYS_STATE.openCollection) expandCollection(SYS_STATE.openCollection);
       return;
     }
-    const readOnlyBtn = event.target.closest('#sys-delete-selected, #sys-clear-all');
-    if (readOnlyBtn) {
-      showToast('Database manager is currently read-only', 3200);
+    const deleteSelBtn = event.target.closest('#sys-delete-selected:not([disabled])');
+    if (deleteSelBtn) {
+      const ids = Array.from(SYS_STATE.selectedDocs);
+      if (!ids.length) return;
+      openSysDbDeleteModal(SYS_STATE.openCollection, ids, 'selected');
+      return;
+    }
+    const clearAllBtn = event.target.closest('#sys-clear-all');
+    if (clearAllBtn) {
+      const allDocs = SYS_STATE.collectionDocs[SYS_STATE.openCollection] || [];
+      const allIds = allDocs.map(d => String(d._id || '')).filter(Boolean);
+      if (!allIds.length) { showToast('No documents loaded', 2800); return; }
+      openSysDbDeleteModal(SYS_STATE.openCollection, allIds, 'all');
     }
   });
 

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 from backend.database.db import db, system_logs_collection, users_collection, history_collection
 from backend.middleware.auth_middleware import get_system_admin_user
 from datetime import datetime, timezone
@@ -94,3 +95,39 @@ async def view_collection(
                 d[k] = v.isoformat()
         result.append(d)
     return {"collection": collection_name, "items": result, "total": total, "page": page, "limit": limit}
+
+
+@router.delete("/db/{collection_name}/documents")
+async def delete_documents(
+    collection_name: str,
+    body: dict,
+    current_user: dict = Depends(get_system_admin_user)
+):
+    allowed = {"users", "history", "system_logs", "token_blocklist"}
+    if collection_name not in allowed:
+        return JSONResponse(status_code=400, content={"message": "Collection not accessible"})
+
+    ids = body.get("ids")
+    if not ids or not isinstance(ids, list):
+        return JSONResponse(status_code=400, content={"message": "ids must be a non-empty list"})
+    if len(ids) > 100:
+        return JSONResponse(status_code=400, content={"message": "Cannot delete more than 100 documents at once"})
+
+    oids = []
+    for id_str in ids:
+        try:
+            oids.append(ObjectId(str(id_str)))
+        except Exception:
+            pass
+    if not oids:
+        return JSONResponse(status_code=400, content={"message": "No valid IDs provided"})
+
+    # Safety: never delete system_admin accounts
+    if collection_name == "users":
+        blocked = await users_collection.count_documents({"_id": {"$in": oids}, "role": "system_admin"})
+        if blocked > 0:
+            return JSONResponse(status_code=403, content={"message": "Cannot delete system_admin accounts"})
+
+    col = db[collection_name]
+    result = await col.delete_many({"_id": {"$in": oids}})
+    return {"deleted": result.deleted_count}
