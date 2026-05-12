@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Learnova — System Admin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app-shell" id="system-admin-page">
+  <div id="sidebar-mount"></div>
+
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h1 id="pageTitle">System Overview</h1>
+        <p id="pageSubtitle">Monitor service status, realtime stats and API health</p>
+      </div>
+      <div class="topbar-right">
+        <div class="sys-live">
+          <span class="sys-live-dot"></span>
+          <span class="sys-live-label">Live</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="content">
+      <div id="section-overview" class="sys-section active">
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">Service Status</span>
+            <button class="btn btn-outline btn-sm" id="sys-refresh-overview" type="button">Refresh</button>
+          </div>
+          <div class="status-grid" id="statusGrid"></div>
+        </div>
+
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">Realtime Stats</span>
+          </div>
+          <div class="stats-grid" id="statsGrid"></div>
+        </div>
+
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">API Health</span>
+          </div>
+          <div id="apiHealthList"></div>
+        </div>
+      </div>
+
+      <div id="section-users" class="sys-section">
+        <div class="card sys-card-shell">
+          <div class="user-filter-bar">
+            <div class="search-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              <input class="search-input" id="sys-user-search" type="text" placeholder="Search name or email…">
+            </div>
+            <select class="filter-select" id="sys-user-role">
+              <option value="">All Roles</option>
+              <option value="system_admin">System Admin</option>
+              <option value="admin">Admin</option>
+              <option value="user">User</option>
+            </select>
+            <select class="filter-select" id="sys-user-status">
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          <table class="user-table">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Role</th>
+                <th>Tier</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th class="sys-th-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody"></tbody>
+          </table>
+
+          <div class="user-notice">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            System Admin cannot delete their own account
+          </div>
+        </div>
+      </div>
+
+      <div id="section-database" class="sys-section">
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">Collections</span>
+            <span class="sys-card-sub">Click to expand</span>
+          </div>
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>Collection</th>
+                <th>Size</th>
+                <th>Documents</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="dbTableBody"></tbody>
+          </table>
+        </div>
+        <div id="collectionDetail"></div>
+      </div>
+
+      <div id="section-security" class="sys-section">
+        <div class="card sys-card-shell failed-card">
+          <div class="sys-card-header">
+            <div class="failed-header-inner">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <span>Failed Logins</span>
+            </div>
+            <span class="failed-sub">Derived from logs</span>
+          </div>
+          <div id="failedLoginList"></div>
+        </div>
+
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">Activity Logs</span>
+            <div class="sys-card-actions">
+              <select class="filter-select" id="sys-log-filter">
+                <option value="all">All Events</option>
+                <option value="login">Login</option>
+                <option value="upload">Upload</option>
+                <option value="quiz">Quiz</option>
+                <option value="failed">Failed Login</option>
+                <option value="admin">Admin</option>
+                <option value="error">Error</option>
+              </select>
+              <button class="btn btn-outline btn-sm" id="sys-export-logs" type="button">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+              </button>
+            </div>
+          </div>
+          <div id="activityLogList"></div>
+        </div>
+
+        <div class="card sys-card-shell">
+          <div class="sys-card-header">
+            <span class="sys-card-title">Audit Trail — Admin Actions</span>
+          </div>
+          <div id="auditTrailList"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="sysRoleOverlay">
+  <div class="modal">
+    <div class="modal-icon gold">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
+    </div>
+    <h3>Change Role</h3>
+    <p>Select a new role for <strong id="sysRoleTargetName"></strong>.</p>
+    <select class="role-select" id="sysRoleSelect">
+      <option value="user">user</option>
+      <option value="admin">admin</option>
+      <option value="system_admin">system_admin</option>
+    </select>
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" id="sysRoleCancelBtn">Cancel</button>
+      <button class="btn btn-gold" type="button" id="sysRoleConfirmBtn">Update Role</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="sysDeleteOverlay">
+  <div class="modal">
+    <div class="modal-icon red">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+    </div>
+    <h3>Delete User</h3>
+    <p>Type <strong id="sysDeleteTargetName"></strong> to permanently delete this account.</p>
+    <input class="modal-input" id="sysDeleteInput" type="text" placeholder="Type username to confirm">
+    <div class="modal-actions">
+      <button class="btn btn-outline" type="button" id="sysDeleteCancelBtn">Cancel</button>
+      <button class="btn btn-danger" id="sysDeleteConfirmBtn" type="button" disabled>Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

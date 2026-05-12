@@ -28,7 +28,7 @@
       <p>Upload any research paper or document. Get an instant AI summary, test your understanding with a generated quiz, and discover exactly where to focus next.</p>
       <div class="hero-actions">
         <button class="btn-primary btn" onclick="openModal('register')">Get started free</button>
-        <button class="hero-ghost" onclick="window.location.href='dashboard.html'">
+        <button class="hero-ghost" onclick="(function(){var t=localStorage.getItem('token'),u=JSON.parse(localStorage.getItem('user')||'null'),r=u&&u.role;if(!t||!r){document.getElementById('modal-overlay').classList.add('open');document.getElementById('modal-content').innerHTML=loginHTML;return;}if(r==='system_admin')window.location.href='system-admin.html';else if(r==='admin')window.location.href='admin-users.html';else window.location.href='dashboard.html';})()">
           Go to dashboard <span>â†’</span>
         </button>
       </div>
@@ -239,7 +239,9 @@ async function loginUser() {
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     const role = data.user && data.user.role;
-    if (role === 'admin' || role === 'system_admin') {
+    if (role === 'system_admin') {
+      window.location.href = 'system-admin.html';
+    } else if (role === 'admin') {
       window.location.href = 'admin-users.html';
     } else {
       window.location.href = 'dashboard.html';

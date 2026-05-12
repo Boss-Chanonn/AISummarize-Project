@@ -87,8 +87,8 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
   ✅ Ollama timeout: 300s (no more ReadTimeout on large documents)
 
 ## Still Missing / Not Yet Built
-  ❌ admin.html frontend page (admin.py backend exists)
-  ❌ sysadmin.html frontend page (sysadmin.py backend exists)
+  ❌ admin.html frontend page (admin.py backend exists) → split into admin-users.html, admin-stats.html, admin-history.html ✅
+  ✅ sysadmin.html frontend page → created as system-admin.html (2026-05-12)
   ✅ Plan & Billing page (Pro upgrade flow) — completed 2026-04-29
   ❌ PUT /api/auth/profile (update name/phone)
   ❌ PUT /api/auth/password (change password)

@@ -13,6 +13,7 @@ const LEARNOVA_USER = {
   password: '',
   passwordMask: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
   tier: (_storedUser && _storedUser.tier) || 'free',
+  role: (_storedUser && _storedUser.role) || 'user',
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
@@ -514,6 +515,12 @@ function renderSidebar(activePage) {
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v4l2.5 1.5"/></svg>
       History
     </a>
+    ${LEARNOVA_USER.role === 'admin' ? `
+    <div class="sidebar-section">Admin</div>
+    <a href="admin-users.html" class="sidebar-item${activePage==='admin-users'?' active':''}" data-page="admin-users.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 14v-1a3 3 0 0 0-3-3H5a3 3 0 0 0-3 3v1"/><circle cx="6.5" cy="5.5" r="2.5"/><path d="M14 7h-3M14 10h-3"/></svg>
+      Admin Panel
+    </a>` : ''}
     <div class="sidebar-section">Account</div>
     <button class="sidebar-item" onclick="openProfile()" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
@@ -715,3 +722,1002 @@ function closeHistorySplit() {
   const modal = document.getElementById('split-modal');
   if (modal) modal.classList.remove('open');
 }
+
+/* ====================================================
+   7. SYSTEM ADMIN PAGE
+   ==================================================== */
+
+const SYS_SECTIONS = {
+  overview: {
+    title: 'System Overview',
+    sub: 'Monitor service status, realtime stats and API health'
+  },
+  users: {
+    title: 'User Control',
+    sub: 'Manage all users across every role'
+  },
+  database: {
+    title: 'Database Manager',
+    sub: 'View and manage database collections'
+  },
+  security: {
+    title: 'Security Center',
+    sub: 'Monitor activity logs and security events'
+  }
+};
+
+const SYS_STATE = {
+  user: null,
+  users: [],
+  filteredUsers: [],
+  currentSection: 'overview',
+  roleTargetUserId: '',
+  deleteTargetUserId: '',
+  collections: [],
+  openCollection: '',
+  collectionDocs: {},
+  logs: [],
+  filteredLogs: []
+};
+
+function isSystemAdminPage() {
+  return Boolean(document.getElementById('system-admin-page'));
+}
+
+function renderSystemAdminSidebar(activeSection) {
+  const user = SYS_STATE.user || {};
+  const name = user.name || 'System Admin';
+  const initials = getInitials(name);
+  return `
+  <aside class="sidebar">
+    <div class="sidebar-logo">Learnova</div>
+    <div class="sidebar-section">System Admin</div>
+    <button class="sidebar-item${activeSection === 'overview' ? ' active' : ''}" id="nav-overview" data-sys-nav="overview" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      System Overview
+    </button>
+    <button class="sidebar-item${activeSection === 'users' ? ' active' : ''}" id="nav-users" data-sys-nav="users" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      User Control
+    </button>
+    <button class="sidebar-item${activeSection === 'database' ? ' active' : ''}" id="nav-database" data-sys-nav="database" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      Database Manager
+    </button>
+    <button class="sidebar-item${activeSection === 'security' ? ' active' : ''}" id="nav-security" data-sys-nav="security" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      Security Center
+    </button>
+    <div class="sidebar-bottom">
+      <button class="sidebar-avatar sidebar-account-trigger" id="sys-sidebar-account-trigger" type="button" aria-haspopup="true" aria-expanded="false">
+        <div class="avatar-circle" id="sys-admin-initials">${escapeHtml(initials)}</div>
+        <div class="sidebar-avatar-copy">
+          <div class="avatar-name" id="sysAdminName">${escapeHtml(name)}</div>
+          <div class="sidebar-email">System Admin</div>
+        </div>
+        <span class="sidebar-avatar-chevron" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+        </span>
+      </button>
+    </div>
+  </aside>`;
+}
+
+function openSysAccountMenu() {
+  const trigger = document.getElementById('sys-sidebar-account-trigger');
+  const bottom = document.querySelector('.sidebar-bottom');
+  if (!trigger || !bottom) return;
+  const existing = document.getElementById('sys-sidebar-account-mount');
+  if (existing) {
+    closeSysAccountMenu();
+    return;
+  }
+  const user = SYS_STATE.user || {};
+  const name = user.name || 'System Admin';
+  const email = user.email || '';
+  const initials = getInitials(name);
+
+  const mount = document.createElement('div');
+  mount.id = 'sys-sidebar-account-mount';
+  mount.innerHTML = `
+    <div class="modal-overlay open sidebar-account-overlay" id="sys-sidebar-account-overlay">
+      <div class="modal-box sidebar-account-modal">
+        <div class="sidebar-account-card">
+          <div class="avatar-circle sidebar-account-large">${escapeHtml(initials)}</div>
+          <div style="min-width:0">
+            <div class="sidebar-menu-name">${escapeHtml(name)}</div>
+            <div class="sidebar-menu-email">${escapeHtml(email)}</div>
+            <div style="font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--gold);margin-top:6px">System Admin</div>
+          </div>
+        </div>
+        <div class="sidebar-account-actions">
+          <button class="sidebar-account-item sidebar-account-item-signout" id="sys-signout-btn" type="button">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 3H3.5A1.5 1.5 0 002 4.5v7A1.5 1.5 0 003.5 13H6"/><path d="M9.5 5.5L13 8l-3.5 2.5"/><path d="M5 8h8"/></svg>
+            <span>Sign out</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(mount);
+  bottom.classList.add('open');
+  trigger.setAttribute('aria-expanded', 'true');
+}
+
+function closeSysAccountMenu() {
+  const mount = document.getElementById('sys-sidebar-account-mount');
+  const trigger = document.getElementById('sys-sidebar-account-trigger');
+  const bottom = document.querySelector('.sidebar-bottom');
+  if (mount) mount.remove();
+  if (trigger) trigger.setAttribute('aria-expanded', 'false');
+  if (bottom) bottom.classList.remove('open');
+}
+
+async function logoutSystemAdmin() {
+  closeSysAccountMenu();
+  if (typeof logoutUser === 'function') {
+    await logoutUser();
+    return;
+  }
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  window.location.href = 'index.html';
+}
+
+async function verifySysAdmin() {
+  const token = localStorage.getItem('token');
+  if (!token) {
+    window.location.href = 'index.html';
+    return null;
+  }
+  try {
+    const res = await fetch('/api/auth/profile', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      window.location.href = 'index.html';
+      return null;
+    }
+    const user = await res.json();
+    if (!user || user.role !== 'system_admin') {
+      window.location.href = 'index.html';
+      return null;
+    }
+    return user;
+  } catch (_) {
+    window.location.href = 'index.html';
+    return null;
+  }
+}
+
+async function sysAdminFetch(endpoint, options = {}) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(endpoint, {
+    ...options,
+    headers: {
+      'Authorization': 'Bearer ' + token,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+
+  const rawText = await res.text();
+  let data = {};
+  try {
+    data = rawText ? JSON.parse(rawText) : {};
+  } catch (_) {
+    data = { message: rawText || '' };
+  }
+
+  if (!res.ok) {
+    const msg = data.message || data.detail || ('API error: ' + res.status);
+    throw new Error(msg);
+  }
+  return data;
+}
+
+async function sysTimedFetch(endpoint, options = {}) {
+  const start = performance.now();
+  try {
+    const data = await sysAdminFetch(endpoint, options);
+    return {
+      endpoint,
+      ok: true,
+      ms: Math.round(performance.now() - start),
+      data
+    };
+  } catch (err) {
+    return {
+      endpoint,
+      ok: false,
+      ms: Math.round(performance.now() - start),
+      data: null,
+      error: err.message
+    };
+  }
+}
+
+function switchSysSection(name) {
+  if (!SYS_SECTIONS[name]) return;
+  SYS_STATE.currentSection = name;
+
+  document.querySelectorAll('.sys-section').forEach(section => section.classList.remove('active'));
+  const target = document.getElementById('section-' + name);
+  if (target) target.classList.add('active');
+
+  document.querySelectorAll('[data-sys-nav]').forEach(nav => nav.classList.remove('active'));
+  const activeNav = document.getElementById('nav-' + name);
+  if (activeNav) activeNav.classList.add('active');
+
+  const meta = SYS_SECTIONS[name];
+  const pageTitle = document.getElementById('pageTitle');
+  const pageSubtitle = document.getElementById('pageSubtitle');
+  if (pageTitle) pageTitle.textContent = meta.title;
+  if (pageSubtitle) pageSubtitle.textContent = meta.sub;
+
+  if (name === 'overview') loadSystemOverview();
+  if (name === 'users') loadUserControl();
+  if (name === 'database') loadDatabase();
+  if (name === 'security') loadSecurity();
+}
+
+function showSysLoading(sectionId) {
+  const loadingMarkup = '<div class="sys-loading">Loading...</div>';
+  if (sectionId === 'section-overview') {
+    const statusGrid = document.getElementById('statusGrid');
+    const statsGrid = document.getElementById('statsGrid');
+    const apiHealthList = document.getElementById('apiHealthList');
+    if (statusGrid) statusGrid.innerHTML = loadingMarkup;
+    if (statsGrid) statsGrid.innerHTML = loadingMarkup;
+    if (apiHealthList) apiHealthList.innerHTML = loadingMarkup;
+  }
+  if (sectionId === 'section-users') {
+    const tbody = document.getElementById('userTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--cream-25)">Loading...</td></tr>';
+  }
+  if (sectionId === 'section-database') {
+    const tbody = document.getElementById('dbTableBody');
+    const detail = document.getElementById('collectionDetail');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">Loading...</td></tr>';
+    if (detail) detail.innerHTML = '';
+  }
+  if (sectionId === 'section-security') {
+    const failed = document.getElementById('failedLoginList');
+    const logs = document.getElementById('activityLogList');
+    const audit = document.getElementById('auditTrailList');
+    if (failed) failed.innerHTML = loadingMarkup;
+    if (logs) logs.innerHTML = loadingMarkup;
+    if (audit) audit.innerHTML = loadingMarkup;
+  }
+}
+
+function renderServiceStatus(healthResult) {
+  const statusGrid = document.getElementById('statusGrid');
+  if (!statusGrid) return;
+  const mongodbState = String((healthResult && healthResult.mongodb) || '').toLowerCase() === 'ok' ? 'online' : 'offline';
+  const ollamaState = String((healthResult && healthResult.ollama) || '').toLowerCase() === 'ok' ? 'online' : 'offline';
+  const backendState = healthResult ? 'online' : 'offline';
+
+  const services = [
+    { name: 'Backend', status: backendState },
+    { name: 'AI Model', status: ollamaState },
+    { name: 'Database', status: mongodbState }
+  ];
+
+  statusGrid.innerHTML = services.map(service => {
+    return '<div class="status-item">'
+      + '<span class="status-name">' + escapeHtml(service.name) + '</span>'
+      + '<span class="status-' + service.status + '">' + (service.status === 'online' ? 'Online' : 'Offline') + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+function renderRealtimeStats(stats) {
+  const statsGrid = document.getElementById('statsGrid');
+  if (!statsGrid) return;
+  const rows = [
+    { label: 'Total Users', value: Number(stats.totalUsers || 0).toLocaleString() },
+    { label: 'Total Documents', value: Number(stats.totalDocuments || 0).toLocaleString() },
+    { label: 'Completed Quizzes', value: Number(stats.totalCompleted || 0).toLocaleString() },
+    { label: 'System Logs', value: Number(stats.totalLogs || 0).toLocaleString() }
+  ];
+
+  statsGrid.innerHTML = rows.map(row => {
+    return '<div class="stat-row">'
+      + '<span class="stat-label">' + escapeHtml(row.label) + '</span>'
+      + '<span class="stat-val">' + escapeHtml(row.value) + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+function renderApiHealth(requestRows) {
+  const apiHealthList = document.getElementById('apiHealthList');
+  if (!apiHealthList) return;
+  apiHealthList.innerHTML = requestRows.map(row => {
+    const icon = row.ok
+      ? '<span class="api-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
+      : '<span class="api-error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>';
+    return '<div class="api-row">'
+      + '<span class="api-endpoint">' + escapeHtml(row.endpoint) + '</span>'
+      + '<span class="api-time">' + row.ms + 'ms</span>'
+      + icon
+      + '</div>';
+  }).join('');
+}
+
+async function loadSystemOverview() {
+  showSysLoading('section-overview');
+  const [healthReq, statsReq, logsReq] = await Promise.all([
+    sysTimedFetch('/api/sysadmin/health'),
+    sysTimedFetch('/api/sysadmin/stats'),
+    sysTimedFetch('/api/sysadmin/logs?page=1&limit=20')
+  ]);
+
+  if (healthReq.ok) renderServiceStatus(healthReq.data);
+  else renderServiceStatus(null);
+
+  if (statsReq.ok) renderRealtimeStats(statsReq.data);
+  else {
+    const statsGrid = document.getElementById('statsGrid');
+    if (statsGrid) statsGrid.innerHTML = '<div class="sys-loading">Failed to load stats</div>';
+  }
+
+  renderApiHealth([healthReq, statsReq, logsReq]);
+
+  if (!healthReq.ok || !statsReq.ok || !logsReq.ok) {
+    showToast('Failed to load some system overview data', 3200);
+  }
+}
+
+function formatSysDate(value) {
+  if (!value) return '-';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function normalizeSysUsers(users) {
+  return (users || []).map(user => {
+    return {
+      _id: String(user._id || ''),
+      name: user.name || 'Unknown',
+      email: user.email || '',
+      role: user.role || 'user',
+      tier: user.tier || 'free',
+      status: user.status || 'active',
+      joined: formatSysDate(user.createdAt),
+      initials: getInitials(user.name || 'User')
+    };
+  });
+}
+
+function applySysUserFilters() {
+  const q = (document.getElementById('sys-user-search')?.value || '').toLowerCase();
+  const role = document.getElementById('sys-user-role')?.value || '';
+  const status = document.getElementById('sys-user-status')?.value || '';
+
+  SYS_STATE.filteredUsers = SYS_STATE.users.filter(user => {
+    const qMatch = !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q);
+    const roleMatch = !role || user.role === role;
+    const statusMatch = !status || user.status === status;
+    return qMatch && roleMatch && statusMatch;
+  });
+
+  renderUserTable(SYS_STATE.filteredUsers);
+}
+
+function renderUserTable(users) {
+  const tbody = document.getElementById('userTableBody');
+  if (!tbody) return;
+
+  if (!users.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--cream-25)">No users found</td></tr>';
+    return;
+  }
+
+  const roleBadgeMap = {
+    system_admin: 'badge-purple',
+    admin: 'badge-amber',
+    user: 'badge-cream'
+  };
+  const tierBadgeMap = {
+    pro: 'badge-green',
+    free: 'badge-cream'
+  };
+
+  tbody.innerHTML = users.map(user => {
+    const isSelf = SYS_STATE.user && (String(SYS_STATE.user._id) === user._id || SYS_STATE.user.email === user.email);
+    return '<tr>'
+      + '<td><div class="user-cell"><div class="user-av-sm">' + escapeHtml(user.initials) + '</div><div><div class="user-name-sm">' + escapeHtml(user.name) + '</div><div class="user-email-sm">' + escapeHtml(user.email) + '</div></div></div></td>'
+      + '<td><span class="badge ' + (roleBadgeMap[user.role] || 'badge-cream') + '">' + escapeHtml(user.role) + '</span></td>'
+      + '<td><span class="badge ' + (tierBadgeMap[user.tier] || 'badge-cream') + '">' + escapeHtml(user.tier) + '</span></td>'
+      + '<td><span class="' + (user.status === 'active' ? 'status-dot-green' : 'status-dot-none') + '"></span><span style="font-size:12px;color:var(--cream-60)">' + escapeHtml(user.status) + '</span></td>'
+      + '<td style="font-size:12px;color:var(--cream-40)">' + escapeHtml(user.joined) + '</td>'
+      + '<td><div class="actions-cell">'
+      + '<button class="action-btn sys-role-btn" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Change Role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg></button>'
+      + '<button class="action-btn sys-reset-btn" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Reset Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>'
+      + '<button class="action-btn danger sys-delete-btn' + (isSelf ? ' sys-action-disabled' : '') + '" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>'
+      + '</div></td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function loadUserControl() {
+  showSysLoading('section-users');
+  try {
+    const data = await sysAdminFetch('/api/admin/users?page=1&limit=100');
+    SYS_STATE.users = normalizeSysUsers(data.users || []);
+    applySysUserFilters();
+  } catch (err) {
+    const tbody = document.getElementById('userTableBody');
+    if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--red-soft)">Failed to load users</td></tr>';
+    showToast('Failed to load users', 3200);
+  }
+}
+
+function openSysRoleModal(userId) {
+  const user = SYS_STATE.users.find(item => item._id === userId);
+  if (!user) return;
+  SYS_STATE.roleTargetUserId = user._id;
+  const targetName = document.getElementById('sysRoleTargetName');
+  const roleSelect = document.getElementById('sysRoleSelect');
+  if (targetName) targetName.textContent = user.name;
+  if (roleSelect) roleSelect.value = user.role;
+  document.getElementById('sysRoleOverlay')?.classList.add('open');
+}
+
+function closeSysRoleModal() {
+  SYS_STATE.roleTargetUserId = '';
+  document.getElementById('sysRoleOverlay')?.classList.remove('open');
+}
+
+async function changeSysUserRole(userId, newRole) {
+  const confirmBtn = document.getElementById('sysRoleConfirmBtn');
+  if (confirmBtn) confirmBtn.disabled = true;
+  try {
+    await sysAdminFetch('/api/admin/users/' + encodeURIComponent(userId) + '/role', {
+      method: 'PUT',
+      body: JSON.stringify({ role: newRole })
+    });
+    closeSysRoleModal();
+    showToast('Role updated', 2800);
+    await loadUserControl();
+  } catch (_) {
+    showToast('Failed to update role', 3200);
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+async function resetSysUserPassword(userId) {
+  try {
+    await sysAdminFetch('/api/admin/user/' + encodeURIComponent(userId) + '/reset-password', {
+      method: 'POST'
+    });
+    showToast('Password reset to Learnova@2026', 3000);
+  } catch (_) {
+    showToast('Failed to reset password', 3200);
+  }
+}
+
+function openSysDeleteModal(userId) {
+  const user = SYS_STATE.users.find(item => item._id === userId);
+  if (!user) return;
+  SYS_STATE.deleteTargetUserId = user._id;
+  const targetName = document.getElementById('sysDeleteTargetName');
+  const input = document.getElementById('sysDeleteInput');
+  const confirmBtn = document.getElementById('sysDeleteConfirmBtn');
+  if (targetName) targetName.textContent = user.name;
+  if (input) input.value = '';
+  if (confirmBtn) confirmBtn.disabled = true;
+  document.getElementById('sysDeleteOverlay')?.classList.add('open');
+}
+
+function closeSysDeleteModal() {
+  SYS_STATE.deleteTargetUserId = '';
+  document.getElementById('sysDeleteOverlay')?.classList.remove('open');
+}
+
+function syncSysDeleteConfirmButton() {
+  const user = SYS_STATE.users.find(item => item._id === SYS_STATE.deleteTargetUserId);
+  const input = document.getElementById('sysDeleteInput');
+  const confirmBtn = document.getElementById('sysDeleteConfirmBtn');
+  if (!user || !input || !confirmBtn) return;
+  confirmBtn.disabled = input.value !== user.name;
+}
+
+async function deleteSysUser(userId) {
+  const confirmBtn = document.getElementById('sysDeleteConfirmBtn');
+  if (confirmBtn) confirmBtn.disabled = true;
+  try {
+    await sysAdminFetch('/api/admin/users/' + encodeURIComponent(userId), {
+      method: 'DELETE'
+    });
+    closeSysDeleteModal();
+    showToast('User deleted', 2800);
+    await loadUserControl();
+  } catch (_) {
+    showToast('Failed to delete user', 3200);
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!value) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = value;
+  let idx = 0;
+  while (size >= 1024 && idx < units.length - 1) {
+    size /= 1024;
+    idx += 1;
+  }
+  return size.toFixed(size >= 100 || idx === 0 ? 0 : 1) + ' ' + units[idx];
+}
+
+function estimateCollectionSize(items, totalCount) {
+  if (!items || !items.length || !totalCount) return '0 B';
+  const sampleBytes = JSON.stringify(items).length / items.length;
+  return formatBytes(Math.round(sampleBytes * totalCount));
+}
+
+async function fetchSysCollectionNames() {
+  const probe = await sysAdminFetch('/api/sysadmin/db/__collections__?page=1&limit=1');
+  if (!probe || !probe.error) return [];
+  const match = String(probe.error).match(/Allowed:\s*\[(.*)\]/);
+  if (!match || !match[1]) return [];
+  try {
+    const listJson = ('[' + match[1] + ']').replace(/'/g, '"');
+    const parsed = JSON.parse(listJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+async function loadDatabase() {
+  showSysLoading('section-database');
+  try {
+    const names = await fetchSysCollectionNames();
+    if (!names.length) {
+      document.getElementById('dbTableBody').innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">No collections available</td></tr>';
+      return;
+    }
+
+    const rows = await Promise.all(names.map(async name => {
+      try {
+        const data = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(name) + '?page=1&limit=5');
+        const total = Number(data.total || 0);
+        return {
+          name,
+          total,
+          size: estimateCollectionSize(data.items || [], total),
+          preview: data.items || []
+        };
+      } catch (_) {
+        return {
+          name,
+          total: 0,
+          size: '0 B',
+          preview: []
+        };
+      }
+    }));
+
+    SYS_STATE.collections = rows;
+    SYS_STATE.collectionDocs = {};
+    SYS_STATE.openCollection = '';
+    renderCollections(rows);
+  } catch (_) {
+    document.getElementById('dbTableBody').innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--red-soft)">Failed to load collections</td></tr>';
+    showToast('Failed to load database', 3200);
+  }
+}
+
+function renderCollections(collections) {
+  const tbody = document.getElementById('dbTableBody');
+  if (!tbody) return;
+  if (!collections.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">No collections found</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = collections.map(item => {
+    const isOpen = SYS_STATE.openCollection === item.name;
+    return '<tr>'
+      + '<td><span class="collection-name">' + escapeHtml(item.name) + '</span></td>'
+      + '<td>' + escapeHtml(item.size) + '</td>'
+      + '<td>' + Number(item.total || 0).toLocaleString() + '</td>'
+      + '<td><button class="expand-btn' + (isOpen ? ' open' : '') + '" type="button" data-expand-collection="' + escapeHtml(item.name) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button></td>'
+      + '</tr>';
+  }).join('');
+
+  const detail = document.getElementById('collectionDetail');
+  if (detail) detail.innerHTML = '';
+}
+
+async function expandCollection(name) {
+  const detail = document.getElementById('collectionDetail');
+  if (!detail) return;
+
+  if (SYS_STATE.openCollection === name) {
+    SYS_STATE.openCollection = '';
+    renderCollections(SYS_STATE.collections);
+    return;
+  }
+
+  SYS_STATE.openCollection = name;
+  renderCollections(SYS_STATE.collections);
+  detail.innerHTML = '<div class="sys-loading">Loading collection...</div>';
+
+  try {
+    const data = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(name) + '?page=1&limit=20');
+    SYS_STATE.collectionDocs[name] = data.items || [];
+    renderCollectionDocs(name, SYS_STATE.collectionDocs[name]);
+  } catch (_) {
+    detail.innerHTML = '<div class="sys-loading">Failed to load collection data</div>';
+    showToast('Failed to load collection', 3200);
+  }
+}
+
+function renderCollectionDocs(name, docs) {
+  const detail = document.getElementById('collectionDetail');
+  if (!detail) return;
+  const rows = docs.map(item => {
+    return '<div class="doc-row" data-doc-json="' + escapeHtml(JSON.stringify(item)) + '">' + escapeHtml(JSON.stringify(item, null, 2)) + '</div>';
+  }).join('');
+
+  detail.innerHTML = '<div class="collection-detail">'
+    + '<div class="collection-detail-header">'
+    + '<span class="collection-detail-title">' + escapeHtml(name) + ' Collection</span>'
+    + '<button class="btn btn-outline btn-sm" type="button" id="sys-collapse-collection">Collapse</button>'
+    + '</div>'
+    + '<div class="doc-list" id="sys-doc-list">' + (rows || '<div class="doc-row">No documents</div>') + '</div>'
+    + '<div class="collection-detail-footer">'
+    + '<input class="detail-search" id="sys-detail-search" type="text" placeholder="Search by content...">'
+    + '<div class="sys-collection-actions">'
+    + '<button class="btn btn-outline btn-sm" type="button" id="sys-delete-selected" disabled>Delete Selected</button>'
+    + '<button class="btn btn-danger btn-sm" type="button" id="sys-clear-all" disabled>Clear All</button>'
+    + '</div>'
+    + '</div>'
+    + '</div>';
+}
+
+function filterCollectionDocs(query) {
+  const list = document.getElementById('sys-doc-list');
+  if (!list) return;
+  const q = String(query || '').toLowerCase();
+  list.querySelectorAll('.doc-row').forEach(row => {
+    const source = (row.getAttribute('data-doc-json') || '').toLowerCase();
+    row.style.display = !q || source.includes(q) ? '' : 'none';
+  });
+}
+
+function classifyLogType(log) {
+  const path = String(log.path || '').toLowerCase();
+  const status = Number(log.status || 0);
+  if (path.includes('/auth/login') && status >= 400) return 'failed';
+  if (path.includes('/auth/login')) return 'login';
+  if (path.includes('/upload')) return 'upload';
+  if (path.includes('/quiz') || path.includes('/results') || path.includes('/modules') || path.includes('submit-quiz')) return 'quiz';
+  if (path.includes('/admin') || path.includes('/sysadmin')) return 'admin';
+  if (status >= 500) return 'error';
+  return 'error';
+}
+
+function formatTimeAgo(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const diffMs = Date.now() - date.getTime();
+  const diffMin = Math.max(1, Math.floor(diffMs / 60000));
+  if (diffMin < 60) return diffMin + ' min ago';
+  const diffHr = Math.floor(diffMin / 60);
+  if (diffHr < 24) return diffHr + ' hr ago';
+  const diffDay = Math.floor(diffHr / 24);
+  return diffDay + ' day ago';
+}
+
+function renderFailedLogins(logs) {
+  const failedList = document.getElementById('failedLoginList');
+  if (!failedList) return;
+
+  const failed = logs.filter(log => classifyLogType(log) === 'failed');
+  const grouped = {};
+  failed.forEach(log => {
+    const key = log.ip || 'unknown';
+    if (!grouped[key]) grouped[key] = { ip: key, attempts: 0, latest: log.timestamp };
+    grouped[key].attempts += 1;
+    if (new Date(log.timestamp) > new Date(grouped[key].latest)) grouped[key].latest = log.timestamp;
+  });
+
+  const rows = Object.values(grouped).sort((a, b) => b.attempts - a.attempts);
+  if (!rows.length) {
+    failedList.innerHTML = '<div class="failed-row-item"><span class="f-email">No failed logins found</span></div>';
+    return;
+  }
+
+  failedList.innerHTML = rows.map(row => {
+    const highRisk = row.attempts >= 5;
+    return '<div class="failed-row-item">'
+      + '<span class="f-email">' + escapeHtml(row.ip) + '</span>'
+      + '<span class="f-count">x ' + row.attempts + ' attempts</span>'
+      + '<span class="badge ' + (highRisk ? 'badge-red' : 'badge-amber') + '">' + (highRisk ? 'High' : 'Medium') + '</span>'
+      + '<span class="f-time">' + escapeHtml(formatTimeAgo(row.latest)) + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+function filterActivityLogs(type) {
+  if (!SYS_STATE.logs.length) return [];
+  if (!type || type === 'all') return SYS_STATE.logs.slice();
+  return SYS_STATE.logs.filter(log => classifyLogType(log) === type);
+}
+
+function renderActivityLogs(logs) {
+  const activityList = document.getElementById('activityLogList');
+  if (!activityList) return;
+  const type = document.getElementById('sys-log-filter')?.value || 'all';
+  const filtered = filterActivityLogs(type);
+  SYS_STATE.filteredLogs = filtered;
+
+  if (!filtered.length) {
+    activityList.innerHTML = '<div class="log-row-item"><span class="event-desc">No events for this filter</span></div>';
+    return;
+  }
+
+  activityList.innerHTML = filtered.map(log => {
+    const eventType = classifyLogType(log);
+    const labelMap = {
+      login: 'LOGIN',
+      upload: 'UPLOAD',
+      quiz: 'QUIZ',
+      failed: 'FAIL',
+      admin: 'ADMIN',
+      error: 'ERROR'
+    };
+    const desc = (log.method || 'GET') + ' ' + (log.path || '-') + ' -> ' + (log.status || '-');
+    return '<div class="log-row-item">'
+      + '<span class="event-indicator ei-' + eventType + '"></span>'
+      + '<span class="event-label">' + labelMap[eventType] + '</span>'
+      + '<span class="event-user">' + escapeHtml(log.ip || '-') + '</span>'
+      + '<span class="event-desc">' + escapeHtml(desc) + '</span>'
+      + '<span class="event-time">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+function renderAuditTrail(logs) {
+  const auditList = document.getElementById('auditTrailList');
+  if (!auditList) return;
+
+  const rows = logs
+    .filter(log => {
+      const path = String(log.path || '').toLowerCase();
+      const method = String(log.method || '').toUpperCase();
+      return (path.includes('/api/admin') || path.includes('/api/sysadmin')) && method !== 'GET';
+    })
+    .slice(0, 50);
+
+  if (!rows.length) {
+    auditList.innerHTML = '<div class="audit-row-item"><div class="audit-text"><div class="audit-line"><span class="audit-subject">No admin actions found</span></div></div></div>';
+    return;
+  }
+
+  const iconByMethod = {
+    POST: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+    PUT: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
+    DELETE: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+  };
+
+  auditList.innerHTML = rows.map(log => {
+    const method = String(log.method || '').toUpperCase();
+    const path = String(log.path || '');
+    const status = String(log.status || '-');
+    const icon = iconByMethod[method] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>';
+    return '<div class="audit-row-item">'
+      + '<div class="audit-icon-sm">' + icon + '</div>'
+      + '<div class="audit-text">'
+      + '<div class="audit-line">'
+      + '<span class="audit-actor">System Admin</span>'
+      + '<span class="audit-arrow">-></span>'
+      + '<span class="audit-verb">' + escapeHtml(method) + '</span>'
+      + '<span class="audit-arrow">-></span>'
+      + '<span class="audit-subject">' + escapeHtml(path.replace('/api/', '')) + '</span>'
+      + '<span class="audit-change-tag">Status ' + escapeHtml(status) + '</span>'
+      + '</div>'
+      + '<div class="audit-time-sm">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+async function loadSecurity() {
+  showSysLoading('section-security');
+  try {
+    const data = await sysAdminFetch('/api/sysadmin/logs?page=1&limit=200');
+    SYS_STATE.logs = (data.logs || []).slice();
+    renderFailedLogins(SYS_STATE.logs);
+    renderActivityLogs(SYS_STATE.logs);
+    renderAuditTrail(SYS_STATE.logs);
+  } catch (_) {
+    showToast('Failed to load security data', 3200);
+    const failed = document.getElementById('failedLoginList');
+    const activity = document.getElementById('activityLogList');
+    const audit = document.getElementById('auditTrailList');
+    if (failed) failed.innerHTML = '<div class="sys-loading">Failed to load failed login data</div>';
+    if (activity) activity.innerHTML = '<div class="sys-loading">Failed to load activity logs</div>';
+    if (audit) audit.innerHTML = '<div class="sys-loading">Failed to load audit trail</div>';
+  }
+}
+
+function exportSysLogsCsv() {
+  const rows = SYS_STATE.filteredLogs.length ? SYS_STATE.filteredLogs : SYS_STATE.logs;
+  if (!rows.length) {
+    showToast('No logs to export', 2800);
+    return;
+  }
+
+  const header = ['method', 'path', 'status', 'ip', 'timestamp'];
+  const lines = [header.join(',')].concat(rows.map(log => {
+    return [
+      log.method || '',
+      log.path || '',
+      log.status || '',
+      log.ip || '',
+      log.timestamp || ''
+    ].map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',');
+  }));
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'system-logs.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exported', 2800);
+}
+
+function bindSystemAdminEvents() {
+  const mount = document.getElementById('sidebar-mount');
+  if (mount) {
+    mount.addEventListener('click', event => {
+      const nav = event.target.closest('[data-sys-nav]');
+      if (nav) {
+        switchSysSection(nav.getAttribute('data-sys-nav'));
+        return;
+      }
+      const trigger = event.target.closest('#sys-sidebar-account-trigger');
+      if (trigger) {
+        event.stopPropagation();
+        openSysAccountMenu();
+      }
+    });
+  }
+
+  document.addEventListener('click', event => {
+    const overlay = event.target.closest('#sys-sidebar-account-overlay');
+    if (overlay && event.target === overlay) {
+      closeSysAccountMenu();
+      return;
+    }
+    const signout = event.target.closest('#sys-signout-btn');
+    if (signout) {
+      logoutSystemAdmin();
+      return;
+    }
+    if (!event.target.closest('.sidebar-bottom') && !event.target.closest('#sys-sidebar-account-mount')) {
+      closeSysAccountMenu();
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeSysAccountMenu();
+      closeSysRoleModal();
+      closeSysDeleteModal();
+    }
+  });
+
+  document.getElementById('sys-refresh-overview')?.addEventListener('click', () => {
+    loadSystemOverview();
+  });
+
+  document.getElementById('sys-user-search')?.addEventListener('input', applySysUserFilters);
+  document.getElementById('sys-user-role')?.addEventListener('change', applySysUserFilters);
+  document.getElementById('sys-user-status')?.addEventListener('change', applySysUserFilters);
+
+  document.getElementById('userTableBody')?.addEventListener('click', event => {
+    const roleBtn = event.target.closest('.sys-role-btn');
+    if (roleBtn) {
+      openSysRoleModal(roleBtn.getAttribute('data-user-id') || '');
+      return;
+    }
+    const resetBtn = event.target.closest('.sys-reset-btn');
+    if (resetBtn) {
+      resetSysUserPassword(resetBtn.getAttribute('data-user-id') || '');
+      return;
+    }
+    const deleteBtn = event.target.closest('.sys-delete-btn:not(.sys-action-disabled)');
+    if (deleteBtn) {
+      openSysDeleteModal(deleteBtn.getAttribute('data-user-id') || '');
+    }
+  });
+
+  document.getElementById('sysRoleCancelBtn')?.addEventListener('click', closeSysRoleModal);
+  document.getElementById('sysRoleConfirmBtn')?.addEventListener('click', () => {
+    const userId = SYS_STATE.roleTargetUserId;
+    const role = document.getElementById('sysRoleSelect')?.value;
+    if (!userId || !role) return;
+    changeSysUserRole(userId, role);
+  });
+
+  document.getElementById('sysRoleOverlay')?.addEventListener('click', event => {
+    if (event.target.id === 'sysRoleOverlay') closeSysRoleModal();
+  });
+
+  document.getElementById('sysDeleteCancelBtn')?.addEventListener('click', closeSysDeleteModal);
+  document.getElementById('sysDeleteInput')?.addEventListener('input', syncSysDeleteConfirmButton);
+  document.getElementById('sysDeleteConfirmBtn')?.addEventListener('click', () => {
+    if (!SYS_STATE.deleteTargetUserId) return;
+    deleteSysUser(SYS_STATE.deleteTargetUserId);
+  });
+
+  document.getElementById('sysDeleteOverlay')?.addEventListener('click', event => {
+    if (event.target.id === 'sysDeleteOverlay') closeSysDeleteModal();
+  });
+
+  document.getElementById('dbTableBody')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-expand-collection]');
+    if (!btn) return;
+    const name = btn.getAttribute('data-expand-collection') || '';
+    if (!name) return;
+    expandCollection(name);
+  });
+
+  document.getElementById('collectionDetail')?.addEventListener('input', event => {
+    if (event.target && event.target.id === 'sys-detail-search') {
+      filterCollectionDocs(event.target.value || '');
+    }
+  });
+
+  document.getElementById('collectionDetail')?.addEventListener('click', event => {
+    const collapse = event.target.closest('#sys-collapse-collection');
+    if (collapse) {
+      if (SYS_STATE.openCollection) expandCollection(SYS_STATE.openCollection);
+      return;
+    }
+    const readOnlyBtn = event.target.closest('#sys-delete-selected, #sys-clear-all');
+    if (readOnlyBtn) {
+      showToast('Database manager is currently read-only', 3200);
+    }
+  });
+
+  document.getElementById('sys-log-filter')?.addEventListener('change', () => {
+    renderActivityLogs(SYS_STATE.logs);
+  });
+
+  document.getElementById('sys-export-logs')?.addEventListener('click', exportSysLogsCsv);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!isSystemAdminPage()) return;
+
+  const user = await verifySysAdmin();
+  if (!user) return;
+
+  SYS_STATE.user = user;
+
+  const sidebarMount = document.getElementById('sidebar-mount');
+  if (sidebarMount) {
+    sidebarMount.innerHTML = renderSystemAdminSidebar('overview');
+  }
+
+  const nameSlot = document.getElementById('sysAdminName');
+  const initialsSlot = document.getElementById('sys-admin-initials');
+  if (nameSlot) nameSlot.textContent = user.name || 'System Admin';
+  if (initialsSlot) initialsSlot.textContent = getInitials(user.name || 'System Admin');
+
+  bindSystemAdminEvents();
+  switchSysSection('overview');
+});
