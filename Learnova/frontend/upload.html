@@ -90,11 +90,26 @@ let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score:
 let resumedSession = false;
 let processingTimer = null;
 
-function isPro() { return LEARNOVA_USER.tier === 'pro'; }
+let quizData = []; // populated from POST /api/upload
 
+let quizMode = false, currentQ = 0, answers = [], answered = false;
+
+/* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
+/**
+ * Check whether the current user has Pro tier enabled.
+ * @returns {boolean}
+ */
+function isPro() {
+  return LEARNOVA_USER.tier === 'pro';
+}
+
+/**
+ * Update upload controls based on current plan tier.
+ */
 function updateUploadUI() {
   const gate = document.getElementById('pro-gate-banner');
   const fileInput = document.getElementById('file-input');
+
   if (isPro()) {
     fileInput.accept = '.pdf,.txt,.pptx,.ppt';
     document.getElementById('upload-sub-text').textContent = 'PDF, TXT, PPTX · up to 10 MB · multiple files supported';
@@ -108,59 +123,122 @@ function updateUploadUI() {
   }
 }
 
-function triggerFileInput() { document.getElementById('file-input').click(); }
-function handleDrag(e, entering) { e.preventDefault(); document.getElementById('drop-zone').classList.toggle('drag', entering); }
+/**
+ * Open hidden file picker input.
+ */
+function triggerFileInput() {
+  document.getElementById('file-input').click();
+}
+
+/**
+ * Handle drag enter/leave states for upload zone.
+ * @param {DragEvent} e
+ * @param {boolean} entering
+ */
+function handleDrag(e, entering) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.toggle('drag', entering);
+}
+
+/**
+ * Handle dropped files and pass them to file handler.
+ * @param {DragEvent} e
+ */
 function handleDrop(e) {
-  e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag');
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
   handleFileInput(e.dataTransfer.files);
 }
+
+/* ── File Handling ─────────────────────────────────────────────────────────── */
+/**
+ * Validate and store selected files based on plan limits and file size.
+ * @param {FileList | File[]} files
+ */
 function handleFileInput(files) {
   if (!files || !files.length) return;
+
   const allowed = isPro() ? ['.pdf','.txt','.pptx','.ppt'] : ['.pdf','.txt'];
-  const newFiles = Array.from(files).filter(f => {
-    const ext = '.' + f.name.split('.').pop().toLowerCase();
-    if (!allowed.includes(ext)) { showToast(ext.toUpperCase() + ' upload requires Pro'); return false; }
-    if (f.size > 10*1024*1024) { showToast(f.name + ' exceeds 10 MB limit'); return false; }
+  const newFiles = Array.from(files).filter(function(file) {
+    const extension = '.' + file.name.split('.').pop().toLowerCase();
+
+    if (!allowed.includes(extension)) {
+      showToast(extension.toUpperCase() + ' upload requires Pro');
+      return false;
+    }
+
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      showToast(file.name + ' exceeds 10 MB limit');
+      return false;
+    }
+
     return true;
   });
-  if (!isPro() && newFiles.length > 0) uploadedFiles = [newFiles[0]];
-  else uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+
+  if (!isPro() && newFiles.length > 0) {
+    uploadedFiles = [newFiles[0]];
+  } else {
+    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+  }
+
   renderFileList();
   checkContent();
   document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected';
 }
+
+/**
+ * Render attached file cards in the upload panel.
+ */
 function renderFileList() {
   const list = document.getElementById('file-list');
-  const extColor = ext => ext==='pptx'||ext==='ppt'?'#B89AE8':ext==='txt'?'var(--green)':'var(--gold)';
-  list.innerHTML = uploadedFiles.map((f,i) => {
-    const ext = f.name.split('.').pop().toUpperCase();
+  const extColor = function(ext) {
+    return ext === 'pptx' || ext === 'ppt' ? '#B89AE8' : ext === 'txt' ? 'var(--green)' : 'var(--gold)';
+  };
+
+  list.innerHTML = uploadedFiles.map(function(file, index) {
+    const extension = file.name.split('.').pop().toUpperCase();
     return `<div class="file-attached">
-      <div class="file-icon-box" style="color:${extColor(ext.toLowerCase())}">${ext}</div>
-      <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div><div class="file-size">${(f.size/1024).toFixed(0)} KB</div></div>
-      <button class="file-remove" onclick="removeFile(${i})">✕</button>
+      <div class="file-icon-box" style="color:${extColor(extension.toLowerCase())}">${extension}</div>
+      <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${file.name}</div><div class="file-size">${(file.size / 1024).toFixed(0)} KB</div></div>
+      <button class="file-remove" onclick="removeFile(${index})">✕</button>
     </div>`;
   }).join('');
+
   syncCompactFile();
 }
+
+/**
+ * Remove a file by index and refresh related UI.
+ * @param {number} i
+ */
 function removeFile(i) {
   uploadedFiles.splice(i,1);
   renderFileList();
   checkContent();
   document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 0 ? 'New document' : (uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected');
 }
+
+/**
+ * Toggle process button based on text/file availability.
+ */
 function checkContent() {
   const hasPaste = document.getElementById('paste-area').value.trim().length > 30;
   const hasFiles = uploadedFiles.length > 0;
-  document.getElementById('btn-process').style.display = (hasPaste||hasFiles) ? 'flex' : 'none';
+
+  document.getElementById('btn-process').style.display = (hasPaste || hasFiles) ? 'flex' : 'none';
+
   if (!hasFiles && hasPaste) document.getElementById('breadcrumb-cur').textContent = 'Pasted text';
   if (!hasFiles && !hasPaste) document.getElementById('breadcrumb-cur').textContent = 'New document';
+
   syncCompactFile();
 }
 
-let quizData = []; // populated from POST /api/upload
-
-let quizMode = false, currentQ = 0, answers = [], answered = false;
-
+/* ── Document Summary Builders ─────────────────────────────────────────────── */
+/**
+ * Resolve active upload label for compact header status.
+ * @returns {string}
+ */
 function getActiveUploadLabel() {
   if (uploadedFiles.length === 1) return uploadedFiles[0].name;
   if (uploadedFiles.length > 1) return uploadedFiles.length + ' files selected';
@@ -169,18 +247,35 @@ function getActiveUploadLabel() {
   return pasted ? 'Pasted text' : 'Document ready';
 }
 
+/**
+ * Check whether pasted text meets minimum processing length.
+ * @returns {boolean}
+ */
 function hasPastedText() {
   return document.getElementById('paste-area').value.trim().length > 30;
 }
 
+/**
+ * Determine whether current upload is text-only.
+ * @returns {boolean}
+ */
 function isTextOnlyUpload() {
   return uploadedFiles.length === 0 && hasPastedText();
 }
 
+/**
+ * Format character count label for text uploads.
+ * @param {number} count
+ * @returns {string}
+ */
 function formatChars(count) {
   return `${count} chars`;
 }
 
+/**
+ * Return local processed timestamp string.
+ * @returns {string}
+ */
 function getProcessedTime() {
   return new Date().toLocaleTimeString('en-NZ', {
     hour: '2-digit',
@@ -189,6 +284,11 @@ function getProcessedTime() {
   }).toLowerCase();
 }
 
+/**
+ * Build summary payload for pasted-text uploads.
+ * @param {string} pasted
+ * @returns {object}
+ */
 function buildPastedSummary(pasted) {
   const charCount = pasted.length;
   const processedAt = getProcessedTime();
@@ -231,6 +331,10 @@ function buildPastedSummary(pasted) {
   };
 }
 
+/**
+ * Build summary metadata from uploaded file.
+ * @returns {object}
+ */
 function buildUploadedFileSummary() {
   const file = uploadedFiles[0];
   if (!file) return { ...currentDoc };
@@ -253,12 +357,19 @@ function buildUploadedFileSummary() {
   };
 }
 
+/**
+ * Resolve the current document object from active upload state.
+ * @returns {object}
+ */
 function buildCurrentDocument() {
   if (isTextOnlyUpload()) return buildPastedSummary(document.getElementById('paste-area').value.trim());
   if (uploadedFiles.length > 0) return buildUploadedFileSummary();
   return { ...currentDoc };
 }
 
+/**
+ * Render left-panel document information card and metadata rows.
+ */
 function renderDocumentInfo() {
   const mount = document.getElementById('upload-summary-shell');
   if (!mount || !currentDoc) return;
@@ -283,12 +394,19 @@ function renderDocumentInfo() {
   `;
 }
 
+/**
+ * Toggle upload panel between input mode and summary mode.
+ * @param {boolean} active
+ */
 function setSummaryMode(active) {
   const panel = document.querySelector('.panel-left');
   panel.classList.toggle('summary-mode', active);
   document.getElementById('upload-panel-label').textContent = active ? 'Document info' : 'Upload document';
 }
 
+/**
+ * Sync compact status card text and icon.
+ */
 function syncCompactFile() {
   const compactName = document.getElementById('compact-file-name');
   const compactMeta = document.getElementById('compact-file-meta');
@@ -300,6 +418,10 @@ function syncCompactFile() {
   compactMeta.textContent = quizMode ? 'Quiz in progress' : 'Summary ready';
 }
 
+/**
+ * Collapse or expand upload panel while quiz is active.
+ * @param {boolean} collapsed
+ */
 function setUploadCollapsed(collapsed) {
   document.querySelector('.panel-left').classList.toggle('compact', collapsed);
   syncCompactFile();
@@ -307,14 +429,20 @@ function setUploadCollapsed(collapsed) {
   compact.classList.toggle('live', collapsed);
 }
 
+/* ── Document Processing ────────────────────────────────────────────────────── */
+/**
+ * Send upload payload to backend and transition to summary view.
+ * @returns {Promise<void>}
+ */
 async function processDocument() {
+  // Phase 1: Set initial loading UI state.
   showProcessingState();
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
   const _token = localStorage.getItem('token') || '';
 
-  // Build FormData for real file upload
+  // Phase 2: Build FormData payload for file or pasted text.
   const formData = new FormData();
   if (file) {
     formData.append('file', file);
@@ -325,6 +453,7 @@ async function processDocument() {
     formData.append('title', 'Pasted text');
   }
 
+  // Phase 3: Run animated progress and network request in parallel.
   let step = 0;
   const progressMarks = [18, 42, 71, 100];
   const animPromise = new Promise(function(resolve) {
@@ -343,7 +472,9 @@ async function processDocument() {
     headers: { 'Authorization': 'Bearer ' + _token },
     body: formData
   });
+
   try {
+    // Phase 4: Validate response and update app state.
     const results = await Promise.all([animPromise, fetchPromise]);
     const fetchRes = results[1];
     const data = await fetchRes.json();
@@ -353,9 +484,12 @@ async function processDocument() {
       return;
     }
     if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
-    // Store historyId so quiz/results pages can use it
+
+    // Persist IDs so quiz/results pages can continue flow.
     if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
     if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+
+    // Phase 5: Transition to summary and reveal next actions.
     setTimeout(function() {
       showSummary(data);
       document.getElementById('btn-rescan').style.display = 'flex';
@@ -363,6 +497,7 @@ async function processDocument() {
       document.getElementById('btn-process').style.display = 'none';
     }, 260);
   } catch (e) {
+    // Phase 6: Reset actionable UI and show fallback error state.
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
@@ -371,6 +506,9 @@ async function processDocument() {
   }
 }
 
+/**
+ * Render right-panel processing skeleton and progress placeholders.
+ */
 function showProcessingState() {
   const html = `
     <div class="loading-state">
@@ -392,6 +530,11 @@ function showProcessingState() {
   else document.getElementById('right-panel').innerHTML = html;
 }
 
+/**
+ * Update progress bar, label, and active processing step state.
+ * @param {number} progress
+ * @param {number} activeIndex
+ */
 function updateProcessingState(progress, activeIndex) {
   const labels = [
     'Reading your document…',
@@ -411,6 +554,10 @@ function updateProcessingState(progress, activeIndex) {
   });
 }
 
+/**
+ * Render generated summary and prepare quiz entrypoint controls.
+ * @param {object} data
+ */
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
   quizData = data.quizData || data.quizFull || [];
@@ -422,6 +569,10 @@ function showSummary(data) {
   syncCompactFile();
 }
 
+/* ── Quiz Engine ────────────────────────────────────────────────────────────── */
+/**
+ * Start quiz mode and render first question.
+ */
 function startQuiz() {
   quizMode = true; currentQ = 0; answers = []; answered = false;
   document.getElementById('btn-quiz').style.display = 'none';
@@ -429,6 +580,10 @@ function startQuiz() {
   renderQuestion('forward');
 }
 
+/**
+ * Render active quiz question panel.
+ * @param {'forward'|'backward'} [direction='forward']
+ */
 function renderQuestion(direction='forward') {
   answered = false;
   const q = quizData[currentQ];
@@ -456,6 +611,10 @@ function renderQuestion(direction='forward') {
   else document.getElementById('right-panel').innerHTML = html;
 }
 
+/**
+ * Record selected answer and show immediate feedback.
+ * @param {number} i
+ */
 function selectAnswer(i) {
   if (answered) return;
   answered = true;
@@ -472,14 +631,31 @@ function selectAnswer(i) {
   document.getElementById('btn-skip').style.display = 'none';
   document.getElementById('btn-next').style.display = 'inline-flex';
 }
-function skipQuestion() { answers.push({ chosen:-1, correct:quizData[currentQ].correct }); nextQuestion(); }
+
+/**
+ * Skip current question and continue quiz flow.
+ */
+function skipQuestion() {
+  answers.push({ chosen: -1, correct: quizData[currentQ].correct });
+  nextQuestion();
+}
+
+/**
+ * Move to next question or finish quiz when completed.
+ */
 function nextQuestion() {
   currentQ++;
   if (currentQ >= quizData.length) { showQuizResults(); return; }
   renderQuestion('forward');
 }
 
+/* ── Results and Persistence ───────────────────────────────────────────────── */
+/**
+ * Render quiz results and persist answer summary to history endpoint.
+ * @returns {Promise<void>}
+ */
 async function showQuizResults() {
+  // Phase 1: Calculate score and render result UI.
   const correctCount = answers.filter(a => a.chosen === a.correct).length;
   const pct = Math.round((correctCount/quizData.length)*100);
   const circ = 251.2; const offset = circ - (pct/100)*circ;
@@ -519,7 +695,8 @@ async function showQuizResults() {
   } else {
     document.getElementById('right-panel').innerHTML = html;
   }
-  // Build per-question details for saving
+
+  // Phase 2: Build per-question details for persistence.
   const questionDetails = quizData.map((q, i) => {
     const a = answers[i];
     const chosenIdx = a ? a.chosen : -1;
@@ -531,7 +708,8 @@ async function showQuizResults() {
       answer: isCorrect ? null : q.opts[q.correct]
     };
   });
-  // Save to history via submit-quiz endpoint
+
+  // Phase 3: Persist answers to backend and enable results navigation button.
   try {
     const token = localStorage.getItem('token') || '';
     const historyId = localStorage.getItem('currentHistoryId') || '';
@@ -554,6 +732,7 @@ async function showQuizResults() {
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {
+    // Phase 4: Fallback to local results view when backend save fails.
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
@@ -564,6 +743,9 @@ async function showQuizResults() {
   }
 }
 
+/**
+ * Reset upload workspace and clear transient quiz/processing state.
+ */
 function resetUpload() {
   if (processingTimer) {
     clearInterval(processingTimer);
@@ -583,6 +765,10 @@ function resetUpload() {
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
 }
 
+/**
+ * Resume summary/quiz flow from history item in query params.
+ * @returns {Promise<void>}
+ */
 async function loadResumedQuizFlow() {
   const params = new URLSearchParams(window.location.search);
   const resumeId = params.get('resume'); // keep as string — MongoDB ObjectID
@@ -656,6 +842,7 @@ async function loadResumedQuizFlow() {
   }
 }
 
+/* ── Page Bootstrap ─────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   updateUploadUI();
   syncCompactFile();

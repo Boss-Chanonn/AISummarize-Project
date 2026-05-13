@@ -1,6 +1,6 @@
 /* ── Learnova Premium Animations ── */
 
-/* Page transition */
+/* -- Group: Page Transition -- */
 (function() {
   const overlay = document.createElement('div');
   overlay.id = 'page-transition';
@@ -25,7 +25,7 @@
   });
 })();
 
-/* Scroll-reveal: IntersectionObserver */
+/* -- Group: Scroll Reveal -- */
 (function() {
   if (!window.IntersectionObserver) return;
   const io = new IntersectionObserver((entries) => {
@@ -46,14 +46,23 @@
   mo.observe(document.body, { childList: true, subtree: true });
 })();
 
-/* Number count-up for stat cards */
+/* -- Group: Count-Up -- */
+/**
+ * Animate a number from 0 to target using ease-out timing.
+ * @param {HTMLElement} el
+ * @param {number} target
+ * @param {number} duration
+ * @param {string} [suffix]
+ */
 function countUp(el, target, duration, suffix) {
   const start = performance.now();
   const isDecimal = target % 1 !== 0;
   function update(now) {
     const elapsed = now - start;
     const progress = Math.min(elapsed / duration, 1);
-    const ease = 1 - Math.pow(1 - progress, 3); /* ease-out cubic */
+    // Cubic ease-out formula: f(p) = 1 - (1 - p)^3
+    // Starts quickly and decelerates naturally near the target.
+    const ease = 1 - Math.pow(1 - progress, 3);
     const current = isDecimal ? (target * ease).toFixed(0) : Math.round(target * ease);
     el.textContent = current + (suffix || '');
     if (progress < 1) requestAnimationFrame(update);
@@ -61,6 +70,9 @@ function countUp(el, target, duration, suffix) {
   requestAnimationFrame(update);
 }
 
+/**
+ * Observe stat value elements and trigger count-up when visible.
+ */
 function initCountUp() {
   document.querySelectorAll('.stat-value[data-target]').forEach(el => {
     const target = parseFloat(el.dataset.target);
@@ -75,13 +87,23 @@ function initCountUp() {
   });
 }
 
-/* History items staggered entrance */
+/* -- Group: History Animations -- */
+/**
+ * Apply staggered animation delay for history cards.
+ */
 function animateHistoryItems() {
   document.querySelectorAll('.history-item-anim').forEach((el, i) => {
     el.style.animationDelay = (i * 0.06) + 's';
   });
 }
 
+/* -- Group: Ripple -- */
+/**
+ * Create a ripple element centered on pointer coordinates.
+ * @param {HTMLElement} target
+ * @param {number} x
+ * @param {number} y
+ */
 function addRipple(target, x, y) {
   const rect = target.getBoundingClientRect();
   const ripple = document.createElement('span');
@@ -95,6 +117,9 @@ function addRipple(target, x, y) {
   ripple.addEventListener('animationend', () => ripple.remove(), { once: true });
 }
 
+/**
+ * Bind pointer ripple interaction for supported button-like elements.
+ */
 function initButtonRipple() {
   document.addEventListener('pointerdown', e => {
     const el = e.target.closest('.btn, .sched-btn, .quiz-opt');
@@ -103,6 +128,13 @@ function initButtonRipple() {
   });
 }
 
+/* -- Group: Panel Swap -- */
+/**
+ * Swap panel content with directional enter/exit animation classes.
+ * @param {HTMLElement} container
+ * @param {string} html
+ * @param {'forward'|'backward'} [direction='forward']
+ */
 function swapPanelContent(container, html, direction = 'forward') {
   const current = container.firstElementChild;
   if (!current) {
@@ -131,6 +163,11 @@ function swapPanelContent(container, html, direction = 'forward') {
   }, 170);
 }
 
+/**
+ * Reveal elements in sequence with incremental delay.
+ * @param {Array<HTMLElement>|NodeList} targets
+ * @param {number} [baseDelay=90]
+ */
 function revealSequence(targets, baseDelay = 90) {
   const items = Array.isArray(targets) ? targets : Array.from(targets);
   items.forEach((node, index) => {
@@ -139,6 +176,11 @@ function revealSequence(targets, baseDelay = 90) {
   });
 }
 
+/* -- Group: Modal Animation -- */
+/**
+ * Store source element used as origin for next modal animation.
+ * @param {Event} event
+ */
 function setModalSourceFromEvent(event) {
   const source = event && event.currentTarget
     ? event.currentTarget.closest('.history-item') || event.currentTarget.closest('.btn, .qa-card, .sched-btn, .quiz-opt') || event.currentTarget
@@ -147,13 +189,21 @@ function setModalSourceFromEvent(event) {
   if (event) event.stopPropagation();
 }
 
+/**
+ * Animate modal from source element using scale and translation interpolation.
+ * @param {HTMLElement} box
+ */
 function animateModalFromSource(box) {
   const source = window.__lnModalSource;
   if (!box || !source) return;
   const sourceRect = source.getBoundingClientRect();
   const boxRect = box.getBoundingClientRect();
+
+  // Scale ratios from source bounds to modal bounds.
   const scaleX = Math.max(sourceRect.width / boxRect.width, 0.78);
   const scaleY = Math.max(sourceRect.height / boxRect.height, 0.32);
+
+  // Translate from source center to modal center before animating to identity.
   const translateX = sourceRect.left + (sourceRect.width / 2) - (boxRect.left + (boxRect.width / 2));
   const translateY = sourceRect.top + (sourceRect.height / 2) - (boxRect.top + (boxRect.height / 2));
   box.animate([
@@ -166,7 +216,10 @@ function animateModalFromSource(box) {
   window.__lnModalSource = null;
 }
 
-/* Magnetic tilt on qa-cards (subtle, Apple-like) */
+/* -- Group: Tilt Effect -- */
+/**
+ * Bind subtle magnetic tilt interaction on cards.
+ */
 function initTilt() {
   document.querySelectorAll('.qa-card, .stat-card').forEach(card => {
     card.addEventListener('mousemove', e => {
@@ -184,9 +237,15 @@ function initTilt() {
   });
 }
 
-/* Smooth score ring draw */
+/* -- Group: Score Ring -- */
+/**
+ * Animate circular progress ring using stroke-dashoffset.
+ * @param {SVGCircleElement} svgCircle
+ * @param {number} pct
+ */
 function animateScoreRing(svgCircle, pct) {
   if (!svgCircle) return;
+  // 251.2 is the circle circumference when r=40: 2 * pi * 40 ≈ 251.2
   const circ = 251.2;
   const target = circ - (pct / 100) * circ;
   svgCircle.style.strokeDasharray = circ;
@@ -200,7 +259,10 @@ function animateScoreRing(svgCircle, pct) {
   });
 }
 
-/* Progress bar animated fill */
+/* -- Group: Progress -- */
+/**
+ * Animate progress bar widths when bars enter viewport.
+ */
 function animateProgressBars() {
   document.querySelectorAll('.prog-fill[data-width]').forEach(bar => {
     const width = bar.dataset.width;
@@ -218,7 +280,9 @@ function animateProgressBars() {
   });
 }
 
-/* Sidebar active item indicator animation */
+/**
+ * Animate active sidebar item on page load.
+ */
 function animateSidebarActive() {
   const active = document.querySelector('.sidebar-item.active');
   if (!active) return;
@@ -232,7 +296,10 @@ function animateSidebarActive() {
   }, 80);
 }
 
-/* Input focus glow */
+/* -- Group: Input Effects -- */
+/**
+ * Apply transition style for focused input glow effect.
+ */
 function initInputGlow() {
   document.querySelectorAll('.input').forEach(input => {
     input.addEventListener('focus', () => {
@@ -241,6 +308,9 @@ function initInputGlow() {
   });
 }
 
+/**
+ * Choreograph initial staggered entrance animations for key page sections.
+ */
 function choreographPageLoad() {
   document.querySelectorAll('.sidebar-item').forEach((item, index) => {
     item.style.opacity = '0';
@@ -257,6 +327,11 @@ function choreographPageLoad() {
 }
 
 /* Smooth open/close for mini-results in history */
+/**
+ * Smoothly toggle mini-result block visibility.
+ * @param {HTMLElement} el
+ * @param {boolean} open
+ */
 function smoothToggle(el, open) {
   if (open) {
     el.style.display = 'block';

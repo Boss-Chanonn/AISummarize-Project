@@ -107,6 +107,20 @@ const CHART_DEFAULTS = {
 };
 
 /* ── Render 6 cards ─────────────────────────────────────────────────────────── */
+/**
+ * Render six dashboard summary cards from stats payload.
+ * @param {{
+ *   total_users:number,
+ *   new_this_week:number,
+ *   active_users:number,
+ *   active_pct:number,
+ *   pro_users:number,
+ *   pro_pct:number,
+ *   total_uploads:number,
+ *   total_quizzes:number,
+ *   avg_score:number
+ * }} s
+ */
 function renderCards(s) {
   document.getElementById('cardsGrid').innerHTML = `
     <div class="stat-card">
@@ -143,11 +157,19 @@ function renderCards(s) {
 }
 
 /* ── Render line chart ──────────────────────────────────────────────────────── */
+/**
+ * Render user-growth line chart for last 30 days.
+ * @param {{date:string,count:number}[]} data
+ */
 function renderLineChart(data) {
   document.getElementById('skUserGrowth').style.display = 'none';
   const canvas = document.getElementById('chartUserGrowth');
   canvas.style.display = 'block';
   if (chartGrowth) chartGrowth.destroy();
+
+  // We pass raw values to Chart.js.
+  // Chart.js normalizes points internally using the standard ratio:
+  // (value - min) / (max - min), then maps to canvas coordinates.
   chartGrowth = new Chart(canvas, {
     type: 'line',
     data: {
@@ -169,11 +191,18 @@ function renderLineChart(data) {
 }
 
 /* ── Render bar chart ───────────────────────────────────────────────────────── */
+/**
+ * Render upload-activity bar chart for last 30 days.
+ * @param {{date:string,count:number}[]} data
+ */
 function renderBarChart(data) {
   document.getElementById('skUploadActivity').style.display = 'none';
   const canvas = document.getElementById('chartUploadActivity');
   canvas.style.display = 'block';
   if (chartUploads) chartUploads.destroy();
+
+  // As with line chart, Chart.js handles value-to-pixel scaling internally
+  // via normalized value ratios and axis range calculation.
   chartUploads = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -191,8 +220,12 @@ function renderBarChart(data) {
 }
 
 /* ── Load all data ──────────────────────────────────────────────────────────── */
+/**
+ * Load stats + chart datasets and render full page state.
+ * @returns {Promise<void>}
+ */
 async function loadStats() {
-  // Show skeleton cards
+  // Phase 1: Reset loading state with skeleton cards/charts.
   document.getElementById('cardsGrid').innerHTML = `
     <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
     <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
@@ -211,6 +244,7 @@ async function loadStats() {
   document.getElementById('errorBox').classList.remove('show');
 
   try {
+    // Phase 2: Fetch all dashboard endpoints in parallel.
     const [statsRes, growthRes, uploadsRes] = await Promise.all([
       fetch('/api/admin/stats',                { headers: AUTH }),
       fetch('/api/admin/stats/user-growth',    { headers: AUTH }),
@@ -225,6 +259,7 @@ async function loadStats() {
       throw new Error('API error');
     }
 
+    // Phase 3: Parse payloads and render cards/charts.
     const stats   = await statsRes.json();
     const growth  = await growthRes.json();
     const uploads = await uploadsRes.json();
@@ -234,6 +269,7 @@ async function loadStats() {
     renderBarChart(uploads.data);
 
   } catch (err) {
+    // Phase 4: Show error fallback state.
     document.getElementById('cardsGrid').innerHTML = '';
     document.getElementById('errorBox').classList.add('show');
     document.getElementById('errorMsg').textContent = 'Failed to load stats. Please try again.';
@@ -242,6 +278,11 @@ async function loadStats() {
 }
 
 /* ── Role revalidation ──────────────────────────────────────────────────────── */
+/**
+ * Revalidate current role via profile API.
+ * Redirect when user no longer has admin privileges.
+ * @returns {Promise<void>}
+ */
 async function revalidateRole() {
   if (!TOKEN) return;
   try {
@@ -251,10 +292,16 @@ async function revalidateRole() {
     if (!['admin', 'system_admin'].includes(user.role)) {
       window.location.href = 'index.html';
     }
-  } catch (_) {}
+  } catch (_error) {}
 }
 
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
+/**
+ * Local toast helper for admin stats page.
+ * Kept local so this page remains standalone with admin-side scripts.
+ * @param {string} msg
+ * @param {'success'|'warning'|'error'} type
+ */
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;

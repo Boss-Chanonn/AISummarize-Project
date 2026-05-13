@@ -10,6 +10,7 @@ Last updated: 2026-05-01
 6. ALWAYS read this file before starting
 7. ALWAYS update this file after finishing
 8. If unsure → STOP and ASK user
+9. ALWAYS refactor code to beginner-friendly style: clear naming, simple flow, clean grouping, and easy-to-read structure
 
 NOTE: .html files CAN be modified (owner approved on 2026-04-20)
 
@@ -258,6 +259,16 @@ What works now:
 | 2026-05-01 | Added AdminUpdateProfile + AdminUpdateAccount models | backend/models/user.py |
 | 2026-05-01 | Added PUT /api/admin/user/{id}/profile | Edit name, email, phone, dob |
 | 2026-05-01 | Added PUT /api/admin/user/{id}/account | Change role, tier, status |
+| 2026-05-13 | Added beginner-friendly refactor rule for all AI edits | Keep code simple, grouped, and readable |
+| 2026-05-13 | Completed refactor Stage 9 (style.css Sections 1-4) | Added component grouping comments and readability formatting without behavior changes |
+| 2026-05-13 | Completed refactor Stage 10 (animation + landing sections) | Added subgroup comments, score ring note, and responsive breakpoint documentation |
+| 2026-05-13 | Completed refactor Stage 11 (admin CSS files) | Added section grouping and expanded compressed rules in admin-base.css, admin-stats.css, admin-users.css |
+| 2026-05-13 | Completed refactor Stage 12 (upload.html inline JS) | Restored broken syntax, added JSDoc for 33 functions, grouped responsibilities, and improved readability without behavior changes |
+| 2026-05-13 | Completed refactor Stage 13 (module/history/results inline JS) | Added JSDoc for 20 functions, renamed unclear helpers in history, and added phased section comments without behavior changes |
+| 2026-05-13 | Completed refactor Stage 14 (dashboard/index inline JS) | Added named dashboard redirect handler, clarified greeting/meta helpers, and added phased comments/JSDoc without behavior changes |
+| 2026-05-13 | Completed refactor Stage 15 (billing/payment/confirm inline JS) | Added JSDoc for billing flow functions, replaced anonymous payment input handlers with named functions, and added phased comments without behavior changes |
+| 2026-05-13 | Completed refactor Stage 16 (admin-users inline JS) | Added JSDoc across admin user management functions, renamed openActionModal/switchUserDetailTab for clarity, and documented local helper duplicates without behavior changes |
+| 2026-05-13 | Completed refactor Stage 17 (admin-stats/admin-history inline JS) | Added JSDoc for 16 functions, documented chart scaling behavior, and clarified local helper duplicates without behavior changes |
 | 2026-05-01 | Added POST /api/admin/user/{id}/reset-password | Reset to Learnova@2026 |
 | 2026-05-01 | Added status field to user register document | backend/routes/auth.py |
 

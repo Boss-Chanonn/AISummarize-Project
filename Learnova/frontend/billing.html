@@ -30,7 +30,7 @@
 <script src="js/app.js"></script>
 <script src="js/billing.js"></script>
 <script>
-  // Auth guard
+  // Auth guard: redirect to login if token is missing.
   (function () {
     const token = localStorage.getItem('token');
     if (!token) { window.location.replace('index.html'); }
@@ -39,6 +39,17 @@
   document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
 
   // ── Confirm dialog ──────────────────────────────────────────────────────────
+  /**
+   * Show reusable billing confirmation dialog.
+   * Destructured options keep call sites readable by passing named fields.
+   * @param {{
+   *   title: string,
+   *   body: string,
+   *   confirmLabel: string,
+   *   confirmClass?: string,
+   *   onConfirm: Function
+   * }} options
+   */
   function showConfirm({ title, body, confirmLabel, confirmClass, onConfirm }) {
     const el = document.createElement('div');
     el.className = 'plan-confirm-overlay';
@@ -53,18 +64,28 @@
         </div>
       </div>`;
     document.body.appendChild(el);
-    document.getElementById('plan-confirm-ok').addEventListener('click', () => {
+
+    function onConfirmClick() {
       closeConfirm();
       onConfirm();
-    });
+    }
+
+    document.getElementById('plan-confirm-ok').addEventListener('click', onConfirmClick);
   }
 
+  /**
+   * Close billing confirmation dialog if present.
+   */
   function closeConfirm() {
     const el = document.getElementById('plan-confirm');
     if (el) el.remove();
   }
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
+  /**
+   * Persist selected plan and navigate to payment step.
+   * @param {'monthly'|'yearly'} planType
+   */
   function goToPayment(planType) {
     sessionStorage.setItem('selected_plan', planType);
     window.location.href = 'payment.html';
@@ -72,7 +93,9 @@
 
   // ── Plan action handlers ────────────────────────────────────────────────────
 
-  // Called when user clicks "Select plan" on Free card (currently Pro)
+  /**
+   * Confirm downgrade flow from Pro to Free plan.
+   */
   function confirmDowngradeToFree() {
     showConfirm({
       title: 'Downgrade to Free?',
@@ -83,7 +106,10 @@
     });
   }
 
-  // Called when user clicks "Cancel plan" on current Pro card
+  /**
+   * Confirm cancel action for currently active Pro plan.
+   * @param {string} planLabel
+   */
   function confirmCancelPlan(planLabel) {
     showConfirm({
       title: 'Cancel your Pro plan?',
@@ -94,7 +120,12 @@
     });
   }
 
-  // Called when user clicks "Select plan" on a different Pro tier (Monthly ↔ Yearly)
+  /**
+   * Confirm switching between Pro monthly and yearly tiers.
+   * @param {string} fromLabel
+   * @param {string} toLabel
+   * @param {'monthly'|'yearly'} toPlanType
+   */
   function confirmSwitchPlan(fromLabel, toLabel, toPlanType) {
     const isUpgrade = toPlanType === 'yearly';
     showConfirm({
@@ -108,7 +139,12 @@
     });
   }
 
+  /**
+   * Execute server-side downgrade and refresh billing UI.
+   * @returns {Promise<void>}
+   */
   async function executeDowngrade() {
+    // Phase 1: Request downgrade endpoint.
     const token = localStorage.getItem('token');
     try {
       const res  = await fetch('/api/billing/downgrade', {
@@ -116,8 +152,10 @@
         headers: { 'Authorization': 'Bearer ' + token },
       });
       const data = await res.json();
+
+      // Phase 2: Sync local cache and refresh page card states.
       if (data.success) {
-        // Sync localStorage so other pages reflect the new tier immediately
+        // Sync localStorage so other pages reflect the new tier immediately.
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         stored.tier = 'free';
         localStorage.setItem('user', JSON.stringify(stored));
@@ -126,13 +164,18 @@
       } else {
         showToast('Something went wrong, please try again');
       }
-    } catch (e) {
+    } catch (_error) {
       showToast('Network error, please try again');
     }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  /**
+   * Render all billing plan cards based on current user status.
+   * @returns {Promise<void>}
+   */
   async function renderBilling() {
+    // Phase 1: Load current plan status.
     const status = await getBillingStatus();
     const tier   = status ? status.tier : 'free';
     const isPro  = tier === 'pro';
@@ -155,7 +198,7 @@
       { ok: true, text: 'Advanced analytics' },
     ];
 
-    // Free card button logic
+    // Phase 2: Build free card action state.
     let freeBtnHtml;
     if (!isPro) {
       freeBtnHtml = `<div class="plan-current-indicator"><span class="plan-current-dot"></span>Current plan</div>
@@ -164,6 +207,7 @@
       freeBtnHtml = `<button class="btn-select" onclick="confirmDowngradeToFree()">Select plan</button>`;
     }
 
+    // Phase 3: Build free plan card markup.
     const freeCard = `
       <div class="plan-box">
         <div class="plan-label">Basic</div>
@@ -195,6 +239,11 @@
       if (d) expiresText = d;
     }
 
+    /**
+     * Build one Pro plan card (monthly or yearly).
+     * @param {'monthly'|'yearly'} planType
+     * @returns {string}
+     */
     function proCardHtml(planType) {
       const isMonthly = planType === 'monthly';
       const isActive  = isMonthly ? activeMonthly : activeYearly;
@@ -206,8 +255,9 @@
 
       let actionHtml;
 
+      // Action variants: current plan, switch tier, or new upgrade.
       if (isActive) {
-        // This is the user's current plan — red Cancel plan button
+        // This is the user's current plan — red cancel button.
         const statusBox = expiresText
           ? `<div class="pro-status-box">
                <div class="pro-status-label">Active ${pillLabel} plan</div>
@@ -219,12 +269,12 @@
           ${statusBox}
           <button class="btn-cancel" onclick="confirmCancelPlan('${pillLabel}')">Cancel plan</button>`;
       } else if (isPro) {
-        // User is Pro but on the other tier — white outline Select plan
+        // User is Pro but on the other tier — outline select button.
         const otherLabel = isMonthly ? 'Yearly' : 'Monthly';
         actionHtml = `
           <button class="btn-select" onclick="confirmSwitchPlan('${otherLabel}','${pillLabel}','${planType}')">Select plan</button>`;
       } else {
-        // User is Free — gold Upgrade button
+        // User is Free — gold upgrade button.
         actionHtml = `
           <button class="btn btn-primary" onclick="goToPayment('${planType}')" style="width:100%;justify-content:center">Upgrade to Pro →</button>`;
       }
@@ -251,6 +301,7 @@
         </div>`;
     }
 
+    // Phase 4: Mount full billing grid.
     document.getElementById('billing-grid').innerHTML =
       freeCard + proCardHtml('monthly') + proCardHtml('yearly');
   }

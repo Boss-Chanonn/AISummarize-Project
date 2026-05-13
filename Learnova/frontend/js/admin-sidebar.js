@@ -1,17 +1,17 @@
 /* ── Admin Sidebar — shared component for all admin pages ── */
 
-/* ── JWT Guard + globals ─────────────────────────────────────────────────────── */
-var TOKEN   = localStorage.getItem('token');
-var _stored = JSON.parse(localStorage.getItem('user') || 'null');
+/* -- Group: JWT Guard and Globals -- */
+const TOKEN = localStorage.getItem('token');
+const _stored = JSON.parse(localStorage.getItem('user') || 'null');
 
 if (!TOKEN || !_stored || !['admin', 'system_admin'].includes(_stored.role)) {
   window.location.href = 'index.html';
 }
 
-var AUTH = { Authorization: 'Bearer ' + TOKEN };
+const AUTH = { Authorization: 'Bearer ' + TOKEN };
 
-/* ── Nav definition ──────────────────────────────────────────────────────────── */
-var _ADMIN_NAV = [
+/* -- Group: Navigation Model -- */
+let _ADMIN_NAV = [
   {
     section: 'Overview',
     items: [
@@ -61,22 +61,33 @@ if (_stored && _stored.role === 'admin') {
 }
 
 /* ── Logout ──────────────────────────────────────────────────────────────────── */
+/**
+ * Clear admin auth session and redirect to login page.
+ */
 function logoutAdmin() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
   window.location.href = 'index.html';
 }
 
-/* ── Admin account popup ─────────────────────────────────────────────────────── */
-function _adminCloseAccountMenu() {
-  var menu = document.getElementById('admin-account-mount');
-  var trigger = document.getElementById('admin-account-trigger');
-  var bottom = document.querySelector('.sidebar-bottom');
+/* -- Group: Account Menu -- */
+/**
+ * Close the admin account popup and reset trigger state.
+ */
+function closeAdminAccountMenu() {
+  const menu = document.getElementById('admin-account-mount');
+  const trigger = document.getElementById('admin-account-trigger');
+  const bottom = document.querySelector('.sidebar-bottom');
   if (menu) menu.remove();
   if (trigger) trigger.setAttribute('aria-expanded', 'false');
   if (bottom) bottom.classList.remove('open');
 }
 
+/**
+ * Escape HTML-sensitive characters in arbitrary string values.
+ * @param {unknown} value
+ * @returns {string}
+ */
 function _adminEscapeHtml(value) {
   return String(value || '')
     .replace(/&/g, '&amp;')
@@ -86,6 +97,11 @@ function _adminEscapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+  /**
+   * Build two-letter initials from display name.
+   * @param {string} name
+   * @returns {string}
+   */
 function _adminGetInitials(name) {
   return String(name || '')
     .trim()
@@ -96,19 +112,28 @@ function _adminGetInitials(name) {
     .join('') || 'A';
 }
 
+/**
+ * Return avatar image markup or initials fallback for admin account.
+ * @param {'default'|'large'} [size]
+ * @returns {string}
+ */
 function _adminGetAvatarMarkup(size) {
-  var safeSize = size || 'large';
+  const safeSize = size || 'large';
   if (!_stored || !_stored.avatarUrl) return _adminEscapeHtml(_adminGetInitials((_stored && _stored.name) || 'Admin'));
   return '<img src="' + _adminEscapeHtml(_stored.avatarUrl) + '" alt="' + _adminEscapeHtml((_stored && _stored.name) || 'Admin') + '" class="avatar-image avatar-image-' + safeSize + '">';
 }
 
+/**
+ * Show toast via shared handler when available, fallback to local toast node.
+ * @param {string} msg
+ */
 function _adminShowToast(msg) {
   if (typeof showToast === 'function') {
     showToast(msg, 'success');
     return;
   }
-  var toast = document.getElementById('toast');
-  var toastMsg = document.getElementById('toastMsg');
+  const toast = document.getElementById('toast');
+  const toastMsg = document.getElementById('toastMsg');
   if (toast && toastMsg) {
     toastMsg.textContent = msg;
     toast.classList.add('show');
@@ -117,23 +142,27 @@ function _adminShowToast(msg) {
   }
 }
 
-function _adminToggleAccountMenu(event) {
+/**
+ * Toggle the admin account popup menu.
+ * @param {Event} event
+ */
+function toggleAdminAccountMenu(event) {
   if (event) event.stopPropagation();
-  var existing = document.getElementById('admin-account-mount');
-  var trigger = document.getElementById('admin-account-trigger');
-  var bottom = document.querySelector('.sidebar-bottom');
+  const existing = document.getElementById('admin-account-mount');
+  const trigger = document.getElementById('admin-account-trigger');
+  const bottom = document.querySelector('.sidebar-bottom');
   if (!trigger || !bottom) return;
-  if (existing) { _adminCloseAccountMenu(); return; }
+  if (existing) { closeAdminAccountMenu(); return; }
 
-  var name  = (_stored && _stored.name)  || 'Admin';
-  var email = (_stored && _stored.email) || '';
-  var isPro = (_stored && _stored.tier) === 'pro';
-  var tierLabel = isPro ? 'Pro' : 'Free';
-  var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2) || '?';
+  const name = (_stored && _stored.name) || 'Admin';
+  const email = (_stored && _stored.email) || '';
+  const isPro = (_stored && _stored.tier) === 'pro';
+  const tierLabel = isPro ? 'Pro' : 'Free';
+  const initials = name.split(' ').map(function(word) { return word[0]; }).join('').toUpperCase().slice(0,2) || '?';
 
-  var mount = document.createElement('div');
+  const mount = document.createElement('div');
   mount.id = 'admin-account-mount';
-  mount.innerHTML = '<div class="modal-overlay open sidebar-account-overlay" onclick="if(event.target===this)_adminCloseAccountMenu()">'
+  mount.innerHTML = '<div class="modal-overlay open sidebar-account-overlay" onclick="if(event.target===this)closeAdminAccountMenu()">'
     + '<div class="modal-box sidebar-account-modal">'
     +   '<div class="sidebar-account-card">'
     +     '<div class="avatar-circle sidebar-account-large" style="background:rgba(200,184,154,0.15);color:var(--gold);font-size:16px;font-weight:500">' + initials + '</div>'
@@ -144,11 +173,11 @@ function _adminToggleAccountMenu(event) {
     +     '<div class="tier-badge ' + (isPro ? 'tier-pro' : 'tier-free') + '" style="margin-top:0;margin-left:auto">' + tierLabel + '</div>'
     +   '</div>'
     +   '<div class="sidebar-account-actions">'
-    +     '<button class="sidebar-account-item" type="button" onclick="_adminCloseAccountMenu();_adminOpenEditProfile()">'
+    +     '<button class="sidebar-account-item" type="button" onclick="closeAdminAccountMenu();_adminOpenEditProfile()">'
     +       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11.5 2.5a1.4 1.4 0 012 2L7 11l-2.5.5L5 9l6.5-6.5z"/><path d="M2.5 13.5h11"/></svg>'
     +       '<span>Edit profile</span>'
     +     '</button>'
-    +     '<button class="sidebar-account-item" type="button" onclick="_adminCloseAccountMenu();_adminOpenAccessibility()">'
+    +     '<button class="sidebar-account-item" type="button" onclick="closeAdminAccountMenu();openAdminAccessibility()">'
     +       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5V8l2.2 1.7"/></svg>'
     +       '<span>Accessibility settings</span>'
     +     '</button>'
@@ -165,16 +194,20 @@ function _adminToggleAccountMenu(event) {
   trigger.setAttribute('aria-expanded', 'true');
 }
 
+/* -- Group: Profile Modal -- */
+/**
+ * Open admin profile edit modal.
+ */
 function _adminOpenEditProfile() {
-  var isPro = (_stored && _stored.tier) === 'pro';
-  var currentName = (_stored && _stored.name) || '';
-  var currentEmail = (_stored && _stored.email) || '';
-  var pendingEmail = (_stored && _stored.pendingEmail) || '';
-  var pendingEmailNotice = pendingEmail
+  const isPro = (_stored && _stored.tier) === 'pro';
+  const currentName = (_stored && _stored.name) || '';
+  const currentEmail = (_stored && _stored.email) || '';
+  const pendingEmail = (_stored && _stored.pendingEmail) || '';
+  const pendingEmailNotice = pendingEmail
     ? '<div class="profile-note">Pending email verification for ' + _adminEscapeHtml(pendingEmail) + '.</div>'
     : '<div class="profile-note">Email changes stay pending until the new address is verified.</div>';
 
-  var html = '<div class="modal-overlay open" id="admin-edit-profile-overlay" onclick="if(event.target===this)_adminCloseEditProfile()">'
+  const html = '<div class="modal-overlay open" id="admin-edit-profile-overlay" onclick="if(event.target===this)_adminCloseEditProfile()">'
     + '<div class="modal-box" style="width:560px;max-width:92vw">'
     +   '<div class="modal-header">'
     +     '<div class="modal-title">Edit profile</div>'
@@ -219,34 +252,41 @@ function _adminOpenEditProfile() {
     + '</div>'
     + '</div>';
 
-  var el = document.createElement('div');
+  const el = document.createElement('div');
   el.id = 'admin-edit-profile-mount';
   el.innerHTML = html;
   document.body.appendChild(el);
 }
 
+/**
+ * Close admin profile edit modal.
+ */
 function _adminCloseEditProfile() {
-  var el = document.getElementById('admin-edit-profile-mount');
+  const el = document.getElementById('admin-edit-profile-mount');
   if (el) el.remove();
 }
 
+/**
+ * Save admin profile changes and optionally update password.
+ * @returns {Promise<void>}
+ */
 async function _adminSaveProfile() {
-  var nameInput = document.getElementById('admin-edit-name');
-  var emailInput = document.getElementById('admin-edit-email');
-  var currentPasswordInput = document.getElementById('admin-current-password');
-  var newPasswordInput = document.getElementById('admin-new-password');
-  var confirmPasswordInput = document.getElementById('admin-confirm-password');
-  var errorEl = document.getElementById('admin-edit-error');
-  var saveBtn = document.getElementById('admin-edit-save');
+  const nameInput = document.getElementById('admin-edit-name');
+  const emailInput = document.getElementById('admin-edit-email');
+  const currentPasswordInput = document.getElementById('admin-current-password');
+  const newPasswordInput = document.getElementById('admin-new-password');
+  const confirmPasswordInput = document.getElementById('admin-confirm-password');
+  const errorEl = document.getElementById('admin-edit-error');
+  const saveBtn = document.getElementById('admin-edit-save');
   if (!nameInput || !emailInput || !currentPasswordInput || !newPasswordInput || !confirmPasswordInput || !errorEl || !saveBtn) return;
 
-  var name = (nameInput.value || '').trim();
-  var email = (emailInput.value || '').trim();
-  var currentPassword = currentPasswordInput.value || '';
-  var newPassword = newPasswordInput.value || '';
-  var confirmPassword = confirmPasswordInput.value || '';
-  var emailChanged = Boolean(email && _stored && email !== _stored.email);
-  var wantsPasswordChange = Boolean(currentPassword || newPassword || confirmPassword);
+  const name = (nameInput.value || '').trim();
+  const email = (emailInput.value || '').trim();
+  const currentPassword = currentPasswordInput.value || '';
+  const newPassword = newPasswordInput.value || '';
+  const confirmPassword = confirmPasswordInput.value || '';
+  const emailChanged = Boolean(email && _stored && email !== _stored.email);
+  const wantsPasswordChange = Boolean(currentPassword || newPassword || confirmPassword);
 
   if (!name || !email) {
     errorEl.textContent = 'Please fill in both name and email.';
@@ -278,12 +318,12 @@ async function _adminSaveProfile() {
 
   try {
     if (wantsPasswordChange) {
-      var passRes = await fetch('/api/auth/password', {
+      const passRes = await fetch('/api/auth/password', {
         method: 'PUT',
         headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
         body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
       });
-      var passData = {};
+      let passData = {};
       try { passData = await passRes.json(); } catch (_) {}
       if (!passRes.ok) {
         errorEl.textContent = passData.message || 'Unable to update password.';
@@ -292,12 +332,12 @@ async function _adminSaveProfile() {
       }
     }
 
-    var profileRes = await fetch('/api/auth/profile', {
+    const profileRes = await fetch('/api/auth/profile', {
       method: 'PUT',
       headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: name, email: email })
     });
-    var profileData = {};
+    let profileData = {};
     try { profileData = await profileRes.json(); } catch (_) {}
     if (!profileRes.ok) {
       errorEl.textContent = profileData.message || 'Unable to update profile.';
@@ -312,9 +352,9 @@ async function _adminSaveProfile() {
       localStorage.setItem('user', JSON.stringify(_stored));
     }
 
-    var initials = _adminGetInitials(name);
-    var nameEl = document.getElementById('adminName');
-    var initialsEl = document.getElementById('adminInitials');
+    const initials = _adminGetInitials(name);
+    const nameEl = document.getElementById('adminName');
+    const initialsEl = document.getElementById('adminInitials');
     if (nameEl) nameEl.textContent = name;
     if (initialsEl) initialsEl.textContent = initials;
 
@@ -323,7 +363,7 @@ async function _adminSaveProfile() {
     else if (emailChanged) _adminShowToast('Profile updated. Verify your new email address.');
     else if (wantsPasswordChange) _adminShowToast('Password updated');
     else _adminShowToast('Profile updated');
-  } catch (e) {
+  } catch (_error) {
     errorEl.textContent = 'Network error. Please try again.';
     errorEl.style.display = 'block';
   } finally {
@@ -332,31 +372,39 @@ async function _adminSaveProfile() {
   }
 }
 
-function _adminOpenAccessibility() {
-  var saved_theme = localStorage.getItem('ln_theme') || 'dark';
-  var THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
-  var LABELS = { dark:'Dark', light:'Light', 'high-contrast':'High contrast', deuteranopia:'Deuteranopia', protanopia:'Protanopia', tritanopia:'Tritanopia' };
-  var DOTS   = { dark:['#0A0A0A','#C8B89A','#6B9E6B'], light:['#F7F5F2','#7A5C38','#2E6E2E'], 'high-contrast':['#000000','#FFD700','#00DD00'], deuteranopia:['#0A0A0A','#E8B84B','#5B9BD5'], protanopia:['#0A0A0A','#5FB8FF','#FFCC00'], tritanopia:['#0A0A0A','#FF6E6E','#E8A0D0'] };
+/* -- Group: Accessibility Modal -- */
+/**
+ * Open admin accessibility modal with theme swatches.
+ */
+function openAdminAccessibility() {
+  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
+  const LABELS = { dark:'Dark', light:'Light', 'high-contrast':'High contrast', deuteranopia:'Deuteranopia', protanopia:'Protanopia', tritanopia:'Tritanopia' };
+  const DOTS = { dark:['#0A0A0A','#C8B89A','#6B9E6B'], light:['#F7F5F2','#7A5C38','#2E6E2E'], 'high-contrast':['#000000','#FFD700','#00DD00'], deuteranopia:['#0A0A0A','#E8B84B','#5B9BD5'], protanopia:['#0A0A0A','#5FB8FF','#FFCC00'], tritanopia:['#0A0A0A','#FF6E6E','#E8A0D0'] };
 
-  var swatches = THEMES.map(function(id) {
-    var dots = DOTS[id].map(function(c){ return '<div style="width:12px;height:12px;border-radius:50%;background:' + c + '"></div>'; }).join('');
-    return '<div class="theme-swatch' + (saved_theme === id ? ' selected' : '') + '" onclick="(function(id,el){' +
-      'if(id===\'dark\')document.documentElement.removeAttribute(\'data-theme\');' +
-      'else document.documentElement.setAttribute(\'data-theme\',id);' +
-      'localStorage.setItem(\'ln_theme\',id);' +
-      'document.querySelectorAll(\'.theme-swatch\').forEach(function(x){x.classList.remove(\'selected\')});' +
-      'el.classList.add(\'selected\');' +
-      '})(\''+id+'\',this)">'
+  const swatches = THEMES.map(function(id) {
+    const dots = DOTS[id].map(function(color) { return '<div style="width:12px;height:12px;border-radius:50%;background:' + color + '"></div>'; }).join('');
+
+    // Keep theme switching logic in a named string so the inline handler remains maintainable.
+    const applyThemeOnClick = '(function(themeId,el){'
+      + 'if(themeId===\'dark\')document.documentElement.removeAttribute(\'data-theme\');'
+      + 'else document.documentElement.setAttribute(\'data-theme\',themeId);'
+      + 'localStorage.setItem(\'ln_theme\',themeId);'
+      + 'document.querySelectorAll(\'.theme-swatch\').forEach(function(swatch){swatch.classList.remove(\'selected\')});'
+      + 'el.classList.add(\'selected\');'
+      + '})(\'' + id + '\',this)';
+
+    return '<div class="theme-swatch' + (saved_theme === id ? ' selected' : '') + '" onclick="' + applyThemeOnClick + '">'
       + '<div class="swatch-dots">' + dots + '</div>'
       + '<div class="swatch-label">' + LABELS[id] + '</div>'
       + '</div>';
   }).join('');
 
-  var html = '<div class="modal-overlay open" id="admin-accessibility-overlay" onclick="if(event.target===this)_adminCloseAccessibility()">'
+  const html = '<div class="modal-overlay open" id="admin-accessibility-overlay" onclick="if(event.target===this)closeAdminAccessibility()">'
     + '<div class="modal-box">'
     +   '<div class="modal-header">'
     +     '<div class="modal-title">Accessibility settings</div>'
-    +     '<button class="modal-close" onclick="_adminCloseAccessibility()">✕</button>'
+    +     '<button class="modal-close" onclick="closeAdminAccessibility()">✕</button>'
     +   '</div>'
     +   '<div style="font-size:12px;color:var(--cream-25);margin-bottom:18px;line-height:1.6">Choose a colour theme that works best for your vision.</div>'
     +   '<div class="field-label" style="margin-bottom:10px">Colour theme</div>'
@@ -364,38 +412,42 @@ function _adminOpenAccessibility() {
     + '</div>'
     + '</div>';
 
-  var el = document.createElement('div');
+  const el = document.createElement('div');
   el.id = 'admin-accessibility-mount';
   el.innerHTML = html;
   document.body.appendChild(el);
 }
 
-function _adminCloseAccessibility() {
-  var el = document.getElementById('admin-accessibility-mount');
+/**
+ * Close admin accessibility modal.
+ */
+function closeAdminAccessibility() {
+  const el = document.getElementById('admin-accessibility-mount');
   if (el) el.remove();
 }
 
+/* -- Group: Global Close Handlers -- */
 document.addEventListener('click', function(event) {
-  if (!event.target.closest('.sidebar-bottom')) _adminCloseAccountMenu();
+  if (!event.target.closest('.sidebar-bottom')) closeAdminAccountMenu();
 });
 document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') { _adminCloseAccountMenu(); _adminCloseAccessibility(); _adminCloseEditProfile(); }
+  if (event.key === 'Escape') { closeAdminAccountMenu(); closeAdminAccessibility(); _adminCloseEditProfile(); }
 });
 
-/* ── Inject sidebar on DOM ready ─────────────────────────────────────────────── */
+/* -- Group: Sidebar Bootstrap -- */
 document.addEventListener('DOMContentLoaded', function () {
-  var sidebar = document.getElementById('adminSidebar');
+  const sidebar = document.getElementById('adminSidebar');
   if (!sidebar) return;
 
-  var currentPage = location.pathname.split('/').pop() || 'index.html';
+  const currentPage = location.pathname.split('/').pop() || 'index.html';
 
-  var html = '<div class="sidebar-logo">Learn<span>ova</span></div>';
+  let html = '<div class="sidebar-logo">Learn<span>ova</span></div>';
 
   _ADMIN_NAV.forEach(function (group) {
     html += '<div class="sidebar-section">' + group.section + '</div>';
 
     group.items.forEach(function (item) {
-      var isActive = item.href === currentPage;
+      const isActive = item.href === currentPage;
 
       if (item.onclick) {
         /* action item (e.g. Sign Out) */
@@ -412,7 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 
   html += '<div class="sidebar-bottom">'
-        +   '<button class="sidebar-avatar sidebar-account-trigger" id="admin-account-trigger" type="button" onclick="_adminToggleAccountMenu(event)" aria-haspopup="true" aria-expanded="false">'
+    +   '<button class="sidebar-avatar sidebar-account-trigger" id="admin-account-trigger" type="button" onclick="toggleAdminAccountMenu(event)" aria-haspopup="true" aria-expanded="false">'
         +     '<div class="avatar-circle" id="adminInitials" style="background:rgba(200,184,154,0.15);color:var(--gold);font-size:12px;font-weight:500">\u2014</div>'
         +     '<div class="sidebar-avatar-copy">'
         +       '<div class="avatar-name" id="adminName">Loading\u2026</div>'
@@ -428,7 +480,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
   /* Populate admin identity */
   if (_stored) {
-    var initials = (_stored.name || '').split(' ').map(function (w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
+    const initials = (_stored.name || '').split(' ').map(function (word) { return word[0]; }).join('').toUpperCase().slice(0, 2);
     document.getElementById('adminInitials').textContent = initials || '?';
     document.getElementById('adminName').textContent     = _stored.name || 'Admin';
     document.getElementById('adminRole').textContent     = _stored.role === 'system_admin' ? 'System Admin' : 'Admin';

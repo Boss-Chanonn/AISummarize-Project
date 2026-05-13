@@ -40,14 +40,25 @@ document.getElementById('sidebar-mount').innerHTML = renderSidebar('history');
 // Store history data for summary modal lookup
 let _historyStore = {};
 
-function fmtHistoryMeta(h) {
-  const d = h.uploadedAt ? new Date(h.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
-  const t = h.fileType || 'Text';
+/* -- Group: History Helpers -- */
+/**
+ * Format file type and upload date metadata for a history row.
+ * @param {object} item
+ * @returns {string}
+ */
+function formatHistoryItemMeta(item) {
+  const d = item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+  const t = item.fileType || 'Text';
   return (t + (d ? ' · ' + d : ''));
 }
 
-function flatAnalysis(h) {
-  const a = h.analysis || {};
+/**
+ * Extract normalized analysis arrays from a history item.
+ * @param {object} historyItem
+ * @returns {{strengths: string[], weaknesses: string[], studyNext: string[], recommendations: string[]}}
+ */
+function extractAnalysisData(historyItem) {
+  const a = historyItem.analysis || {};
   return {
     strengths: a.strengths || [],
     weaknesses: a.weaknesses || [],
@@ -56,8 +67,14 @@ function flatAnalysis(h) {
   };
 }
 
+/* -- Group: History Rendering -- */
+/**
+ * Fetch and render history list with expandable quiz/result rows.
+ * @returns {Promise<void>}
+ */
 async function renderHistory() {
   try {
+    // Phase 1: Fetch history from API.
     const response = await fetch('/api/history', {
       method: 'GET',
       headers: {
@@ -68,7 +85,7 @@ async function renderHistory() {
     const items = await response.json();
     if (!response.ok) { showToast(items.message || 'Failed to load history'); return; }
 
-    // Update count and average dynamically
+    // Phase 2: Update overview counters (count and average score).
     const completed = items.filter(h => h.done);
     const avg = completed.length > 0
       ? Math.round(completed.reduce((sum, h) => sum + h.score, 0) / completed.length)
@@ -76,17 +93,19 @@ async function renderHistory() {
     document.getElementById('history-count').textContent = 'All quizzes (' + items.length + ')';
     document.getElementById('history-avg').textContent = completed.length > 0 ? 'Average: ' + avg + '%' : '';
 
+    // Phase 3: Handle empty state.
     if (!items.length) {
       document.getElementById('history-list').innerHTML = '<div style="text-align:center;padding:32px;font-size:13px;color:var(--cream-25);font-style:italic">No quizzes yet. Upload a document to get started.</div>';
       return;
     }
 
+    // Phase 4: Build row markup and pre-store each row for modal usage.
     const urlParams = new URLSearchParams(window.location.search);
     const openId = urlParams.get('quiz');
     document.getElementById('history-list').innerHTML = items.map(h => {
       const hid = h._id;
       _historyStore[hid] = h; // store for modal lookup
-      const an = flatAnalysis(h);
+      const an = extractAnalysisData(h);
       const isOpen = hid === openId;
       return `
       <div class="history-item history-item-anim${isOpen?' open':''}" id="hi-${hid}" onclick="toggleItem('${hid}')">
@@ -95,7 +114,7 @@ async function renderHistory() {
             <div class="hi-dot${h.done?' done':''}"></div>
             <div style="min-width:0;flex:1">
               <div class="hi-title">${escapeHtml(h.title)}</div>
-              <div class="hi-meta">${escapeHtml(fmtHistoryMeta(h))}</div>
+                <div class="hi-meta">${escapeHtml(formatHistoryItemMeta(h))}</div>
             </div>
           </div>
           <div class="hi-right">
@@ -137,6 +156,8 @@ async function renderHistory() {
         </div>`}
       </div>`;
     }).join('');
+
+    // Phase 5: Auto-scroll to requested open row, if provided via URL.
     if (openId) setTimeout(() => {
       const el = document.getElementById('hi-'+openId);
       if (el) el.scrollIntoView({ behavior:'smooth', block:'center' });
@@ -147,6 +168,10 @@ async function renderHistory() {
   }
 }
 
+/**
+ * Toggle expanded state of one history item while collapsing others.
+ * @param {string} id
+ */
 function toggleItem(id) {
   const el = document.getElementById('hi-'+id);
   const wasOpen = el.classList.contains('open');
@@ -154,6 +179,11 @@ function toggleItem(id) {
   if (!wasOpen) el.classList.add('open');
 }
 
+/**
+ * Confirm and delete one history item, then re-render the list.
+ * @param {string} id
+ * @returns {Promise<void>}
+ */
 async function confirmDelete(id) {
   if (!confirm('Delete this history item? This cannot be undone.')) return;
   try {
@@ -163,9 +193,14 @@ async function confirmDelete(id) {
     });
     if (res.ok) { showToast('Deleted'); renderHistory(); }
     else { const d = await res.json(); showToast(d.message || 'Delete failed'); }
-  } catch(e) { showToast('Delete failed'); }
+  } catch (_error) { showToast('Delete failed'); }
 }
 
+/* -- Group: Summary Modal -- */
+/**
+ * Open summary modal using stored history row data.
+ * @param {string} id
+ */
 function openSummaryModal(id) {
   const h = _historyStore[id] || {};
   const summary = h.summary || {};
@@ -192,6 +227,9 @@ function openSummaryModal(id) {
   backdrop.classList.add('open');
 }
 
+/**
+ * Close summary modal.
+ */
 function closeSummaryModal() {
   document.getElementById('sum-modal-backdrop').classList.remove('open');
 }

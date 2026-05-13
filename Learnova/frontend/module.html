@@ -143,6 +143,14 @@ const iconSVG = {
   podcast: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9678C8" stroke-width="1.3"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>'
 };
 
+/* -- Group: Calendar Modal -- */
+/**
+ * Open schedule modal for a selected resource card.
+ * @param {number} cardId
+ * @param {string} title
+ * @param {string} dur
+ * @param {'video'|'article'|'podcast'} type
+ */
 function openCalModal(cardId, title, dur, type) {
   currentCardId = cardId;
   document.getElementById('cm-res-name').textContent = title;
@@ -154,6 +162,9 @@ function openCalModal(cardId, title, dur, type) {
   document.getElementById('cal-backdrop').classList.add('open');
 }
 
+/**
+ * Render available calendar providers and current selection state.
+ */
 function renderCalOpts() {
   document.getElementById('cal-opts').innerHTML = calendars.map((c,i) => `
     <div class="cal-opt ${i===selectedCal?'sel':''}" onclick="selectCal(${i})">
@@ -165,18 +176,33 @@ function renderCalOpts() {
     </div>`).join('');
 }
 
-function selectCal(i) {
-  selectedCal = i;
+/**
+ * Set selected calendar provider by index and re-render options.
+ * @param {number} calendarIndex
+ */
+function selectCal(calendarIndex) {
+  selectedCal = calendarIndex;
   renderCalOpts();
 }
 
+/**
+ * Close schedule modal.
+ */
 function closeCalModal() {
   document.getElementById('cal-backdrop').classList.remove('open');
 }
+
+/**
+ * Close modal when clicking the backdrop area.
+ * @param {MouseEvent} e
+ */
 function closeOnBackdrop(e) {
   if (e.target === document.getElementById('cal-backdrop')) closeCalModal();
 }
 
+/**
+ * Mark selected resource as scheduled and update module progress stats.
+ */
 function confirmSchedule() {
   closeCalModal();
   const card = document.querySelector(`.res-card[data-id="${currentCardId}"]`);
@@ -199,6 +225,14 @@ function confirmSchedule() {
   showToast('Added to ' + calendars[selectedCal].name);
 }
 
+/* -- Group: Resource Card Renderers -- */
+/**
+ * Build placeholder/demo resource card markup.
+ * Note: This renderer supports static placeholder cards.
+ * Live API cards are rendered by buildResCardReal.
+ * @param {object} res
+ * @returns {string}
+ */
 function buildResCard(res) {
   const thumbClass = { video: 't-video', article: 't-article', podcast: 't-podcast' }[res.type] || 't-video';
   const color = { video: '#C8B89A', article: '#6B9E6B', podcast: '#9678C8' }[res.type] || '#C8B89A';
@@ -243,10 +277,18 @@ function buildResCard(res) {
     </div>`;
 }
 
+/* -- Group: Module Loading -- */
+/**
+ * Load module resources for selected history item and render UI state.
+ * @returns {Promise<void>}
+ */
 async function loadModule() {
+  // Phase 1: Resolve history ID from query string or stored session.
   const params = new URLSearchParams(window.location.search);
   const historyId = params.get('historyId') || params.get('id') || localStorage.getItem('currentHistoryId') || '';
+
   try {
+    // Phase 2: Request module payload from backend.
     const token = localStorage.getItem('token') || '';
     const res = await fetch('/api/modules?historyId=' + encodeURIComponent(historyId), {
       headers: token ? { 'Authorization': 'Bearer ' + token } : {}
@@ -254,6 +296,7 @@ async function loadModule() {
     const data = await res.json();
     if (!res.ok) { showEmptyModule(); return; }
 
+    // Phase 3: Normalize response and update header/focus UI blocks.
     const modules = data.modules || [];
     const studyNext = data.studyNext || [];
     totalResCount = modules.length;
@@ -264,7 +307,7 @@ async function loadModule() {
     document.getElementById('mod-meta-time').textContent = (modules.length * 15) + ' min';
     document.getElementById('mod-meta-count').textContent = modules.length + ' selected';
 
-    // Focus areas from studyNext
+    // Phase 4: Render focus areas from studyNext data.
     document.getElementById('mod-focus-list').innerHTML = studyNext.slice(0,3).map((f, i) => `
       <div class="focus-item">
         <div class="focus-index">${i + 1}</div>
@@ -278,9 +321,9 @@ async function loadModule() {
     document.getElementById('ms-scheduled').textContent = 0;
     document.getElementById('ms-remaining').textContent = totalResCount;
 
-    // Map modules to resource cards
+    // Phase 5: Map raw modules to resource-card view model.
     const resources = modules.map((m, i) => {
-      // Detect type from URL or explicit type field
+      // Detect type from URL or explicit type field.
       const rawType = (m.type || '').toLowerCase();
       let type = 'article';
       if (rawType.includes('youtube') || rawType.includes('video') || (m.url && m.url.includes('youtube'))) type = 'video';
@@ -299,6 +342,7 @@ async function loadModule() {
       };
     });
 
+    // Phase 6: Render live resource cards.
     document.getElementById('res-list').innerHTML = resources.map(r => buildResCardReal(r)).join('');
   } catch (e) {
     console.error(e);
@@ -306,6 +350,12 @@ async function loadModule() {
   }
 }
 
+/**
+ * Build live API resource card markup.
+ * This renderer is used for real module data from backend endpoints.
+ * @param {object} res
+ * @returns {string}
+ */
 function buildResCardReal(res) {
   const thumbClass = { video: 't-video', article: 't-article' }[res.type] || 't-article';
   const color = { video: '#C8B89A', article: '#6B9E6B' }[res.type] || '#6B9E6B';
@@ -340,6 +390,9 @@ function buildResCardReal(res) {
     </div>`;
 }
 
+/**
+ * Show fallback message when module data cannot be loaded.
+ */
 function showEmptyModule() {
   document.getElementById('res-list').innerHTML = '<p style="color:var(--cream-25);font-size:13px;padding:20px 0">No module data available. Complete a quiz first.</p>';
 }

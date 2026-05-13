@@ -60,10 +60,37 @@
 
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('history');
 
+/**
+ * Redirect user to resume quiz mode for selected history item.
+ * @param {string} historyId
+ */
+function handleRetakeQuiz(historyId) {
+  window.location.href = 'upload.html?resume=' + historyId + '&mode=quiz';
+}
+
+/**
+ * Animate score ring after initial layout paint.
+ * @param {number} score
+ */
+function scheduleScoreRingAnimation(score) {
+  setTimeout(function runScoreRingAnimation() {
+    const ring = document.getElementById('score-ring-circle');
+    if (ring && window.LN) window.LN.animateScoreRing(ring, score);
+  }, 300);
+}
+
+/* -- Group: Results Rendering -- */
+/**
+ * Fetch and render quiz results page for selected history ID.
+ * @returns {Promise<void>}
+ */
 async function loadResults() {
+  // Phase 1: Resolve target history ID from query string.
   const params = new URLSearchParams(window.location.search);
   const id = params.get('id') || '';
+
   try {
+    // Phase 2: Request results payload.
     const token = localStorage.getItem('token') || '';
     const res = await fetch('/api/results?id=' + encodeURIComponent(id),
       token ? { headers: { 'Authorization': 'Bearer ' + token } } : {}
@@ -71,12 +98,14 @@ async function loadResults() {
     const data = await res.json();
     if (!res.ok) { showResultsError(data.message); return; }
 
+    // Phase 3: Normalize response for UI sections.
     const an = data.analysis || {};
     const quizFull = data.quizFull || [];
     const userAnswers = data.userAnswers || [];
     const correct = data.correct || 0;
     const total = data.total || quizFull.length;
 
+    // Phase 4: Render header metrics and summary panels.
     document.getElementById('result-doc-title').textContent = (data.title || '') + ' · ' + total + ' questions';
     document.getElementById('score-ring-text').textContent = (data.score || 0) + '%';
     document.getElementById('score-ring-label').textContent = correct + ' of ' + total + ' correct';
@@ -95,6 +124,7 @@ async function loadResults() {
         '<div class="tag-cloud">' + (an.studyNext || []).map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('') + '</div>' +
       '</div>';
 
+    // Phase 5: Render per-question breakdown list.
     document.getElementById('q-list').innerHTML = quizFull.map((q, i) => {
       const chosen = userAnswers[i];
       const isCorrect = chosen === q.correct;
@@ -106,21 +136,22 @@ async function loadResults() {
       `</div>`;
     }).join('');
 
+    // Phase 6: Wire action buttons and ring animation.
     const hid = data._id || id;
     document.getElementById('btn-module').href = 'module.html?historyId=' + hid;
-    document.getElementById('btn-retake').onclick = function() {
-      window.location.href = 'upload.html?resume=' + hid + '&mode=quiz';
+    document.getElementById('btn-retake').onclick = function onRetakeClick() {
+      handleRetakeQuiz(hid);
     };
-
-    setTimeout(function() {
-      const ring = document.getElementById('score-ring-circle');
-      if (ring && window.LN) window.LN.animateScoreRing(ring, data.score);
-    }, 300);
-  } catch (e) {
+    scheduleScoreRingAnimation(data.score || 0);
+  } catch (_error) {
     showResultsError('Could not load results.');
   }
 }
 
+/**
+ * Render fallback error state for failed results loading.
+ * @param {string} msg
+ */
 function showResultsError(msg) {
   document.querySelector('main.main-content').innerHTML =
     '<div style="padding:60px 40px;color:var(--cream-25);font-size:14px">' + (msg || 'Result not found') +

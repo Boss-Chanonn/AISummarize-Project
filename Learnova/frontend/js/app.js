@@ -1,7 +1,12 @@
-/* ── Learnova shared JS ── */
+/* ──────────────────────────────────────────
+  Learnova Frontend App Script
+  Shared client logic for user pages and system admin pages.
+  Organized in sections: state, helpers, UI, and page modules.
+  ────────────────────────────────────────── */
 
-/* ── User state (loaded from localStorage after login) ── */
+/* ── Section: User State and Core Helpers ── */
 const _storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+// Snapshot of the currently signed-in user, hydrated from localStorage.
 const LEARNOVA_USER = {
   name: (_storedUser && _storedUser.name) || 'User',
   initials: '',
@@ -17,23 +22,44 @@ const LEARNOVA_USER = {
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
-/* History is stored in localStorage (ln_history) — starts empty until user summarises */
+/* History is stored in localStorage (ln_history) and starts empty for new users. */
 
 
+/**
+ * Get one history record by id from localStorage.
+ * @param {string} id
+ * @returns {object | undefined}
+ */
 function getHistoryItem(id) {
   const history = JSON.parse(localStorage.getItem('ln_history') || '[]');
   return history.find(item => item.id === id);
 }
 
+/**
+ * Get the latest history items for dashboard/activity views.
+ * @param {number} [limit=5]
+ * @returns {object[]}
+ */
 function getRecentActivity(limit = 5) {
   const history = JSON.parse(localStorage.getItem('ln_history') || '[]');
   return history.slice(0, limit);
 }
 
+/**
+ * Build a resume URL for upload/quiz flows.
+ * @param {string} id
+ * @param {string} [mode='quiz']
+ * @returns {string}
+ */
 function getResumeQuizUrl(id, mode = 'quiz') {
   return `upload.html?resume=${id}&mode=${mode}`;
 }
 
+/**
+ * Escape HTML-sensitive characters to prevent markup injection.
+ * @param {unknown} value
+ * @returns {string}
+ */
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -43,10 +69,25 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Render the summary card content block used by multiple pages/modals.
+ * @param {object} item
+ * @param {object} [options={}]
+ * @returns {string}
+ */
 function renderSummaryMarkup(item, options = {}) {
-  const ctaLabel = options.ctaLabel || (item.done ? 'Retake quiz →' : 'Continue to quiz →');
-  const ctaHandler = options.ctaHandler || (item.done ? "window.location.href='upload.html'" : `window.location.href='${getResumeQuizUrl(item.id, 'quiz')}'`);
-  const ctaHint = options.ctaHint || (item.done ? `${item.total} questions completed` : 'Summary ready to continue');
+  const isCompleted = Boolean(item.done);
+  const defaultCtaLabel = isCompleted ? 'Retake quiz →' : 'Continue to quiz →';
+  const defaultCtaHandler = isCompleted
+    ? "window.location.href='upload.html'"
+    : `window.location.href='${getResumeQuizUrl(item.id, 'quiz')}'`;
+  const defaultCtaHint = isCompleted
+    ? `${item.total} questions completed`
+    : 'Summary ready to continue';
+
+  const ctaLabel = options.ctaLabel || defaultCtaLabel;
+  const ctaHandler = options.ctaHandler || defaultCtaHandler;
+  const ctaHint = options.ctaHint || defaultCtaHint;
   const ctaBefore = options.ctaBefore || '';
   return `
     <div class="sum-header">
@@ -69,42 +110,77 @@ function renderSummaryMarkup(item, options = {}) {
   `;
 }
 
-/* ── Theme / accessibility engine ── */
+/* ── Section: Theme and Accessibility Preferences ── */
 const THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
 const FONT_SIZES = ['default','large','xlarge'];
 
+/**
+ * Apply the visual theme by toggling data-theme on <html>.
+ * @param {string} t
+ */
 function applyTheme(t) {
   if (t === 'dark') document.documentElement.removeAttribute('data-theme');
   else document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('ln_theme', t);
 }
+
+/**
+ * Apply preferred font size by toggling data-fontsize on <html>.
+ * @param {string} s
+ */
 function applyFontSize(s) {
   if (s === 'default') document.documentElement.removeAttribute('data-fontsize');
   else document.documentElement.setAttribute('data-fontsize', s);
   localStorage.setItem('ln_fontsize', s);
 }
+
+/**
+ * Load persisted theme/font-size preferences and apply to the page.
+ */
 function loadPrefs() {
   const t = localStorage.getItem('ln_theme') || 'dark';
   const s = localStorage.getItem('ln_fontsize') || 'default';
-  applyTheme(t); applyFontSize(s);
+  applyTheme(t);
+  applyFontSize(s);
 }
 
+/**
+ * Generate up to two uppercase initials from a display name.
+ * @param {string} name
+ * @returns {string}
+ */
 function getInitials(name) {
-  return String(name || '')
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
+  const rawName = String(name || '').trim();
+  if (!rawName) return 'U';
+
+  const words = rawName.split(/\s+/).filter(Boolean);
+  const firstTwoWords = words.slice(0, 2);
+  const initials = firstTwoWords
     .map(part => part[0].toUpperCase())
-    .join('') || 'U';
+    .join('');
+
+  return initials || 'U';
 }
 
+/* -- Group: UI Sync -- */
+/**
+ * Return avatar markup for a given size variant.
+ * Falls back to initials when no avatar image exists.
+ * @param {'default'|'large'} [size='default']
+ * @returns {string}
+ */
 function getAvatarMarkup(size = 'default') {
   if (!LEARNOVA_USER.avatarUrl) return escapeHtml(LEARNOVA_USER.initials);
   return `<img src="${LEARNOVA_USER.avatarUrl}" alt="${escapeHtml(LEARNOVA_USER.name)}" class="avatar-image avatar-image-${size}">`;
 }
 
-/* ── Toast ── */
+/* -- Group: Toast -- */
+/**
+ * Show a toast message with inferred or explicit type.
+ * @param {string} msg
+ * @param {string|number} [typeOrDuration]
+ * @param {number} [maybeDuration]
+ */
 function showToast(msg, typeOrDuration, maybeDuration) {
   let type = '';
   let duration = 2800;
@@ -135,7 +211,8 @@ function showToast(msg, typeOrDuration, maybeDuration) {
   let icon = t.querySelector('.toast-icon');
   let msgEl = t.querySelector('#toast-msg');
   if (!icon || !msgEl) {
-    t.innerHTML = '<div class="toast-icon" aria-hidden="true">&#10003;</div><span id="toast-msg"></span>';
+    const toastMarkup = '<div class="toast-icon" aria-hidden="true">&#10003;</div><span id="toast-msg"></span>';
+    t.innerHTML = toastMarkup;
     icon = t.querySelector('.toast-icon');
     msgEl = t.querySelector('#toast-msg');
   }
@@ -145,29 +222,48 @@ function showToast(msg, typeOrDuration, maybeDuration) {
   msgEl.textContent = msg;
 
   t.classList.add('show');
+
   clearTimeout(t._timer);
+
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 
+/**
+ * Sync profile/tier UI fragments to the current LEARNOVA_USER state.
+ */
 function syncUserUI() {
   const isPro = LEARNOVA_USER.tier === 'pro';
+
+  // Sync visible display names.
   document.querySelectorAll('.avatar-name').forEach(el => el.textContent = LEARNOVA_USER.name);
+
+  // Sync avatar containers with either image or initials fallback.
   document.querySelectorAll('.avatar-circle').forEach(el => {
     const size = el.classList.contains('sidebar-account-large') || el.style.width === '56px' ? 'large' : 'default';
     el.classList.toggle('has-avatar', Boolean(LEARNOVA_USER.avatarUrl));
     el.innerHTML = getAvatarMarkup(size);
   });
+
+  // Sync email and menu name labels.
   document.querySelectorAll('.sidebar-email, .sidebar-menu-email').forEach(el => el.textContent = LEARNOVA_USER.email);
   document.querySelectorAll('.sidebar-menu-name').forEach(el => el.textContent = LEARNOVA_USER.name);
+
+  // Sync tier badge style and text.
   document.querySelectorAll('.tier-badge').forEach(el => {
     el.className = `tier-badge ${isPro ? 'tier-pro' : 'tier-free'}`;
     el.textContent = isPro ? 'Pro' : 'Free';
   });
 }
 
+/**
+ * Render account menu HTML displayed from the sidebar avatar trigger.
+ * @returns {string}
+ */
 function renderSidebarAccountMenuMarkup() {
   const isPro = LEARNOVA_USER.tier === 'pro';
-  return `
+
+  // Header card shown at the top of the account menu.
+  const accountCardMarkup = `
     <div class="sidebar-account-card">
       <div class="avatar-circle sidebar-account-large${LEARNOVA_USER.avatarUrl ? ' has-avatar' : ''}">${getAvatarMarkup('large')}</div>
       <div style="min-width:0">
@@ -175,7 +271,10 @@ function renderSidebarAccountMenuMarkup() {
         <div class="sidebar-menu-email">${LEARNOVA_USER.email}</div>
       </div>
       <div class="tier-badge ${isPro?'tier-pro':'tier-free'}" style="margin-top:0;margin-left:auto">${isPro?'Pro':'Free'}</div>
-    </div>
+    </div>`;
+
+  // Action buttons shown under the profile card.
+  const accountActionsMarkup = `
     <div class="sidebar-account-actions">
       <button class="sidebar-account-item" type="button" onclick="handleSidebarAccountAction('profile')">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
@@ -194,10 +293,15 @@ function renderSidebarAccountMenuMarkup() {
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 3H3.5A1.5 1.5 0 002 4.5v7A1.5 1.5 0 003.5 13H6"/><path d="M9.5 5.5L13 8l-3.5 2.5"/><path d="M5 8h8"/></svg>
         <span>Sign out</span>
       </button>
-    </div>
-  `;
+    </div>`;
+
+  return `${accountCardMarkup}${accountActionsMarkup}`;
 }
 
+/* -- Group: Sidebar Account Menu -- */
+/**
+ * Close and clean up the sidebar account menu overlay.
+ */
 function closeSidebarAccountMenu() {
   const menu = document.getElementById('sidebar-account-mount');
   const trigger = document.getElementById('sidebar-account-trigger');
@@ -207,16 +311,27 @@ function closeSidebarAccountMenu() {
   if (bottom) bottom.classList.remove('open');
 }
 
+/**
+ * Toggle sidebar account menu visibility.
+ * @param {Event} [event]
+ */
 function toggleSidebarAccountMenu(event) {
+  // Prevent document-level handlers from reacting to trigger click.
   if (event) event.stopPropagation();
+
+  // Resolve current UI anchors.
   const existingMenu = document.getElementById('sidebar-account-mount');
   const trigger = document.getElementById('sidebar-account-trigger');
   const bottom = document.querySelector('.sidebar-bottom');
   if (!trigger || !bottom) return;
+
+  // If already open, toggling means close.
   if (existingMenu) {
     closeSidebarAccountMenu();
     return;
   }
+
+  // Build and mount overlay menu.
   const mount = document.createElement('div');
   mount.id = 'sidebar-account-mount';
   mount.innerHTML = `
@@ -225,11 +340,17 @@ function toggleSidebarAccountMenu(event) {
         ${renderSidebarAccountMenuMarkup()}
       </div>
     </div>`;
+
+  // Attach to DOM and sync trigger/open states.
   document.body.appendChild(mount);
   bottom.classList.add('open');
   trigger.setAttribute('aria-expanded', 'true');
 }
 
+/**
+ * Log out current user and clear local session state.
+ * Logout continues locally even if network request fails.
+ */
 async function logoutUser() {
   const token = localStorage.getItem('token');
   try {
@@ -239,7 +360,7 @@ async function logoutUser() {
         headers: { 'Authorization': 'Bearer ' + token }
       });
     }
-  } catch (e) {
+  } catch (_error) {
     // Network error — continue logout anyway
   } finally {
     localStorage.removeItem('token');
@@ -248,27 +369,54 @@ async function logoutUser() {
   }
 }
 
+/**
+ * Handle sidebar account menu actions.
+ * @param {'profile'|'accessibility'|'plan'|'signout'} action
+ */
 function handleSidebarAccountAction(action) {
   closeSidebarAccountMenu();
-  if (action === 'profile') openEditProfile();
-  if (action === 'accessibility') openSettings('accessibility');
-  if (action === 'plan') window.location.href = 'billing.html';
+
+  // Open profile editor.
+  if (action === 'profile') {
+    openEditProfile();
+    return;
+  }
+
+  // Open accessibility panel in settings.
+  if (action === 'accessibility') {
+    openSettings('accessibility');
+    return;
+  }
+
+  // Navigate to billing page.
+  if (action === 'plan') {
+    window.location.href = 'billing.html';
+    return;
+  }
+
+  // Sign out and clear session.
   if (action === 'signout') logoutUser();
 }
 
 /* ── Settings modal ── */
+/**
+ * Open settings modal for accessibility or plan tabs.
+ * @param {'general'|'accessibility'|'plan'} [tab='general']
+ */
 function openSettings(tab='general') {
   const currentTab = tab === 'plan' ? 'plan' : 'accessibility';
   const saved_theme = localStorage.getItem('ln_theme') || 'dark';
 
-  const themeSwatches = [
+  const themeSwatchItems = [
     { id:'dark',          label:'Dark',           dots:['#0A0A0A','#C8B89A','#6B9E6B'] },
     { id:'light',         label:'Light',          dots:['#F7F5F2','#7A5C38','#2E6E2E'] },
     { id:'high-contrast', label:'High contrast',  dots:['#000000','#FFD700','#00DD00'] },
     { id:'deuteranopia',  label:'Deuteranopia',   dots:['#0A0A0A','#E8B84B','#5B9BD5'] },
     { id:'protanopia',    label:'Protanopia',     dots:['#0A0A0A','#5FB8FF','#FFCC00'] },
     { id:'tritanopia',    label:'Tritanopia',     dots:['#0A0A0A','#FF6E6E','#E8A0D0'] },
-  ].map(s => `
+  ];
+
+  const themeSwatches = themeSwatchItems.map(s => `
     <div class="theme-swatch${saved_theme===s.id?' selected':''}" onclick="applyTheme('${s.id}');document.querySelectorAll('.theme-swatch').forEach(x=>x.classList.remove('selected'));this.classList.add('selected')">
       <div class="swatch-dots">${s.dots.map(c=>`<div class="sd" style="background:${c}"></div>`).join('')}</div>
       <div class="swatch-label">${s.label}</div>
@@ -289,6 +437,13 @@ function openSettings(tab='general') {
     'Full learning modules',
     'Calendar integration',
   ];
+  const planFeaturesMarkup = planFeatures.map(item => `
+    <div class="plan-feature-item">
+      <span class="plan-feature-dash">—</span>
+      <span>${item}</span>
+    </div>
+  `).join('');
+
   const planPanel = `
     <div class="plan-panel">
       <div class="plan-card plan-current-card">
@@ -306,12 +461,7 @@ function openSettings(tab='general') {
       <div class="plan-card plan-upgrade-card">
         <div class="plan-price-title">Learnova Pro — $12/month</div>
         <div class="plan-feature-list">
-          ${planFeatures.map(item => `
-            <div class="plan-feature-item">
-              <span class="plan-feature-dash">—</span>
-              <span>${item}</span>
-            </div>
-          `).join('')}
+          ${planFeaturesMarkup}
         </div>
         ${isPro
           ? `<button class="btn btn-primary plan-cta" type="button" onclick="closeSettings();showToast('You are already on Learnova Pro')">Current plan active</button>`
@@ -339,16 +489,27 @@ function openSettings(tab='general') {
   el.id = 'settings-mount'; el.innerHTML = html;
   document.body.appendChild(el);
 }
+
+/**
+ * Close settings modal if mounted.
+ */
 function closeSettings() {
   const el = document.getElementById('settings-mount');
   if (el) el.remove();
 }
 
+/**
+ * Trigger hidden avatar file input click.
+ */
 function triggerAvatarUpload() {
   const input = document.getElementById('s-avatar-file');
   if (input) input.click();
 }
 
+/**
+ * Preview selected avatar image before saving profile.
+ * @param {Event} event
+ */
 function handleAvatarUpload(event) {
   const [file] = event.target.files || [];
   if (!file) return;
@@ -368,6 +529,9 @@ function handleAvatarUpload(event) {
   reader.readAsDataURL(file);
 }
 
+/**
+ * Open edit-profile modal with current user data.
+ */
 function openEditProfile() {
   const isPro = LEARNOVA_USER.tier === 'pro';
   const pendingEmailNotice = LEARNOVA_USER.pendingEmail
@@ -422,10 +586,18 @@ function openEditProfile() {
   el.innerHTML = html;
   document.body.appendChild(el);
 }
+
+/**
+ * Close edit-profile modal if mounted.
+ */
 function closeEditProfile() {
   const el = document.getElementById('edit-profile-mount');
   if (el) el.remove();
 }
+
+/**
+ * Persist edited profile data to in-memory user state and refresh UI.
+ */
 function saveProfile() {
   const name = document.getElementById('s-name').value.trim();
   const email = document.getElementById('s-email').value.trim();
@@ -433,26 +605,33 @@ function saveProfile() {
   const currentPassword = document.getElementById('s-current-password').value;
   const newPassword = document.getElementById('s-new-password').value;
   const confirmPassword = document.getElementById('s-confirm-password').value;
+
+  // Change flags used to decide which validations/messages apply.
   const emailChanged = email && email !== LEARNOVA_USER.email;
-  const wantsPasswordChange = Boolean(currentPassword || newPassword || confirmPassword);
+  const hasAnyPasswordInput = Boolean(currentPassword || newPassword || confirmPassword);
+  const hasAllPasswordInputs = Boolean(currentPassword && newPassword && confirmPassword);
+  const isCurrentPasswordValid = currentPassword === LEARNOVA_USER.password;
+  const isNewPasswordLongEnough = newPassword.length >= 8;
+  const isPasswordConfirmationMatch = newPassword === confirmPassword;
 
   if (name) LEARNOVA_USER.name = name;
   if (avatarPreview) LEARNOVA_USER.avatarUrl = avatarPreview.dataset.avatarUrl || '';
   if (emailChanged) LEARNOVA_USER.pendingEmail = email;
-  if (wantsPasswordChange) {
-    if (!currentPassword || !newPassword || !confirmPassword) {
+
+  if (hasAnyPasswordInput) {
+    if (!hasAllPasswordInputs) {
       showToast('Fill in all password fields');
       return;
     }
-    if (currentPassword !== LEARNOVA_USER.password) {
+    if (!isCurrentPasswordValid) {
       showToast('Current password is incorrect');
       return;
     }
-    if (newPassword.length < 8) {
+    if (!isNewPasswordLongEnough) {
       showToast('New password must be at least 8 characters');
       return;
     }
-    if (newPassword !== confirmPassword) {
+    if (!isPasswordConfirmationMatch) {
       showToast('New passwords do not match');
       return;
     }
@@ -462,20 +641,38 @@ function saveProfile() {
   LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
   closeSettings();
   closeEditProfile();
-  if (emailChanged && wantsPasswordChange) showToast('Profile updated. Verify your new email address.');
+  if (emailChanged && hasAnyPasswordInput) showToast('Profile updated. Verify your new email address.');
   else if (emailChanged) showToast('Profile updated. Verify your new email address.');
-  else if (wantsPasswordChange) showToast('Password updated');
+  else if (hasAnyPasswordInput) showToast('Password updated');
   else showToast('Profile updated');
   syncUserUI();
 }
+
+/**
+ * Navigate user to billing page for upgrading plan.
+ */
 function upgradeToPro() {
   if (typeof closeSettings === 'function') closeSettings();
   window.location.href = 'billing.html';
 }
 
 /* ── Profile modal ── */
+/**
+ * Open read-only profile modal with quick actions.
+ */
 function openProfile() {
   const isPro = LEARNOVA_USER.tier === 'pro';
+
+  // Fields rendered in the profile details grid.
+  const profileFields = [
+    ['Full name', LEARNOVA_USER.name],
+    ['Email', LEARNOVA_USER.email],
+    ['Date of birth', LEARNOVA_USER.dob],
+    ['Phone number', LEARNOVA_USER.phone],
+    ['Password', LEARNOVA_USER.passwordMask],
+    ['Confirm password', LEARNOVA_USER.passwordMask],
+  ];
+
   const html = `
   <div class="modal-overlay open" id="profile-overlay" onclick="if(event.target===this)closeProfile()">
     <div class="modal-box" style="width:580px;max-width:92vw">
@@ -493,14 +690,7 @@ function openProfile() {
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr;gap:0.5px;background:var(--border);margin-bottom:20px">
-        ${[
-          ['Full name', LEARNOVA_USER.name],
-          ['Email', LEARNOVA_USER.email],
-          ['Date of birth', LEARNOVA_USER.dob],
-          ['Phone number', LEARNOVA_USER.phone],
-          ['Password', LEARNOVA_USER.passwordMask],
-          ['Confirm password', LEARNOVA_USER.passwordMask],
-        ].map(([label, value]) => `
+        ${profileFields.map(([label, value]) => `
           <div style="background:var(--surface);padding:14px 0">
             <div style="font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px">${label}</div>
             <div style="font-size:14px;color:var(--cream-60)">${value}</div>
@@ -522,9 +712,21 @@ function openProfile() {
   const el = document.createElement('div'); el.id='profile-mount'; el.innerHTML=html;
   document.body.appendChild(el);
 }
-function closeProfile() { const el=document.getElementById('profile-mount'); if(el)el.remove(); }
+
+/**
+ * Close profile modal if mounted.
+ */
+function closeProfile() {
+  const el = document.getElementById('profile-mount');
+  if (el) el.remove();
+}
 
 /* ── Sidebar HTML ── */
+/**
+ * Render sidebar HTML for user-facing pages.
+ * @param {string} activePage
+ * @returns {string}
+ */
 function renderSidebar(activePage) {
   const isPro = LEARNOVA_USER.tier === 'pro';
   return `
@@ -614,6 +816,31 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeSidebarAccountMenu();
 });
 
+/**
+ * Render shared question breakdown markup for history result views.
+ * @param {Array<{q:string,your:string,answer:string,correct:boolean}>} questions
+ * @returns {string}
+ */
+function renderQuestionListMarkup(questions) {
+  return questions.map(question => {
+    const statusClass = question.correct ? 'correct' : 'wrong';
+    const markClass = question.correct ? 'c' : 'w';
+    const markSymbol = question.correct ? '✓' : '✗';
+    const correctionMarkup = question.correct
+      ? ''
+      : ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(question.answer)}</span>`;
+
+    return `
+      <div class="q-item ${statusClass}">
+        <div class="q-row"><span class="q-mark ${markClass}">${markSymbol}</span><span class="q-text">${escapeHtml(question.q)}</span></div>
+        <div class="q-ans">Your answer: ${escapeHtml(question.your)}${correctionMarkup}</div>
+      </div>`;
+  }).join('');
+}
+
+/**
+ * Ensure modal mounts for history detail and split views exist.
+ */
 function ensureHistoryModalMounts() {
   if (!document.getElementById('detail-modal')) {
     const detail = document.createElement('div');
@@ -633,12 +860,31 @@ function ensureHistoryModalMounts() {
   }
 }
 
+/**
+ * Open the detailed quiz result modal from history item id.
+ * @param {string|number} id
+ */
 function openHistoryDetail(id) {
   const item = getHistoryItem(id);
   if (!item || !item.done) return;
   ensureHistoryModalMounts();
+
+  // Circle circumference where r=40 => 2 * pi * r ≈ 251.2
   const circ = 251.2;
+  // Stroke offset controls visible progress arc based on score.
   const offset = circ - (item.score / 100) * circ;
+
+  const strengthsMarkup = item.strengths
+    .map(strength => `<span class="badge badge-green">${escapeHtml(strength)}</span>`)
+    .join('');
+  const weaknessesMarkup = item.weaknesses
+    .map(weakness => `<span class="badge badge-red">${escapeHtml(weakness)}</span>`)
+    .join('');
+  const studyNextMarkup = item.studyNext
+    .map(topic => `<span class="badge badge-gold">${escapeHtml(topic)}</span>`)
+    .join('');
+  const questionListMarkup = renderQuestionListMarkup(item.questions);
+
   document.getElementById('detail-box').innerHTML = `
     <div class="det-header">
       <div class="det-title-row">
@@ -658,17 +904,13 @@ function openHistoryDetail(id) {
       <button class="det-close" onclick="closeHistoryDetail()">✕</button>
     </div>
     <div class="det-panels result-step">
-      <div class="det-panel s"><div class="det-ph"><span class="det-dot" style="background:var(--green)"></span><span class="det-pt">Strengths</span></div><div class="tag-cloud">${item.strengths.map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div></div>
-      <div class="det-panel w"><div class="det-ph"><span class="det-dot" style="background:var(--red-soft)"></span><span class="det-pt">Needs work</span></div><div class="tag-cloud">${item.weaknesses.map(s => `<span class="badge badge-red">${escapeHtml(s)}</span>`).join('')}</div></div>
-      <div class="det-panel"><div class="det-ph"><span class="det-dot" style="background:var(--gold)"></span><span class="det-pt">Study next</span></div><div class="tag-cloud">${item.studyNext.map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('')}</div></div>
+      <div class="det-panel s"><div class="det-ph"><span class="det-dot" style="background:var(--green)"></span><span class="det-pt">Strengths</span></div><div class="tag-cloud">${strengthsMarkup}</div></div>
+      <div class="det-panel w"><div class="det-ph"><span class="det-dot" style="background:var(--red-soft)"></span><span class="det-pt">Needs work</span></div><div class="tag-cloud">${weaknessesMarkup}</div></div>
+      <div class="det-panel"><div class="det-ph"><span class="det-dot" style="background:var(--gold)"></span><span class="det-pt">Study next</span></div><div class="tag-cloud">${studyNextMarkup}</div></div>
     </div>
     <div class="section-label result-step">Question breakdown</div>
     <div class="q-list result-step">
-      ${item.questions.map(q => `
-      <div class="q-item ${q.correct ? 'correct' : 'wrong'}">
-        <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
-        <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
-      </div>`).join('')}
+      ${questionListMarkup}
     </div>
     <div class="det-actions">
       <button class="btn" onclick="closeHistoryDetail()">Back</button>
@@ -689,17 +931,39 @@ function openHistoryDetail(id) {
   }, 50);
 }
 
+/**
+ * Close history detail modal.
+ */
 function closeHistoryDetail() {
   const modal = document.getElementById('detail-modal');
   if (modal) modal.classList.remove('open');
 }
 
+/**
+ * Open split view modal that shows summary and quiz result together.
+ * @param {string|number} id
+ */
 function openHistorySplit(id) {
   const item = getHistoryItem(id);
   if (!item || !item.done) return;
   ensureHistoryModalMounts();
+
+  // Circle circumference where r=40 => 2 * pi * r ≈ 251.2
   const circ = 251.2;
+  // Stroke offset controls visible progress arc based on score.
   const offset = circ - (item.score / 100) * circ;
+
+  const strengthsMarkup = item.strengths
+    .map(strength => `<span class="badge badge-green">${escapeHtml(strength)}</span>`)
+    .join('');
+  const weaknessesMarkup = item.weaknesses
+    .map(weakness => `<span class="badge badge-red">${escapeHtml(weakness)}</span>`)
+    .join('');
+  const studyNextMarkup = item.studyNext
+    .map(topic => `<span class="badge badge-gold">${escapeHtml(topic)}</span>`)
+    .join('');
+  const questionListMarkup = renderQuestionListMarkup(item.questions);
+
   document.getElementById('split-box').innerHTML = `
     <div class="split-header">
       <div>
@@ -723,17 +987,13 @@ function openHistorySplit(id) {
           <div style="font-size:12px;color:var(--cream-25);margin-top:6px">${item.correct} of ${item.total} correct</div>
         </div>
         <div class="det-panels split-panels result-step">
-          <div class="det-panel s"><div class="det-ph"><span class="det-dot" style="background:var(--green)"></span><span class="det-pt">Strengths</span></div><div class="tag-cloud">${item.strengths.map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div></div>
-          <div class="det-panel w"><div class="det-ph"><span class="det-dot" style="background:var(--red-soft)"></span><span class="det-pt">Needs work</span></div><div class="tag-cloud">${item.weaknesses.map(s => `<span class="badge badge-red">${escapeHtml(s)}</span>`).join('')}</div></div>
-          <div class="det-panel"><div class="det-ph"><span class="det-dot" style="background:var(--gold)"></span><span class="det-pt">Study next</span></div><div class="tag-cloud">${item.studyNext.map(s => `<span class="badge badge-gold">${escapeHtml(s)}</span>`).join('')}</div></div>
+          <div class="det-panel s"><div class="det-ph"><span class="det-dot" style="background:var(--green)"></span><span class="det-pt">Strengths</span></div><div class="tag-cloud">${strengthsMarkup}</div></div>
+          <div class="det-panel w"><div class="det-ph"><span class="det-dot" style="background:var(--red-soft)"></span><span class="det-pt">Needs work</span></div><div class="tag-cloud">${weaknessesMarkup}</div></div>
+          <div class="det-panel"><div class="det-ph"><span class="det-dot" style="background:var(--gold)"></span><span class="det-pt">Study next</span></div><div class="tag-cloud">${studyNextMarkup}</div></div>
         </div>
         <div class="section-label result-step">Question breakdown</div>
         <div class="q-list result-step">
-          ${item.questions.map(q => `
-          <div class="q-item ${q.correct ? 'correct' : 'wrong'}">
-            <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
-            <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
-          </div>`).join('')}
+          ${questionListMarkup}
         </div>
       </div>
     </div>
@@ -750,15 +1010,17 @@ function openHistorySplit(id) {
   }, 50);
 }
 
+/**
+ * Close history split modal.
+ */
 function closeHistorySplit() {
   const modal = document.getElementById('split-modal');
   if (modal) modal.classList.remove('open');
 }
 
-/* ====================================================
-   7. SYSTEM ADMIN PAGE
-   ==================================================== */
+/* ── Section: System Admin Page ── */
 
+// UI metadata used to keep title/subtitle and nav behavior in sync per section.
 const SYS_SECTIONS = {
   overview: {
     title: 'System Overview',
@@ -778,6 +1040,7 @@ const SYS_SECTIONS = {
   }
 };
 
+// In-memory state for System Admin interactions and temporary UI selections.
 const SYS_STATE = {
   user: null,
   users: [],
@@ -795,10 +1058,20 @@ const SYS_STATE = {
   securityView: 'activity'
 };
 
+/* -- System Admin: Guards and Layout -- */
+/**
+ * Check whether current document is the System Admin page.
+ * @returns {boolean}
+ */
 function isSystemAdminPage() {
   return Boolean(document.getElementById('system-admin-page'));
 }
 
+/**
+ * Render the System Admin sidebar for the given active section.
+ * @param {'overview'|'users'|'database'|'security'} activeSection
+ * @returns {string}
+ */
 function renderSystemAdminSidebar(activeSection) {
   const user = SYS_STATE.user || {};
   const name = user.name || 'System Admin';
@@ -838,6 +1111,9 @@ function renderSystemAdminSidebar(activeSection) {
   </aside>`;
 }
 
+/**
+ * Open the System Admin account menu in sidebar.
+ */
 function openSysAccountMenu() {
   const trigger = document.getElementById('sys-sidebar-account-trigger');
   const bottom = document.querySelector('.sidebar-bottom');
@@ -878,6 +1154,9 @@ function openSysAccountMenu() {
   trigger.setAttribute('aria-expanded', 'true');
 }
 
+/**
+ * Close the System Admin account menu and reset trigger state.
+ */
 function closeSysAccountMenu() {
   const mount = document.getElementById('sys-sidebar-account-mount');
   const trigger = document.getElementById('sys-sidebar-account-trigger');
@@ -887,6 +1166,10 @@ function closeSysAccountMenu() {
   if (bottom) bottom.classList.remove('open');
 }
 
+/**
+ * Sign out System Admin account and clear local auth state.
+ * @returns {Promise<void>}
+ */
 async function logoutSystemAdmin() {
   closeSysAccountMenu();
   if (typeof logoutUser === 'function') {
@@ -898,6 +1181,11 @@ async function logoutSystemAdmin() {
   window.location.href = 'index.html';
 }
 
+/**
+ * Verify active user token and ensure role is system_admin.
+ * Redirects to index when verification fails.
+ * @returns {Promise<object|null>}
+ */
 async function verifySysAdmin() {
   const token = localStorage.getItem('token');
   if (!token) {
@@ -924,6 +1212,12 @@ async function verifySysAdmin() {
   }
 }
 
+/**
+ * Authenticated fetch helper for System Admin APIs with JSON parsing.
+ * @param {string} endpoint
+ * @param {RequestInit} [options={}]
+ * @returns {Promise<any>}
+ */
 async function sysAdminFetch(endpoint, options = {}) {
   const token = localStorage.getItem('token');
   const res = await fetch(endpoint, {
@@ -950,6 +1244,12 @@ async function sysAdminFetch(endpoint, options = {}) {
   return data;
 }
 
+/**
+ * Timed API wrapper that returns latency and error-safe result.
+ * @param {string} endpoint
+ * @param {RequestInit} [options={}]
+ * @returns {Promise<{endpoint:string,ok:boolean,ms:number,data:any,error?:string}>}
+ */
 async function sysTimedFetch(endpoint, options = {}) {
   const start = performance.now();
   try {
@@ -971,6 +1271,10 @@ async function sysTimedFetch(endpoint, options = {}) {
   }
 }
 
+/**
+ * Switch active System Admin section and trigger section-specific loaders.
+ * @param {'overview'|'users'|'database'|'security'} name
+ */
 function switchSysSection(name) {
   if (!SYS_SECTIONS[name]) return;
   SYS_STATE.currentSection = name;
@@ -1002,6 +1306,11 @@ function switchSysSection(name) {
   }
 }
 
+/* -- System Admin: Overview -- */
+/**
+ * Render loading placeholders for a target System Admin section.
+ * @param {'section-overview'|'section-users'|'section-database'|'section-security'} sectionId
+ */
 function showSysLoading(sectionId) {
   const loadingMarkup = '<div class="sys-loading">Loading...</div>';
   if (sectionId === 'section-overview') {
@@ -1032,6 +1341,10 @@ function showSysLoading(sectionId) {
   }
 }
 
+/**
+ * Render backend/service health cards.
+ * @param {any} healthResult
+ */
 function renderServiceStatus(healthResult) {
   const statusGrid = document.getElementById('statusGrid');
   if (!statusGrid) return;
@@ -1053,6 +1366,10 @@ function renderServiceStatus(healthResult) {
   }).join('');
 }
 
+/**
+ * Render realtime system stats panel.
+ * @param {any} stats
+ */
 function renderRealtimeStats(stats) {
   const statsGrid = document.getElementById('statsGrid');
   if (!statsGrid) return;
@@ -1071,6 +1388,10 @@ function renderRealtimeStats(stats) {
   }).join('');
 }
 
+/**
+ * Render API health rows with latency and status icon.
+ * @param {Array<{endpoint:string,ok:boolean,ms:number}>} requestRows
+ */
 function renderApiHealth(requestRows) {
   const apiHealthList = document.getElementById('apiHealthList');
   if (!apiHealthList) return;
@@ -1086,6 +1407,10 @@ function renderApiHealth(requestRows) {
   }).join('');
 }
 
+/**
+ * Load and render all widgets for the System Overview section.
+ * @returns {Promise<void>}
+ */
 async function loadSystemOverview() {
   showSysLoading('section-overview');
   const [healthReq, statsReq, logsReq] = await Promise.all([
@@ -1110,6 +1435,12 @@ async function loadSystemOverview() {
   }
 }
 
+/* -- System Admin: User Control -- */
+/**
+ * Format date for user table display.
+ * @param {string|number|Date} value
+ * @returns {string}
+ */
 function formatSysDate(value) {
   if (!value) return '-';
   const d = new Date(value);
@@ -1117,6 +1448,11 @@ function formatSysDate(value) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+/**
+ * Normalize raw user rows from API to a table-friendly model.
+ * @param {any[]} users
+ * @returns {Array<{_id:string,name:string,email:string,role:string,tier:string,status:string,joined:string,initials:string}>}
+ */
 function normalizeSysUsers(users) {
   return (users || []).map(user => {
     return {
@@ -1132,10 +1468,17 @@ function normalizeSysUsers(users) {
   });
 }
 
+/**
+ * Apply search/role/status filters to user dataset and re-render table.
+ */
 function applySysUserFilters() {
-  const q = (document.getElementById('sys-user-search')?.value || '').toLowerCase();
-  const role = document.getElementById('sys-user-role')?.value || '';
-  const status = document.getElementById('sys-user-status')?.value || '';
+  const searchInput = document.getElementById('sys-user-search');
+  const roleSelect = document.getElementById('sys-user-role');
+  const statusSelect = document.getElementById('sys-user-status');
+
+  const q = String(searchInput ? searchInput.value : '').toLowerCase();
+  const role = roleSelect ? roleSelect.value : '';
+  const status = statusSelect ? statusSelect.value : '';
 
   SYS_STATE.filteredUsers = SYS_STATE.users.filter(user => {
     const qMatch = !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q);
@@ -1147,6 +1490,10 @@ function applySysUserFilters() {
   renderUserTable(SYS_STATE.filteredUsers);
 }
 
+/**
+ * Render System Admin user table.
+ * @param {Array<{_id:string,name:string,email:string,role:string,tier:string,status:string,joined:string,initials:string}>} users
+ */
 function renderUserTable(users) {
   const tbody = document.getElementById('userTableBody');
   if (!tbody) return;
@@ -1183,6 +1530,10 @@ function renderUserTable(users) {
   }).join('');
 }
 
+/**
+ * Load users from admin API and render current filter result.
+ * @returns {Promise<void>}
+ */
 async function loadUserControl() {
   showSysLoading('section-users');
   try {
@@ -1196,6 +1547,10 @@ async function loadUserControl() {
   }
 }
 
+/**
+ * Open role-change modal for selected user.
+ * @param {string} userId
+ */
 function openSysRoleModal(userId) {
   const user = SYS_STATE.users.find(item => item._id === userId);
   if (!user) return;
@@ -1207,11 +1562,20 @@ function openSysRoleModal(userId) {
   document.getElementById('sysRoleOverlay')?.classList.add('open');
 }
 
+/**
+ * Close role-change modal and clear selected target user.
+ */
 function closeSysRoleModal() {
   SYS_STATE.roleTargetUserId = '';
   document.getElementById('sysRoleOverlay')?.classList.remove('open');
 }
 
+/**
+ * Submit role update for selected user.
+ * @param {string} userId
+ * @param {string} newRole
+ * @returns {Promise<void>}
+ */
 async function changeSysUserRole(userId, newRole) {
   const confirmBtn = document.getElementById('sysRoleConfirmBtn');
   if (confirmBtn) confirmBtn.disabled = true;
@@ -1230,6 +1594,11 @@ async function changeSysUserRole(userId, newRole) {
   }
 }
 
+/**
+ * Trigger backend password reset for selected user.
+ * @param {string} userId
+ * @returns {Promise<void>}
+ */
 async function resetSysUserPassword(userId) {
   try {
     await sysAdminFetch('/api/admin/user/' + encodeURIComponent(userId) + '/reset-password', {
@@ -1241,6 +1610,10 @@ async function resetSysUserPassword(userId) {
   }
 }
 
+/**
+ * Open delete-user confirmation modal.
+ * @param {string} userId
+ */
 function openSysDeleteModal(userId) {
   const user = SYS_STATE.users.find(item => item._id === userId);
   if (!user) return;
@@ -1254,11 +1627,17 @@ function openSysDeleteModal(userId) {
   document.getElementById('sysDeleteOverlay')?.classList.add('open');
 }
 
+/**
+ * Close delete-user modal and clear selected user target.
+ */
 function closeSysDeleteModal() {
   SYS_STATE.deleteTargetUserId = '';
   document.getElementById('sysDeleteOverlay')?.classList.remove('open');
 }
 
+/**
+ * Enable delete confirmation button only when typed name matches.
+ */
 function syncSysDeleteConfirmButton() {
   const user = SYS_STATE.users.find(item => item._id === SYS_STATE.deleteTargetUserId);
   const input = document.getElementById('sysDeleteInput');
@@ -1267,6 +1646,11 @@ function syncSysDeleteConfirmButton() {
   confirmBtn.disabled = input.value !== user.name;
 }
 
+/**
+ * Delete selected user and refresh user table.
+ * @param {string} userId
+ * @returns {Promise<void>}
+ */
 async function deleteSysUser(userId) {
   const confirmBtn = document.getElementById('sysDeleteConfirmBtn');
   if (confirmBtn) confirmBtn.disabled = true;
@@ -1284,12 +1668,19 @@ async function deleteSysUser(userId) {
   }
 }
 
+/* -- System Admin: Database Manager -- */
+/**
+ * Convert byte size into human-readable unit.
+ * @param {number} bytes
+ * @returns {string}
+ */
 function formatBytes(bytes) {
   const value = Number(bytes || 0);
   if (!value) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB'];
   let size = value;
   let idx = 0;
+  // Keep dividing by 1024 until we reach the best matching unit.
   while (size >= 1024 && idx < units.length - 1) {
     size /= 1024;
     idx += 1;
@@ -1297,12 +1688,21 @@ function formatBytes(bytes) {
   return size.toFixed(size >= 100 || idx === 0 ? 0 : 1) + ' ' + units[idx];
 }
 
+/**
+ * Estimate collection size using sampled JSON bytes and total document count.
+ * @param {any[]} items
+ * @param {number} totalCount
+ * @returns {string}
+ */
 function estimateCollectionSize(items, totalCount) {
   if (!items || !items.length || !totalCount) return '0 B';
   const sampleBytes = JSON.stringify(items).length / items.length;
   return formatBytes(Math.round(sampleBytes * totalCount));
 }
 
+/**
+ * Sync database detail panel height to viewport.
+ */
 function syncSysDbDetailHeight() {
   if (SYS_STATE.currentSection !== 'database') return;
   const detailContainer = document.getElementById('collectionDetail');
@@ -1336,6 +1736,9 @@ function syncSysDbDetailHeight() {
   }
 }
 
+/**
+ * Schedule database detail height sync on next frame.
+ */
 function scheduleSysDbDetailHeightSync() {
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(syncSysDbDetailHeight);
@@ -1344,6 +1747,9 @@ function scheduleSysDbDetailHeightSync() {
   setTimeout(syncSysDbDetailHeight, 0);
 }
 
+/**
+ * Sync security detail panel height to viewport.
+ */
 function syncSysSecurityDetailHeight() {
   if (SYS_STATE.currentSection !== 'security') return;
   const detailContainer = document.getElementById('securityDetail');
@@ -1376,6 +1782,9 @@ function syncSysSecurityDetailHeight() {
   }
 }
 
+/**
+ * Schedule security detail height sync on next frame.
+ */
 function scheduleSysSecurityDetailHeightSync() {
   if (typeof requestAnimationFrame === 'function') {
     requestAnimationFrame(syncSysSecurityDetailHeight);
@@ -1384,16 +1793,28 @@ function scheduleSysSecurityDetailHeightSync() {
   setTimeout(syncSysSecurityDetailHeight, 0);
 }
 
+/**
+ * Render empty-state markup for collection detail panel.
+ * @param {string} message
+ * @returns {string}
+ */
 function getCollectionDetailEmptyMarkup(message) {
   return '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
 }
 
+/**
+ * Discover collection names by probing backend and parsing allowed-list error text.
+ * @returns {Promise<string[]>}
+ */
 async function fetchSysCollectionNames() {
   const probe = await sysAdminFetch('/api/sysadmin/db/__collections__?page=1&limit=1');
   if (!probe || !probe.error) return [];
+
+  // Backend response includes an "Allowed: [...]" segment inside error text.
   const match = String(probe.error).match(/Allowed:\s*\[(.*)\]/);
   if (!match || !match[1]) return [];
   try {
+    // Normalize single-quoted list to valid JSON array for parsing.
     const listJson = ('[' + match[1] + ']').replace(/'/g, '"');
     const parsed = JSON.parse(listJson);
     return Array.isArray(parsed) ? parsed : [];
@@ -1402,6 +1823,10 @@ async function fetchSysCollectionNames() {
   }
 }
 
+/**
+ * Load database collections and initial preview for selected default collection.
+ * @returns {Promise<void>}
+ */
 async function loadDatabase() {
   showSysLoading('section-database');
   try {
@@ -1455,6 +1880,10 @@ async function loadDatabase() {
   }
 }
 
+/**
+ * Render collection selector buttons.
+ * @param {Array<{name:string,total:number,size:string,preview:any[]}>} collections
+ */
 function renderCollections(collections) {
   const menu = document.getElementById('dbFunctionMenu');
   if (!menu) return;
@@ -1477,6 +1906,11 @@ function renderCollections(collections) {
   scheduleSysDbDetailHeightSync();
 }
 
+/**
+ * Expand or collapse a collection and load preview docs.
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
 async function expandCollection(name) {
   const detail = document.getElementById('collectionDetail');
   if (!detail) return;
@@ -1502,6 +1936,11 @@ async function expandCollection(name) {
   }
 }
 
+/**
+ * Render selected collection document rows and footer actions.
+ * @param {string} name
+ * @param {any[]} docs
+ */
 function renderCollectionDocs(name, docs) {
   const detail = document.getElementById('collectionDetail');
   if (!detail) return;
@@ -1546,6 +1985,9 @@ function renderCollectionDocs(name, docs) {
   scheduleSysDbDetailHeightSync();
 }
 
+/**
+ * Update selected-document delete button state and counter.
+ */
 function updateDeleteSelectedBtn() {
   const btn = document.getElementById('sys-delete-selected');
   const countEl = document.getElementById('sys-delete-count');
@@ -1555,6 +1997,12 @@ function updateDeleteSelectedBtn() {
   if (countEl) countEl.textContent = String(count);
 }
 
+/**
+ * Open database delete-confirmation modal.
+ * @param {string} collection
+ * @param {string[]} ids
+ * @param {'all'|'selected'} mode
+ */
 function openSysDbDeleteModal(collection, ids, mode) {
   SYS_STATE.dbDeleteTarget = { collection, ids };
   const title = document.getElementById('sysDbDeleteTitle');
@@ -1570,11 +2018,18 @@ function openSysDbDeleteModal(collection, ids, mode) {
   document.getElementById('sysDbDeleteOverlay')?.classList.add('open');
 }
 
+/**
+ * Close database delete-confirmation modal.
+ */
 function closeSysDbDeleteModal() {
   SYS_STATE.dbDeleteTarget = { collection: '', ids: [] };
   document.getElementById('sysDbDeleteOverlay')?.classList.remove('open');
 }
 
+/**
+ * Delete selected collection documents then refresh expanded collection.
+ * @returns {Promise<void>}
+ */
 async function deleteSelectedDocs() {
   const { collection, ids } = SYS_STATE.dbDeleteTarget;
   if (!collection || !ids.length) return;
@@ -1596,6 +2051,10 @@ async function deleteSelectedDocs() {
   }
 }
 
+/**
+ * Filter visible document rows by raw JSON content.
+ * @param {string} query
+ */
 function filterCollectionDocs(query) {
   const list = document.getElementById('sys-doc-list');
   if (!list) return;
@@ -1606,9 +2065,17 @@ function filterCollectionDocs(query) {
   });
 }
 
+/* -- System Admin: Security Center -- */
+/**
+ * Classify log entry into UI event type.
+ * @param {any} log
+ * @returns {'failed'|'login'|'upload'|'quiz'|'admin'|'error'}
+ */
 function classifyLogType(log) {
   const path = String(log.path || '').toLowerCase();
   const status = Number(log.status || 0);
+
+  // Ordered rule table from most specific to most general.
   if (path.includes('/auth/login') && status >= 400) return 'failed';
   if (path.includes('/auth/login')) return 'login';
   if (path.includes('/upload')) return 'upload';
@@ -1618,6 +2085,11 @@ function classifyLogType(log) {
   return 'error';
 }
 
+/**
+ * Convert timestamp into relative "time ago" text.
+ * @param {string|number|Date} value
+ * @returns {string}
+ */
 function formatTimeAgo(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '-';
@@ -1630,12 +2102,17 @@ function formatTimeAgo(value) {
   return diffDay + ' day ago';
 }
 
+/**
+ * Render failed login summary grouped by IP address.
+ * @param {any[]} logs
+ */
 function renderFailedLogins(logs) {
   const failedList = document.getElementById('failedLoginList');
   if (!failedList) return;
 
   const failed = logs.filter(log => classifyLogType(log) === 'failed');
   const grouped = {};
+  // Group failed events by IP and track both attempt count and latest timestamp.
   failed.forEach(log => {
     const key = log.ip || 'unknown';
     if (!grouped[key]) grouped[key] = { ip: key, attempts: 0, latest: log.timestamp };
@@ -1660,12 +2137,21 @@ function renderFailedLogins(logs) {
   }).join('');
 }
 
+/**
+ * Return logs filtered by event type.
+ * @param {string} type
+ * @returns {any[]}
+ */
 function filterActivityLogs(type) {
   if (!SYS_STATE.logs.length) return [];
   if (!type || type === 'all') return SYS_STATE.logs.slice();
   return SYS_STATE.logs.filter(log => classifyLogType(log) === type);
 }
 
+/**
+ * Render security activity log table.
+ * @param {any[]} logs
+ */
 function renderActivityLogs(logs) {
   const activityList = document.getElementById('activityLogList');
   if (!activityList) return;
@@ -1712,6 +2198,10 @@ function renderActivityLogs(logs) {
   activityList.innerHTML = header + rows;
 }
 
+/**
+ * Render admin/sysadmin audit trail feed.
+ * @param {any[]} logs
+ */
 function renderAuditTrail(logs) {
   const auditList = document.getElementById('auditTrailList');
   if (!auditList) return;
@@ -1757,6 +2247,10 @@ function renderAuditTrail(logs) {
   }).join('');
 }
 
+/**
+ * Get counts used by security view summaries.
+ * @returns {{failed:number,activity:number,audit:number}}
+ */
 function getSecurityViewsMeta() {
   const failedCount = SYS_STATE.logs.filter(log => classifyLogType(log) === 'failed').length;
   const auditCount = SYS_STATE.logs.filter(log => {
@@ -1772,6 +2266,9 @@ function getSecurityViewsMeta() {
   };
 }
 
+/**
+ * Render top-level security view menu buttons.
+ */
 function renderSecurityFunctionMenu() {
   const menu = document.getElementById('securityFunctionMenu');
   if (!menu) return;
@@ -1789,6 +2286,9 @@ function renderSecurityFunctionMenu() {
   }).join('');
 }
 
+/**
+ * Render currently selected security detail view.
+ */
 function renderSecurityDetail() {
   const detail = document.getElementById('securityDetail');
   if (!detail) return;
@@ -1842,6 +2342,10 @@ function renderSecurityDetail() {
   scheduleSysSecurityDetailHeightSync();
 }
 
+/**
+ * Switch security detail view and re-render panel.
+ * @param {'failed'|'activity'|'audit'} view
+ */
 function openSecurityView(view) {
   const next = String(view || '').toLowerCase();
   if (!['failed', 'activity', 'audit'].includes(next)) return;
@@ -1850,6 +2354,10 @@ function openSecurityView(view) {
   renderSecurityDetail();
 }
 
+/**
+ * Load security logs and render security center.
+ * @returns {Promise<void>}
+ */
 async function loadSecurity() {
   showSysLoading('section-security');
   try {
@@ -1870,6 +2378,9 @@ async function loadSecurity() {
   }
 }
 
+/**
+ * Export visible security logs to CSV file.
+ */
 function exportSysLogsCsv() {
   const rows = SYS_STATE.filteredLogs.length ? SYS_STATE.filteredLogs : SYS_STATE.logs;
   if (!rows.length) {
@@ -1888,6 +2399,7 @@ function exportSysLogsCsv() {
     ].map(value => '"' + String(value).replace(/"/g, '""') + '"').join(',');
   }));
 
+  // Blob + object URL pattern for in-browser file download.
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1898,6 +2410,10 @@ function exportSysLogsCsv() {
   showToast('CSV exported', 2800);
 }
 
+/* -- System Admin: Events and Bootstrapping -- */
+/**
+ * Bind all event listeners for System Admin interactions.
+ */
 function bindSystemAdminEvents() {
   window.addEventListener('resize', () => {
     scheduleSysDbDetailHeightSync();
@@ -2088,6 +2604,7 @@ function bindSystemAdminEvents() {
   });
 }
 
+// System Admin bootstrap flow: verify role, render sidebar, bind events, load default section.
 document.addEventListener('DOMContentLoaded', async () => {
   if (!isSystemAdminPage()) return;
 

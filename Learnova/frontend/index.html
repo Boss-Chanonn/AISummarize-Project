@@ -28,7 +28,7 @@
       <p>Upload any research paper or document. Get an instant AI summary, test your understanding with a generated quiz, and discover exactly where to focus next.</p>
       <div class="hero-actions">
         <button class="btn-primary btn" onclick="openModal('register')">Get started free</button>
-        <button class="hero-ghost" onclick="(function(){var t=localStorage.getItem('token'),u=JSON.parse(localStorage.getItem('user')||'null'),r=u&&u.role;if(!t||!r){document.getElementById('modal-overlay').classList.add('open');document.getElementById('modal-content').innerHTML=loginHTML;return;}if(r==='system_admin')window.location.href='system-admin.html';else if(r==='admin')window.location.href='admin-users.html';else window.location.href='dashboard.html';})()">
+        <button class="hero-ghost" onclick="handleDashboardRedirect()">
           Go to dashboard <span>→</span>
         </button>
       </div>
@@ -174,6 +174,8 @@
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
 <script>
+/* -- Group: Auth Modal Templates -- */
+// Login modal template used by openModal('login').
 const loginHTML = `
   <h2>Welcome back.</h2>
   <p class="modal-sub">Sign in to your account to continue.</p>
@@ -188,6 +190,7 @@ const loginHTML = `
   <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="login-btn" onclick="loginUser()">Sign in</button>
   <div class="modal-footer">No account? <a href="#" onclick="openModal('register')">Register free</a></div>`;
 
+// Register modal template used by openModal('register').
 const registerHTML = `
   <h2>Create account.</h2>
   <p class="modal-sub">Start learning smarter today — it's free.</p>
@@ -210,13 +213,50 @@ const registerHTML = `
   <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="register-btn" onclick="registerUser()">Create account</button>
   <div class="modal-footer">Already have an account? <a href="#" onclick="openModal('login')">Sign in</a></div>`;
 
+/**
+ * Route user to the correct dashboard by role.
+ * If auth state is missing, open login modal instead.
+ */
+function handleDashboardRedirect() {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || 'null');
+  const role = user && user.role;
+
+  if (!token || !role) {
+    openModal('login');
+    return;
+  }
+
+  if (role === 'system_admin') {
+    window.location.href = 'system-admin.html';
+  } else if (role === 'admin') {
+    window.location.href = 'admin-users.html';
+  } else {
+    window.location.href = 'dashboard.html';
+  }
+}
+
+/* -- Group: Modal Controls -- */
+/**
+ * Open auth modal with requested mode.
+ * @param {'login'|'register'} type
+ */
 function openModal(type) {
   document.getElementById('modal-content').innerHTML = type === 'login' ? loginHTML : registerHTML;
   document.getElementById('modal-overlay').classList.add('open');
 }
+
+/**
+ * Close modal when backdrop itself is clicked.
+ * @param {MouseEvent} e
+ */
 function closeModal(e) {
   if (e.target === document.getElementById('modal-overlay')) closeModalDirect();
 }
+
+/**
+ * Close auth modal.
+ */
 function closeModalDirect() {
   document.getElementById('modal-overlay').classList.remove('open');
 }

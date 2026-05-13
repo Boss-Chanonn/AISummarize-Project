@@ -83,6 +83,11 @@ var totalItems  = 0;
 var PAGE_SIZE   = 20;
 
 /* ── Fetch ─────────────────────────────────────────────────────────────────── */
+/**
+ * Fetch admin history page data from backend.
+ * @param {number} page
+ * @returns {Promise<void>}
+ */
 async function fetchHistory(page) {
   page = page || 1;
   try {
@@ -95,13 +100,16 @@ async function fetchHistory(page) {
     ALL_ITEMS.forEach(function(h) { _store[h._id] = h; });
     applyFilter();
     renderPagination();
-  } catch (e) {
+  } catch (_error) {
     document.getElementById('historyList').innerHTML =
       '<div class="history-item" style="padding:32px;text-align:center;font-size:13px;color:var(--cream-25)">Failed to load — check your connection</div>';
   }
 }
 
 /* ── Filter ────────────────────────────────────────────────────────────────── */
+/**
+ * Apply search and status filters on loaded history items.
+ */
 function applyFilter() {
   var search = document.getElementById('searchInput').value.toLowerCase();
   var status = document.getElementById('statusFilter').value;
@@ -121,6 +129,9 @@ function applyFilter() {
 }
 
 /* ── Render list ───────────────────────────────────────────────────────────── */
+/**
+ * Render filtered history rows with expandable detail blocks.
+ */
 function renderList() {
   var el = document.getElementById('historyList');
   if (!FILT_ITEMS.length) {
@@ -194,6 +205,11 @@ function renderList() {
   }).join('');
 }
 
+/**
+ * Return short summary preview text for one history item.
+ * @param {object} h
+ * @returns {string}
+ */
 function getSummarySnippet(h) {
   var summary = h.summary || {};
   var body = summary.body;
@@ -203,6 +219,10 @@ function getSummarySnippet(h) {
 }
 
 /* ── Toggle expand ─────────────────────────────────────────────────────────── */
+/**
+ * Toggle expanded state for a selected history row.
+ * @param {string} id
+ */
 function toggleItem(id) {
   var el = document.getElementById('ahi-' + id);
   var wasOpen = el.classList.contains('open');
@@ -211,6 +231,9 @@ function toggleItem(id) {
 }
 
 /* ── Pagination ────────────────────────────────────────────────────────────── */
+/**
+ * Render pagination controls for admin history list.
+ */
 function renderPagination() {
   var totalPages = Math.ceil(totalItems / PAGE_SIZE);
   document.getElementById('pageInfo').textContent = 'Page ' + currentPage + ' of ' + totalPages;
@@ -245,6 +268,10 @@ function renderPagination() {
 }
 
 /* ── Summary modal ─────────────────────────────────────────────────────────── */
+/**
+ * Open summary modal using cached history item data.
+ * @param {string} id
+ */
 function openSumModal(id) {
   var h = _store[id] || {};
   var summary = h.summary || {};
@@ -271,6 +298,9 @@ function openSumModal(id) {
   document.getElementById('sumBackdrop').classList.add('open');
 }
 
+/**
+ * Close summary modal.
+ */
 function closeSumModal() {
   document.getElementById('sumBackdrop').classList.remove('open');
 }
@@ -280,6 +310,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* ── Toast ─────────────────────────────────────────────────────────────────── */
+/**
+ * Local toast helper for admin history page.
+ * Kept local so this page can run independently from user-facing scripts.
+ * @param {string} msg
+ * @param {'success'|'warning'|'error'} type
+ */
 function showToast(msg, type) {
   var toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
@@ -290,6 +326,12 @@ function showToast(msg, type) {
 }
 
 /* ── Helpers ───────────────────────────────────────────────────────────────── */
+/**
+ * Escape HTML-sensitive characters for safe text rendering.
+ * Local helper duplicate is intentional for standalone admin page use.
+ * @param {string} s
+ * @returns {string}
+ */
 function escHtml(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }

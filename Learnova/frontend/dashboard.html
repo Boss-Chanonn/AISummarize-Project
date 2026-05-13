@@ -66,19 +66,36 @@
 <script src="js/animations.js"></script>
 <script src="js/app.js"></script>
 <script>
-// Auth guard — redirect to login if no token
+// Auth guard — redirect to login if no token.
 (function() {
   const token = localStorage.getItem('token');
   if (!token) { window.location.replace('index.html'); }
 })();
 
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('dashboard');
+
 const now = new Date();
-const h = now.getHours();
+const currentHour = now.getHours();
 document.getElementById('today-date').textContent = now.toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
+/**
+ * Resolve greeting prefix from local hour.
+ * @param {number} hour
+ * @returns {string}
+ */
+function getGreetingPrefix(hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+/**
+ * Load profile data and render dashboard greeting/stats.
+ * @returns {Promise<void>}
+ */
 async function loadDashboard() {
   try {
+    // Phase 1: Fetch user profile stats.
     const response = await fetch('/api/user/profile', {
       method: 'GET',
       headers: {
@@ -89,11 +106,11 @@ async function loadDashboard() {
     const data = await response.json();
     if (!response.ok) { showToast(data.message || 'Failed to load profile'); return; }
 
-    // Greeting
+    // Phase 2: Render greeting text.
     const firstName = data.name ? data.name.split(' ')[0] : 'User';
-    document.getElementById('greeting').textContent = (h<12?'Good morning':h<17?'Good afternoon':'Good evening') + ', ' + firstName + '.';
+    document.getElementById('greeting').textContent = getGreetingPrefix(currentHour) + ', ' + firstName + '.';
 
-    // Stats
+    // Phase 3: Render headline stats (animated when animation helpers are available).
     if (data.documentsUploaded !== undefined) {
       const docsEl = document.getElementById('stat-docs');
       const scoreEl = document.getElementById('stat-score');
@@ -111,6 +128,8 @@ async function loadDashboard() {
         quizzesEl.textContent = data.quizzesCompleted;
       }
     }
+
+    // Phase 4: Render stat subtitles.
     if (data.statSubs) {
       document.getElementById('stat-docs-sub').textContent = data.statSubs[0];
       document.getElementById('stat-score-sub').textContent = data.statSubs[1];
@@ -124,9 +143,14 @@ async function loadDashboard() {
 
 loadDashboard();
 
-function fmtMeta(item) {
-  const d = item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
-  return (item.fileType || 'Text') + (d ? ' · ' + d : '');
+/**
+ * Format document metadata for recent activity rows.
+ * @param {object} doc
+ * @returns {string}
+ */
+function formatDocumentMeta(doc) {
+  const d = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+  return (doc.fileType || 'Text') + (d ? ' · ' + d : '');
 }
 
 function flatAnalysis(item) {
@@ -178,6 +202,33 @@ function renderRecentPreview(item) {
       </div>
     </div>`;
 }
+
+/**
+ * Build one recent-activity row card.
+ * @param {object} item
+ * @returns {string}
+ */
+function renderRecentActivityItem(item) {
+  return `
+      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
+        <div class="hi-row">
+          <div class="hi-left">
+            <div class="hi-dot${item.done?' done':''}"></div>
+            <div style="min-width:0;flex:1">
+              <div class="hi-title">${escapeHtml(item.title)}</div>
+              <div class="hi-meta">${escapeHtml(formatDocumentMeta(item))}</div>
+            </div>
+          </div>
+          <div class="hi-right">
+            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
+            <span class="hi-chevron">▾</span>
+          </div>
+        </div>
+        ${renderRecentPreview(item)}
+      </div>
+    `;
+}
+
 let _dashStore = {};
 
 async function renderRecentActivity() {
@@ -197,24 +248,9 @@ async function renderRecentActivity() {
       document.getElementById('recent-activity-list').innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--cream-25);font-style:italic">No activity yet. Upload a document to get started.</div>';
       return;
     }
-    document.getElementById('recent-activity-list').innerHTML = items.map(item => `
-      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
-        <div class="hi-row">
-          <div class="hi-left">
-            <div class="hi-dot${item.done?' done':''}"></div>
-            <div style="min-width:0;flex:1">
-              <div class="hi-title">${escapeHtml(item.title)}</div>
-              <div class="hi-meta">${escapeHtml(fmtMeta(item))}</div>
-            </div>
-          </div>
-          <div class="hi-right">
-            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
-            <span class="hi-chevron">▾</span>
-          </div>
-        </div>
-        ${renderRecentPreview(item)}
-      </div>
-    `).join('');
+
+    // Render each row via named helper so structure is easier to follow.
+    document.getElementById('recent-activity-list').innerHTML = items.map(renderRecentActivityItem).join('');
   } catch (error) {
     console.error('Error:', error);
     showToast('Unable to load recent activity');

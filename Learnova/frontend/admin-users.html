@@ -153,8 +153,8 @@
 
     <!-- Tab bar -->
     <div class="udm-tabs">
-      <div class="udm-tab active" id="udmTab1" onclick="switchUdmTab(1)">User Detail</div>
-      <div class="udm-tab" id="udmTab2" onclick="switchUdmTab(2)">Account</div>
+      <div class="udm-tab active" id="udmTab1" onclick="switchUserDetailTab(1)">User Detail</div>
+      <div class="udm-tab" id="udmTab2" onclick="switchUserDetailTab(2)">Account</div>
     </div>
 
     <!-- Tab panels -->
@@ -367,6 +367,11 @@ const ADMIN_ROLE = (_stored && _stored.role) || '';
 const IS_ADMIN_ONLY = ADMIN_ROLE === 'admin';
 
 /* ── Fetch users from API ───────────────────────────────────────────────────── */
+/**
+ * Fetch users for the active page from admin API and refresh table state.
+ * @param {number} [page=1]
+ * @returns {Promise<void>}
+ */
 async function fetchUsers(page = 1) {
   try {
     const res = await fetch(`/api/admin/users?page=${page}&limit=${PAGE_SIZE}`, { headers: AUTH });
@@ -386,12 +391,16 @@ async function fetchUsers(page = 1) {
     applyFilters();
     if (!IS_ADMIN_ONLY) renderStats();
     renderPagination();
-  } catch (e) {
+  } catch (_error) {
     document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
   }
 }
 
 /* ── Fetch admin dashboard stats ────────────────────────────────────────────── */
+/**
+ * Fetch summary counters for the admin stats cards.
+ * @returns {Promise<void>}
+ */
 async function fetchStats() {
   try {
     const res = await fetch('/api/admin/dashboard', { headers: AUTH });
@@ -399,9 +408,12 @@ async function fetchStats() {
     const data = await res.json();
     document.getElementById('statTotal').textContent = (data.totalUsers || 0).toLocaleString();
     document.getElementById('statTotalSub').innerHTML = `<span class="stat-dot dot-green"></span>${(data.totalDocuments || 0).toLocaleString()} documents`;
-  } catch (_) {}
+  } catch (_error) {}
 }
 
+/**
+ * Render derived stats based on loaded user list.
+ */
 function renderStats() {
   const pro = ALL_USERS.filter(u => u.tier === 'pro').length;
   const free = ALL_USERS.filter(u => u.tier === 'free').length;
@@ -415,6 +427,9 @@ function renderStats() {
 }
 
 /* ── Filters ────────────────────────────────────────────────────────────────── */
+/**
+ * Apply search, role, and tier filters to the loaded user list.
+ */
 function applyFilters() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const role = document.getElementById('roleFilter').value;
@@ -435,6 +450,10 @@ function applyFilters() {
 }
 
 /* ── Sort ───────────────────────────────────────────────────────────────────── */
+/**
+ * Toggle sorting for a selected column.
+ * @param {'name'|'role'|'tier'|'files'|'joined'} col
+ */
 function sortBy(col) {
   document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
   if (sortCol === col) {
@@ -451,6 +470,9 @@ function sortBy(col) {
   applySort();
 }
 
+/**
+ * Apply current sort settings to filtered users.
+ */
 function applySort() {
   filteredUsers.sort((a, b) => {
     let va = a[sortCol] ?? '', vb = b[sortCol] ?? '';
@@ -464,6 +486,9 @@ function applySort() {
 }
 
 /* ── Render table ───────────────────────────────────────────────────────────── */
+/**
+ * Render current filtered user rows in table body.
+ */
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   if (!filteredUsers.length) {
@@ -495,15 +520,15 @@ function renderTable() {
       <td onclick="event.stopPropagation()">
         <div class="actions-cell">
           <button class="action-btn warn" title="Change Role"
-            onclick="openModal('role','${u._id}','${escAttr(u.name)}')">
+            onclick="openActionModal('role','${u._id}','${escAttr(u.name)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>
           </button>
           <button class="action-btn warn" title="Change Tier"
-            onclick="openModal('tier','${u._id}','${escAttr(u.name)}')">
+            onclick="openActionModal('tier','${u._id}','${escAttr(u.name)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </button>
           <button class="action-btn warn" title="Archive"
-            onclick="openModal('archive','${u._id}','${escAttr(u.name)}')">
+            onclick="openActionModal('archive','${u._id}','${escAttr(u.name)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
           </button>
         </div>
@@ -514,6 +539,9 @@ function renderTable() {
 }
 
 /* ── Pagination ─────────────────────────────────────────────────────────────── */
+/**
+ * Render pagination controls for current API page.
+ */
 function renderPagination() {
   const totalPages = Math.ceil(totalUsers / PAGE_SIZE);
   document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
@@ -547,6 +575,11 @@ function renderPagination() {
 }
 
 /* ── Selection ──────────────────────────────────────────────────────────────── */
+/**
+ * Toggle row selection and refresh selection-derived UI.
+ * @param {HTMLInputElement} cb
+ * @param {string} id
+ */
 function toggleRow(cb, id) {
   if (cb.checked) selectedIds.add(id);
   else selectedIds.delete(id);
@@ -555,6 +588,10 @@ function toggleRow(cb, id) {
   renderTable();
 }
 
+/**
+ * Toggle selection state for all visible rows.
+ * @param {HTMLInputElement} masterCb
+ */
 function toggleAll(masterCb) {
   if (masterCb.checked) filteredUsers.forEach(u => selectedIds.add(u._id));
   else filteredUsers.forEach(u => selectedIds.delete(u._id));
@@ -562,6 +599,9 @@ function toggleAll(masterCb) {
   renderTable();
 }
 
+/**
+ * Sync select-all checkbox state from visible row selections.
+ */
 function updateSelectAll() {
   const masterCb = document.getElementById('selectAll');
   const visibleIds = filteredUsers.map(u => u._id);
@@ -570,12 +610,18 @@ function updateSelectAll() {
   masterCb.checked = selVis.length > 0 && selVis.length === visibleIds.length;
 }
 
+/**
+ * Update bulk action bar visibility/count.
+ */
 function updateBulkBar() {
   const count = selectedIds.size;
   document.getElementById('bulkCount').textContent = count;
   document.getElementById('bulkBar').classList.toggle('visible', count > 0);
 }
 
+/**
+ * Clear all selected row IDs.
+ */
 function clearSelection() {
   selectedIds.clear();
   updateBulkBar();
@@ -596,7 +642,13 @@ const MODAL_ICON = {
   tier: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
 };
 
-function openModal(action, userId, userName) {
+/**
+ * Open action confirmation modal for a single user.
+ * @param {'archive'|'role'|'tier'} action
+ * @param {string} userId
+ * @param {string} userName
+ */
+function openActionModal(action, userId, userName) {
   isBulkAction = false;
   currentAction = action;
   currentTargetUser = { _id: userId, name: userName };
@@ -646,6 +698,10 @@ function openModal(action, userId, userName) {
   document.getElementById('confirmOverlay').classList.add('open');
 }
 
+/**
+ * Open bulk action confirmation modal for current selected users.
+ * @param {'archive'} action
+ */
 function bulkAction(action) {
   if (selectedIds.size === 0) return;
   isBulkAction = true;
@@ -670,16 +726,26 @@ function bulkAction(action) {
   document.getElementById('confirmOverlay').classList.add('open');
 }
 
+/**
+ * Enable confirm button when expected confirmation text matches.
+ */
 function checkConfirm() {
   const val = document.getElementById('confirmInput').value;
   document.getElementById('confirmBtn').disabled = val !== currentTargetUser.name;
 }
 
+/**
+ * Close the generic action confirmation modal.
+ */
 function closeModal() {
   document.getElementById('confirmOverlay').classList.remove('open');
 }
 
 /* ── Execute API actions ─────────────────────────────────────────────────────── */
+/**
+ * Execute currently selected modal action (single or bulk).
+ * @returns {Promise<void>}
+ */
 async function executeAction() {
   closeModal();
 
@@ -774,6 +840,9 @@ async function executeAction() {
 }
 
 /* ── CSV Export ─────────────────────────────────────────────────────────────── */
+/**
+ * Export currently loaded users to CSV.
+ */
 function exportCSV() {
   const rows = [['Name', 'Email', 'Role', 'Tier', 'Joined']];
   ALL_USERS.forEach(u => rows.push([u.name, u.email, u.role, u.tier, u.joinedLabel]));
@@ -786,6 +855,12 @@ function exportCSV() {
 }
 
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
+/**
+ * Local toast helper for admin page.
+ * This page does not depend on the shared app-level toast wiring.
+ * @param {string} msg
+ * @param {'success'|'warning'|'error'} type
+ */
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
@@ -796,15 +871,32 @@ function showToast(msg, type) {
 }
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
+/**
+ * Escape text for safe HTML insertion.
+ * Local helper is kept here for this standalone admin page.
+ * @param {string} s
+ * @returns {string}
+ */
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+/**
+ * Escape string values used in HTML attribute context.
+ * @param {string} s
+ * @returns {string}
+ */
 function escAttr(s) {
   return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
 /* ── User Detail Modal ──────────────────────────────────────────────────────── */
 
+/**
+ * Format ISO date string for detail modal display.
+ * @param {string} dateStr
+ * @returns {string}
+ */
 function formatDateDisplay(dateStr) {
   if (!dateStr) return '—';
   const parts = dateStr.split('-');
@@ -812,13 +904,21 @@ function formatDateDisplay(dateStr) {
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
 }
 
-function switchUdmTab(n) {
-  document.getElementById('udmTab1').classList.toggle('active', n === 1);
-  document.getElementById('udmTab2').classList.toggle('active', n === 2);
-  document.getElementById('udmPanel1').classList.toggle('active', n === 1);
-  document.getElementById('udmPanel2').classList.toggle('active', n === 2);
+/**
+ * Switch between user detail modal tabs.
+ * @param {number} tabNumber
+ */
+function switchUserDetailTab(tabNumber) {
+  document.getElementById('udmTab1').classList.toggle('active', tabNumber === 1);
+  document.getElementById('udmTab2').classList.toggle('active', tabNumber === 2);
+  document.getElementById('udmPanel1').classList.toggle('active', tabNumber === 1);
+  document.getElementById('udmPanel2').classList.toggle('active', tabNumber === 2);
 }
 
+/**
+ * Open user detail modal for selected row user ID.
+ * @param {string} userId
+ */
 function openUserModal(userId) {
   const user = filteredUsers.find(u => u._id === userId || u._id == userId);
   if (!user) return;
@@ -851,16 +951,22 @@ function openUserModal(userId) {
   ['role','tier','status'].forEach(f => cancelAccountEdit(f));
 
   // Default to tab 1
-  switchUdmTab(1);
+  switchUserDetailTab(1);
 
   document.getElementById('userDetailOverlay').classList.add('open');
 }
 
+/**
+ * Close user detail modal.
+ */
 function closeUserModal() {
   document.getElementById('userDetailOverlay').classList.remove('open');
 }
 
 /* ── Tab 1: Profile edit ────────────────────────────────────────────────────── */
+/**
+ * Enable profile edit mode in user detail modal.
+ */
 function startProfileEdit() {
   const user = window._modalUser;
   if (!user) return;
@@ -873,11 +979,18 @@ function startProfileEdit() {
   document.getElementById('udmFormError').style.display = 'none';
 }
 
+/**
+ * Return user detail modal to profile view mode.
+ */
 function cancelProfileEdit() {
   document.getElementById('udmViewMode').style.display = 'block';
   document.getElementById('udmEditMode').style.display = 'none';
 }
 
+/**
+ * Save edited profile fields for current modal user.
+ * @returns {Promise<void>}
+ */
 async function saveProfile() {
   const btn  = document.getElementById('udmSaveBtn');
   const errEl = document.getElementById('udmFormError');
@@ -931,8 +1044,19 @@ async function saveProfile() {
 /* ── Tab 2: Account field edit ──────────────────────────────────────────────── */
 const _ACC_FIELDS = ['role','tier','status'];
 
-function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+/**
+ * Capitalize first character in a field key.
+ * @param {string} s
+ * @returns {string}
+ */
+function cap(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
 
+/**
+ * Enter inline edit mode for one account field.
+ * @param {'role'|'tier'|'status'} field
+ */
 function startAccountEdit(field) {
   _ACC_FIELDS.forEach(f => { if (f !== field) cancelAccountEdit(f); });
   const badge   = document.getElementById(`accBadge${cap(field)}`);
@@ -947,6 +1071,10 @@ function startAccountEdit(field) {
   document.getElementById(`accErr${cap(field)}`).style.display = 'none';
 }
 
+/**
+ * Exit inline edit mode for one account field.
+ * @param {'role'|'tier'|'status'} field
+ */
 function cancelAccountEdit(field) {
   const badge   = document.getElementById(`accBadge${cap(field)}`);
   const editDiv = document.getElementById(`accEdit${cap(field)}`);
@@ -958,6 +1086,11 @@ function cancelAccountEdit(field) {
   document.getElementById(`accErr${cap(field)}`).style.display = 'none';
 }
 
+/**
+ * Persist one account field update for current modal user.
+ * @param {'role'|'tier'|'status'} field
+ * @returns {Promise<void>}
+ */
 async function saveAccountField(field) {
   const saveBtn = document.querySelector(`#accEdit${cap(field)} .udm-inline-save`);
   const errEl   = document.getElementById(`accErr${cap(field)}`);
@@ -996,6 +1129,10 @@ async function saveAccountField(field) {
 }
 
 /* ── Reset password ─────────────────────────────────────────────────────────── */
+/**
+ * Reset selected user's password using admin API.
+ * @returns {Promise<void>}
+ */
 async function doResetPassword() {
   const btn = document.getElementById('udmResetPwBtn');
   const origHTML = btn.innerHTML;
@@ -1020,10 +1157,36 @@ async function doResetPassword() {
   }
 }
 
-// Legacy wrappers — keep existing row action buttons working
-function modalChangeRole() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('role', u._id, u.name); }
-function modalChangeTier() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('tier', u._id, u.name); }
-function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('archive', u._id, u.name); }
+// Legacy wrappers — keep existing row action buttons working.
+/**
+ * Open role change action from user detail modal.
+ */
+function modalChangeRole() {
+  const u = window._modalUser;
+  if (!u) return;
+  closeUserModal();
+  openActionModal('role', u._id, u.name);
+}
+
+/**
+ * Open tier change action from user detail modal.
+ */
+function modalChangeTier() {
+  const u = window._modalUser;
+  if (!u) return;
+  closeUserModal();
+  openActionModal('tier', u._id, u.name);
+}
+
+/**
+ * Open archive action from user detail modal.
+ */
+function modalDeleteUser() {
+  const u = window._modalUser;
+  if (!u) return;
+  closeUserModal();
+  openActionModal('archive', u._id, u.name);
+}
 
 /* ── Close modal on overlay click ──────────────────────────────────────────── */
 document.getElementById('confirmOverlay').addEventListener('click', function(e) {
