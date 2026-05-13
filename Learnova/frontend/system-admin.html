@@ -93,22 +93,16 @@
       <div id="section-database" class="sys-section">
         <div class="card sys-card-shell">
           <div class="sys-card-header">
-            <span class="sys-card-title">Collections</span>
-            <span class="sys-card-sub">Click to expand</span>
+            <span class="sys-card-title">Database Functions</span>
+            <span class="sys-card-sub">Select a collection</span>
           </div>
-          <table class="db-table">
-            <thead>
-              <tr>
-                <th>Collection</th>
-                <th>Size</th>
-                <th>Documents</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="dbTableBody"></tbody>
-          </table>
+          <div id="dbFunctionMenu" class="db-function-menu"></div>
         </div>
-        <div id="collectionDetail"></div>
+        <div id="collectionDetail" class="db-detail-container">
+          <div class="collection-detail collection-detail-empty">
+            <span class="collection-empty-text">Select a collection from the menu above to view data.</span>
+          </div>
+        </div>
       </div>
 
       <div id="section-security" class="sys-section">

@@ -990,7 +990,10 @@ function switchSysSection(name) {
 
   if (name === 'overview') loadSystemOverview();
   if (name === 'users') loadUserControl();
-  if (name === 'database') loadDatabase();
+  if (name === 'database') {
+    loadDatabase();
+    scheduleSysDbDetailHeightSync();
+  }
   if (name === 'security') loadSecurity();
 }
 
@@ -1009,10 +1012,11 @@ function showSysLoading(sectionId) {
     if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--cream-25)">Loading...</td></tr>';
   }
   if (sectionId === 'section-database') {
-    const tbody = document.getElementById('dbTableBody');
+    const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
-    if (tbody) tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">Loading...</td></tr>';
-    if (detail) detail.innerHTML = '';
+    if (menu) menu.innerHTML = loadingMarkup;
+    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading collections...</span></div>';
+    scheduleSysDbDetailHeightSync();
   }
   if (sectionId === 'section-security') {
     const failed = document.getElementById('failedLoginList');
@@ -1295,6 +1299,51 @@ function estimateCollectionSize(items, totalCount) {
   return formatBytes(Math.round(sampleBytes * totalCount));
 }
 
+function syncSysDbDetailHeight() {
+  if (SYS_STATE.currentSection !== 'database') return;
+  const detailContainer = document.getElementById('collectionDetail');
+  if (!detailContainer) return;
+
+  const rect = detailContainer.getBoundingClientRect();
+  const bottomGap = window.innerWidth <= 760 ? 16 : 24;
+  const contentShell = detailContainer.closest('.content');
+  const shellBottomPadding = contentShell ? (parseFloat(window.getComputedStyle(contentShell).paddingBottom) || 0) : 0;
+  const availableHeight = Math.max(260, Math.floor(window.innerHeight - rect.top - bottomGap - shellBottomPadding));
+
+  detailContainer.style.height = availableHeight + 'px';
+  detailContainer.style.minHeight = availableHeight + 'px';
+  detailContainer.style.maxHeight = availableHeight + 'px';
+
+  const detailCard = detailContainer.querySelector('.collection-detail');
+  let cardTargetHeight = availableHeight;
+  if (detailCard) {
+    const cardStyle = window.getComputedStyle(detailCard);
+    const cardOuterGap = (parseFloat(cardStyle.marginTop) || 0) + (parseFloat(cardStyle.marginBottom) || 0);
+    cardTargetHeight = Math.max(140, availableHeight - cardOuterGap);
+    detailCard.style.minHeight = cardTargetHeight + 'px';
+  }
+
+  const docList = detailContainer.querySelector('#sys-doc-list');
+  if (docList) {
+    const header = detailContainer.querySelector('.collection-detail-header');
+    const footer = detailContainer.querySelector('.collection-detail-footer');
+    const occupiedHeight = (header ? header.offsetHeight : 0) + (footer ? footer.offsetHeight : 0);
+    docList.style.maxHeight = Math.max(120, cardTargetHeight - occupiedHeight - 2) + 'px';
+  }
+}
+
+function scheduleSysDbDetailHeightSync() {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(syncSysDbDetailHeight);
+    return;
+  }
+  setTimeout(syncSysDbDetailHeight, 0);
+}
+
+function getCollectionDetailEmptyMarkup(message) {
+  return '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
+}
+
 async function fetchSysCollectionNames() {
   const probe = await sysAdminFetch('/api/sysadmin/db/__collections__?page=1&limit=1');
   if (!probe || !probe.error) return [];
@@ -1314,7 +1363,11 @@ async function loadDatabase() {
   try {
     const names = await fetchSysCollectionNames();
     if (!names.length) {
-      document.getElementById('dbTableBody').innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">No collections available</td></tr>';
+      const menu = document.getElementById('dbFunctionMenu');
+      const detail = document.getElementById('collectionDetail');
+      if (menu) menu.innerHTML = '<div class="sys-loading">No collections available</div>';
+      if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('No data to display.');
+      scheduleSysDbDetailHeightSync();
       return;
     }
 
@@ -1342,32 +1395,38 @@ async function loadDatabase() {
     SYS_STATE.collectionDocs = {};
     SYS_STATE.openCollection = '';
     renderCollections(rows);
+    scheduleSysDbDetailHeightSync();
   } catch (_) {
-    document.getElementById('dbTableBody').innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--red-soft)">Failed to load collections</td></tr>';
+    const menu = document.getElementById('dbFunctionMenu');
+    const detail = document.getElementById('collectionDetail');
+    if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load collections</div>';
+    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display data right now.');
     showToast('Failed to load database', 3200);
+    scheduleSysDbDetailHeightSync();
   }
 }
 
 function renderCollections(collections) {
-  const tbody = document.getElementById('dbTableBody');
-  if (!tbody) return;
+  const menu = document.getElementById('dbFunctionMenu');
+  if (!menu) return;
   if (!collections.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="padding:24px;text-align:center;color:var(--cream-25)">No collections found</td></tr>';
+    menu.innerHTML = '<div class="sys-loading">No collections found</div>';
     return;
   }
 
-  tbody.innerHTML = collections.map(item => {
+  menu.innerHTML = collections.map(item => {
     const isOpen = SYS_STATE.openCollection === item.name;
-    return '<tr>'
-      + '<td><span class="collection-name">' + escapeHtml(item.name) + '</span></td>'
-      + '<td>' + escapeHtml(item.size) + '</td>'
-      + '<td>' + Number(item.total || 0).toLocaleString() + '</td>'
-      + '<td><button class="expand-btn' + (isOpen ? ' open' : '') + '" type="button" data-expand-collection="' + escapeHtml(item.name) + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></button></td>'
-      + '</tr>';
+    return '<button class="db-func-btn' + (isOpen ? ' active' : '') + '" type="button" data-expand-collection="' + escapeHtml(item.name) + '">'
+      + '<span class="db-func-name">' + escapeHtml(item.name) + '</span>'
+      + '<span class="db-func-meta">' + Number(item.total || 0).toLocaleString() + ' docs - ' + escapeHtml(item.size) + '</span>'
+      + '</button>';
   }).join('');
 
   const detail = document.getElementById('collectionDetail');
-  if (detail) detail.innerHTML = '';
+  if (detail && !SYS_STATE.openCollection) {
+    detail.innerHTML = getCollectionDetailEmptyMarkup('Select a collection from the menu above to view data.');
+  }
+  scheduleSysDbDetailHeightSync();
 }
 
 async function expandCollection(name) {
@@ -1383,6 +1442,7 @@ async function expandCollection(name) {
   SYS_STATE.openCollection = name;
   renderCollections(SYS_STATE.collections);
   detail.innerHTML = '<div class="sys-loading">Loading collection...</div>';
+  scheduleSysDbDetailHeightSync();
 
   try {
     const data = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(name) + '?page=1&limit=20');
@@ -1427,6 +1487,8 @@ function renderCollectionDocs(name, docs) {
     + '</div>'
     + '</div>'
     + '</div>';
+
+  scheduleSysDbDetailHeightSync();
 }
 
 function updateDeleteSelectedBtn() {
@@ -1688,6 +1750,8 @@ function exportSysLogsCsv() {
 }
 
 function bindSystemAdminEvents() {
+  window.addEventListener('resize', scheduleSysDbDetailHeightSync);
+
   const mount = document.getElementById('sidebar-mount');
   if (mount) {
     mount.addEventListener('click', event => {
@@ -1783,7 +1847,7 @@ function bindSystemAdminEvents() {
     if (event.target.id === 'sysDbDeleteOverlay') closeSysDbDeleteModal();
   });
 
-  document.getElementById('dbTableBody')?.addEventListener('click', event => {
+  document.getElementById('dbFunctionMenu')?.addEventListener('click', event => {
     const btn = event.target.closest('[data-expand-collection]');
     if (!btn) return;
     const name = btn.getAttribute('data-expand-collection') || '';
