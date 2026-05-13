@@ -92,9 +92,8 @@
 
       <div id="section-database" class="sys-section">
         <div class="card sys-card-shell">
-          <div class="sys-card-header">
+          <div class="sys-card-header sys-card-header-center">
             <span class="sys-card-title">Database Functions</span>
-            <span class="sys-card-sub">Select a collection</span>
           </div>
           <div id="dbFunctionMenu" class="db-function-menu"></div>
         </div>
@@ -106,44 +105,16 @@
       </div>
 
       <div id="section-security" class="sys-section">
-        <div class="card sys-card-shell failed-card">
-          <div class="sys-card-header">
-            <div class="failed-header-inner">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-              <span>Failed Logins</span>
-            </div>
-            <span class="failed-sub">Derived from logs</span>
-          </div>
-          <div id="failedLoginList"></div>
-        </div>
-
         <div class="card sys-card-shell">
-          <div class="sys-card-header">
-            <span class="sys-card-title">Activity Logs</span>
-            <div class="sys-card-actions">
-              <select class="filter-select" id="sys-log-filter">
-                <option value="all">All Events</option>
-                <option value="login">Login</option>
-                <option value="upload">Upload</option>
-                <option value="quiz">Quiz</option>
-                <option value="failed">Failed Login</option>
-                <option value="admin">Admin</option>
-                <option value="error">Error</option>
-              </select>
-              <button class="btn btn-outline btn-sm" id="sys-export-logs" type="button">
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export
-              </button>
-            </div>
+          <div class="sys-card-header sys-card-header-center">
+            <span class="sys-card-title">Security Functions</span>
           </div>
-          <div id="activityLogList"></div>
+          <div id="securityFunctionMenu" class="db-function-menu security-function-menu"></div>
         </div>
-
-        <div class="card sys-card-shell">
-          <div class="sys-card-header">
-            <span class="sys-card-title">Audit Trail — Admin Actions</span>
+        <div id="securityDetail" class="db-detail-container">
+          <div class="collection-detail collection-detail-empty">
+            <span class="collection-empty-text">Select a function from the menu above to view data.</span>
           </div>
-          <div id="auditTrailList"></div>
         </div>
       </div>
     </div>

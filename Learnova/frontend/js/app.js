@@ -791,7 +791,8 @@ const SYS_STATE = {
   selectedDocs: new Set(),
   dbDeleteTarget: { collection: '', ids: [] },
   logs: [],
-  filteredLogs: []
+  filteredLogs: [],
+  securityView: 'activity'
 };
 
 function isSystemAdminPage() {
@@ -994,7 +995,11 @@ function switchSysSection(name) {
     loadDatabase();
     scheduleSysDbDetailHeightSync();
   }
-  if (name === 'security') loadSecurity();
+  if (name === 'security') {
+    SYS_STATE.securityView = 'activity';
+    loadSecurity();
+    scheduleSysSecurityDetailHeightSync();
+  }
 }
 
 function showSysLoading(sectionId) {
@@ -1019,12 +1024,11 @@ function showSysLoading(sectionId) {
     scheduleSysDbDetailHeightSync();
   }
   if (sectionId === 'section-security') {
-    const failed = document.getElementById('failedLoginList');
-    const logs = document.getElementById('activityLogList');
-    const audit = document.getElementById('auditTrailList');
-    if (failed) failed.innerHTML = loadingMarkup;
-    if (logs) logs.innerHTML = loadingMarkup;
-    if (audit) audit.innerHTML = loadingMarkup;
+    const menu = document.getElementById('securityFunctionMenu');
+    const detail = document.getElementById('securityDetail');
+    if (menu) menu.innerHTML = loadingMarkup;
+    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading security data...</span></div>';
+    scheduleSysSecurityDetailHeightSync();
   }
 }
 
@@ -1338,6 +1342,46 @@ function scheduleSysDbDetailHeightSync() {
     return;
   }
   setTimeout(syncSysDbDetailHeight, 0);
+}
+
+function syncSysSecurityDetailHeight() {
+  if (SYS_STATE.currentSection !== 'security') return;
+  const detailContainer = document.getElementById('securityDetail');
+  if (!detailContainer) return;
+
+  const rect = detailContainer.getBoundingClientRect();
+  const bottomGap = window.innerWidth <= 760 ? 16 : 24;
+  const contentShell = detailContainer.closest('.content');
+  const shellBottomPadding = contentShell ? (parseFloat(window.getComputedStyle(contentShell).paddingBottom) || 0) : 0;
+  const availableHeight = Math.max(260, Math.floor(window.innerHeight - rect.top - bottomGap - shellBottomPadding));
+
+  detailContainer.style.height = availableHeight + 'px';
+  detailContainer.style.minHeight = availableHeight + 'px';
+  detailContainer.style.maxHeight = availableHeight + 'px';
+
+  const detailCard = detailContainer.querySelector('.collection-detail');
+  let cardTargetHeight = availableHeight;
+  if (detailCard) {
+    const cardStyle = window.getComputedStyle(detailCard);
+    const cardOuterGap = (parseFloat(cardStyle.marginTop) || 0) + (parseFloat(cardStyle.marginBottom) || 0);
+    cardTargetHeight = Math.max(140, availableHeight - cardOuterGap);
+    detailCard.style.minHeight = cardTargetHeight + 'px';
+  }
+
+  const scrollArea = detailContainer.querySelector('.security-detail-scroll');
+  if (scrollArea) {
+    const header = detailContainer.querySelector('.collection-detail-header');
+    const occupiedHeight = header ? header.offsetHeight : 0;
+    scrollArea.style.maxHeight = Math.max(120, cardTargetHeight - occupiedHeight - 2) + 'px';
+  }
+}
+
+function scheduleSysSecurityDetailHeightSync() {
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(syncSysSecurityDetailHeight);
+    return;
+  }
+  setTimeout(syncSysSecurityDetailHeight, 0);
 }
 
 function getCollectionDetailEmptyMarkup(message) {
@@ -1702,22 +1746,116 @@ function renderAuditTrail(logs) {
   }).join('');
 }
 
+function getSecurityViewsMeta() {
+  const failedCount = SYS_STATE.logs.filter(log => classifyLogType(log) === 'failed').length;
+  const auditCount = SYS_STATE.logs.filter(log => {
+    const path = String(log.path || '').toLowerCase();
+    const method = String(log.method || '').toUpperCase();
+    return (path.includes('/api/admin') || path.includes('/api/sysadmin')) && method !== 'GET';
+  }).length;
+
+  return {
+    failed: failedCount,
+    activity: SYS_STATE.logs.length,
+    audit: auditCount
+  };
+}
+
+function renderSecurityFunctionMenu() {
+  const menu = document.getElementById('securityFunctionMenu');
+  if (!menu) return;
+  const items = [
+    { key: 'activity', label: 'Activity Logs' },
+    { key: 'audit', label: 'Audit Trail' },
+    { key: 'failed', label: 'Failed Logins' }
+  ];
+
+  menu.innerHTML = items.map(item => {
+    const active = SYS_STATE.securityView === item.key;
+    return '<button class="db-func-btn' + (active ? ' active' : '') + '" type="button" data-security-view="' + item.key + '">'
+      + '<span class="db-func-name">' + item.label + '</span>'
+      + '</button>';
+  }).join('');
+}
+
+function renderSecurityDetail() {
+  const detail = document.getElementById('securityDetail');
+  if (!detail) return;
+
+  if (SYS_STATE.securityView === 'activity') {
+    detail.innerHTML = '<div class="collection-detail">'
+      + '<div class="collection-detail-header">'
+      + '<span class="collection-detail-title">Activity Logs</span>'
+      + '<div class="sys-card-actions">'
+      + '<select class="filter-select" id="sys-log-filter">'
+      + '<option value="all">All Events</option>'
+      + '<option value="login">Login</option>'
+      + '<option value="upload">Upload</option>'
+      + '<option value="quiz">Quiz</option>'
+      + '<option value="failed">Failed Login</option>'
+      + '<option value="admin">Admin</option>'
+      + '<option value="error">Error</option>'
+      + '</select>'
+      + '<button class="btn btn-outline btn-sm" id="sys-export-logs" type="button">'
+      + '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+      + 'Export'
+      + '</button>'
+      + '</div>'
+      + '</div>'
+      + '<div class="security-detail-scroll" id="activityLogList"></div>'
+      + '</div>';
+    renderActivityLogs(SYS_STATE.logs);
+    scheduleSysSecurityDetailHeightSync();
+    return;
+  }
+
+  if (SYS_STATE.securityView === 'audit') {
+    detail.innerHTML = '<div class="collection-detail">'
+      + '<div class="collection-detail-header">'
+      + '<span class="collection-detail-title">Audit Trail - Admin Actions</span>'
+      + '</div>'
+      + '<div class="security-detail-scroll" id="auditTrailList"></div>'
+      + '</div>';
+    renderAuditTrail(SYS_STATE.logs);
+    scheduleSysSecurityDetailHeightSync();
+    return;
+  }
+
+  detail.innerHTML = '<div class="collection-detail">'
+    + '<div class="collection-detail-header">'
+    + '<span class="collection-detail-title">Failed Logins</span>'
+    + '</div>'
+    + '<div class="security-detail-scroll" id="failedLoginList"></div>'
+    + '</div>';
+  renderFailedLogins(SYS_STATE.logs);
+  scheduleSysSecurityDetailHeightSync();
+}
+
+function openSecurityView(view) {
+  const next = String(view || '').toLowerCase();
+  if (!['failed', 'activity', 'audit'].includes(next)) return;
+  SYS_STATE.securityView = next;
+  renderSecurityFunctionMenu();
+  renderSecurityDetail();
+}
+
 async function loadSecurity() {
   showSysLoading('section-security');
   try {
     const data = await sysAdminFetch('/api/sysadmin/logs?page=1&limit=200');
     SYS_STATE.logs = (data.logs || []).slice();
-    renderFailedLogins(SYS_STATE.logs);
-    renderActivityLogs(SYS_STATE.logs);
-    renderAuditTrail(SYS_STATE.logs);
+    if (!['failed', 'activity', 'audit'].includes(SYS_STATE.securityView)) {
+      SYS_STATE.securityView = 'activity';
+    }
+    renderSecurityFunctionMenu();
+    renderSecurityDetail();
   } catch (_) {
     showToast('Failed to load security data', 3200);
-    const failed = document.getElementById('failedLoginList');
-    const activity = document.getElementById('activityLogList');
-    const audit = document.getElementById('auditTrailList');
-    if (failed) failed.innerHTML = '<div class="sys-loading">Failed to load failed login data</div>';
-    if (activity) activity.innerHTML = '<div class="sys-loading">Failed to load activity logs</div>';
-    if (audit) audit.innerHTML = '<div class="sys-loading">Failed to load audit trail</div>';
+    const menu = document.getElementById('securityFunctionMenu');
+    const detail = document.getElementById('securityDetail');
+    if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load security functions</div>';
+    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display security data right now.');
+    scheduleSysSecurityDetailHeightSync();
   }
 }
 
@@ -1750,7 +1888,10 @@ function exportSysLogsCsv() {
 }
 
 function bindSystemAdminEvents() {
-  window.addEventListener('resize', scheduleSysDbDetailHeightSync);
+  window.addEventListener('resize', () => {
+    scheduleSysDbDetailHeightSync();
+    scheduleSysSecurityDetailHeightSync();
+  });
 
   const mount = document.getElementById('sidebar-mount');
   if (mount) {
@@ -1917,11 +2058,23 @@ function bindSystemAdminEvents() {
     }
   });
 
-  document.getElementById('sys-log-filter')?.addEventListener('change', () => {
-    renderActivityLogs(SYS_STATE.logs);
+  document.getElementById('securityFunctionMenu')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-security-view]');
+    if (!btn) return;
+    openSecurityView(btn.getAttribute('data-security-view') || 'failed');
   });
 
-  document.getElementById('sys-export-logs')?.addEventListener('click', exportSysLogsCsv);
+  document.getElementById('securityDetail')?.addEventListener('change', event => {
+    if (event.target && event.target.id === 'sys-log-filter') {
+      renderActivityLogs(SYS_STATE.logs);
+      scheduleSysSecurityDetailHeightSync();
+    }
+  });
+
+  document.getElementById('securityDetail')?.addEventListener('click', event => {
+    const exportBtn = event.target.closest('#sys-export-logs');
+    if (exportBtn) exportSysLogsCsv();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
