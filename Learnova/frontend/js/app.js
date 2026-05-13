@@ -1438,8 +1438,13 @@ async function loadDatabase() {
     SYS_STATE.collections = rows;
     SYS_STATE.collectionDocs = {};
     SYS_STATE.openCollection = '';
-    renderCollections(rows);
-    scheduleSysDbDetailHeightSync();
+    const hasHistoryCollection = rows.some(item => item.name === 'history');
+    if (hasHistoryCollection) {
+      expandCollection('history');
+    } else {
+      renderCollections(rows);
+      scheduleSysDbDetailHeightSync();
+    }
   } catch (_) {
     const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
@@ -1462,7 +1467,6 @@ function renderCollections(collections) {
     const isOpen = SYS_STATE.openCollection === item.name;
     return '<button class="db-func-btn' + (isOpen ? ' active' : '') + '" type="button" data-expand-collection="' + escapeHtml(item.name) + '">'
       + '<span class="db-func-name">' + escapeHtml(item.name) + '</span>'
-      + '<span class="db-func-meta">' + Number(item.total || 0).toLocaleString() + ' docs - ' + escapeHtml(item.size) + '</span>'
       + '</button>';
   }).join('');
 
@@ -1514,9 +1518,16 @@ function renderCollectionDocs(name, docs) {
   }).join('');
 
   const loadedCount = docs.length;
+  const collectionInfo = SYS_STATE.collections.find(item => item.name === name) || null;
+  const totalCount = collectionInfo ? Number(collectionInfo.total || loadedCount) : loadedCount;
+  const sizeText = collectionInfo && collectionInfo.size
+    ? String(collectionInfo.size)
+    : estimateCollectionSize(docs, totalCount);
+  const detailMeta = totalCount.toLocaleString() + ' total, ' + sizeText;
+
   detail.innerHTML = '<div class="collection-detail">'
     + '<div class="collection-detail-header">'
-    + '<span class="collection-detail-title">' + escapeHtml(name) + ' — ' + loadedCount + ' documents loaded</span>'
+    + '<span class="collection-detail-title">' + escapeHtml(name) + ' - ' + loadedCount + ' documents loaded (' + escapeHtml(detailMeta) + ')</span>'
     + '<div style="display:flex;gap:8px;align-items:center">'
     + '<label class="doc-select-all-wrap"><input type="checkbox" id="sys-select-all"> Select all</label>'
     + '<button class="btn btn-outline btn-sm" type="button" id="sys-collapse-collection">Collapse</button>'

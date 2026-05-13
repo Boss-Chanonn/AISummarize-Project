@@ -1368,6 +1368,7 @@ a{color:inherit;text-decoration:none} button{cursor:pointer;font-family:var(--sa
 .db-func-name{font-size:12px;color:var(--cream);font-family:monospace;font-weight:500;line-height:1.25}
 .db-func-meta{font-size:10px;color:var(--cream-25);letter-spacing:0.2px}
 .security-function-menu{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.db-function-menu-four{grid-template-columns:repeat(4,minmax(0,1fr))}
 .security-function-menu .db-func-btn{min-width:0;max-width:none;flex:0 0 auto;width:100%;align-items:center;justify-content:center;text-align:center;padding:15px 14px;min-height:64px}
 .security-function-menu .db-func-name{width:100%;text-align:center;font-size:15px;line-height:1.3;font-weight:600;letter-spacing:0.2px}
 .db-detail-container{min-height:380px}
