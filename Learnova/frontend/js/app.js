@@ -2091,7 +2091,16 @@ function classifyLogType(log) {
  * @returns {string}
  */
 function formatTimeAgo(value) {
-  const date = new Date(value);
+  let parsedValue = value;
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    const hasTimezone = /([zZ]|[+\-]\d{2}:\d{2})$/.test(raw);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+      parsedValue = raw + 'Z';
+    }
+  }
+
+  const date = new Date(parsedValue);
   if (Number.isNaN(date.getTime())) return '-';
   const diffMs = Date.now() - date.getTime();
   const diffMin = Math.max(1, Math.floor(diffMs / 60000));
@@ -2103,6 +2112,26 @@ function formatTimeAgo(value) {
 }
 
 /**
+ * Convert log timestamp into comparable milliseconds.
+ * @param {string|number|Date} value
+ * @returns {number}
+ */
+function getLogTimeMs(value) {
+  let parsedValue = value;
+  if (typeof value === 'string') {
+    const raw = value.trim();
+    const hasTimezone = /([zZ]|[+\-]\d{2}:\d{2})$/.test(raw);
+    if (!hasTimezone && /^\d{4}-\d{2}-\d{2}T/.test(raw)) {
+      parsedValue = raw + 'Z';
+    }
+  }
+
+  const date = new Date(parsedValue);
+  const ms = date.getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+}
+
+/**
  * Render failed login summary grouped by IP address.
  * @param {any[]} logs
  */
@@ -2110,29 +2139,46 @@ function renderFailedLogins(logs) {
   const failedList = document.getElementById('failedLoginList');
   if (!failedList) return;
 
+  const header = '<div class="log-col-header failed-log-header">'
+    + '<span class="lch-type">Risk</span>'
+    + '<span class="lch-user">Username</span>'
+    + '<span class="lch-ip">IP Address</span>'
+    + '<span class="lch-api">Attempts</span>'
+    + '<span class="lch-time">Time</span>'
+    + '</div>';
+
   const failed = logs.filter(log => classifyLogType(log) === 'failed');
   const grouped = {};
-  // Group failed events by IP and track both attempt count and latest timestamp.
+  // Group failed events by username+IP and track both attempt count and latest timestamp.
   failed.forEach(log => {
-    const key = log.ip || 'unknown';
-    if (!grouped[key]) grouped[key] = { ip: key, attempts: 0, latest: log.timestamp };
+    const ip = log.ip || 'unknown';
+    const username = log.user_email || 'guest';
+    const key = username + '|' + ip;
+    if (!grouped[key]) grouped[key] = { username, ip, attempts: 0, latest: log.timestamp };
     grouped[key].attempts += 1;
     if (new Date(log.timestamp) > new Date(grouped[key].latest)) grouped[key].latest = log.timestamp;
   });
 
-  const rows = Object.values(grouped).sort((a, b) => b.attempts - a.attempts);
+  const rows = Object.values(grouped).sort((a, b) => {
+    const timeDiff = getLogTimeMs(b.latest) - getLogTimeMs(a.latest);
+    if (timeDiff !== 0) return timeDiff;
+    return b.attempts - a.attempts;
+  });
   if (!rows.length) {
-    failedList.innerHTML = '<div class="failed-row-item"><span class="f-email">No failed logins found</span></div>';
+    failedList.innerHTML = header + '<div class="log-row-item failed-log-row"><span class="event-desc">No failed logins found</span></div>';
     return;
   }
 
-  failedList.innerHTML = rows.map(row => {
+  failedList.innerHTML = header + rows.map(row => {
     const highRisk = row.attempts >= 5;
-    return '<div class="failed-row-item">'
-      + '<span class="f-email">' + escapeHtml(row.ip) + '</span>'
-      + '<span class="f-count">x ' + row.attempts + ' attempts</span>'
-      + '<span class="badge ' + (highRisk ? 'badge-red' : 'badge-amber') + '">' + (highRisk ? 'High' : 'Medium') + '</span>'
-      + '<span class="f-time">' + escapeHtml(formatTimeAgo(row.latest)) + '</span>'
+    const riskLabel = highRisk ? 'HIGH' : 'MEDIUM';
+    const riskClass = highRisk ? 'ei-failed' : 'ei-quiz';
+    return '<div class="log-row-item failed-log-row">'
+      + '<span class="log-col lc-type"><span class="event-indicator ' + riskClass + '"></span><span class="event-label">' + riskLabel + '</span></span>'
+      + '<span class="log-col lc-user failed-username-col">' + escapeHtml(row.username) + '</span>'
+      + '<span class="log-col lc-ip">' + escapeHtml(row.ip) + '</span>'
+      + '<span class="log-col lc-api">x ' + row.attempts + ' attempts</span>'
+      + '<span class="log-col lc-time">' + escapeHtml(formatTimeAgo(row.latest)) + '</span>'
       + '</div>';
   }).join('');
 }
@@ -2156,7 +2202,9 @@ function renderActivityLogs(logs) {
   const activityList = document.getElementById('activityLogList');
   if (!activityList) return;
   const type = document.getElementById('sys-log-filter')?.value || 'all';
-  const filtered = filterActivityLogs(type);
+  const filtered = filterActivityLogs(type).sort((a, b) => {
+    return getLogTimeMs(b.timestamp) - getLogTimeMs(a.timestamp);
+  });
   SYS_STATE.filteredLogs = filtered;
 
   if (!filtered.length) {
@@ -2206,43 +2254,47 @@ function renderAuditTrail(logs) {
   const auditList = document.getElementById('auditTrailList');
   if (!auditList) return;
 
+  const header = '<div class="log-col-header">'
+    + '<span class="lch-type">Type</span>'
+    + '<span class="lch-ip">Actor</span>'
+    + '<span class="lch-user audit-action-header">Action</span>'
+    + '<span class="lch-api">Endpoint</span>'
+    + '<span class="lch-time">Time</span>'
+    + '</div>';
+
   const rows = logs
     .filter(log => {
       const path = String(log.path || '').toLowerCase();
       const method = String(log.method || '').toUpperCase();
       return (path.includes('/api/admin') || path.includes('/api/sysadmin')) && method !== 'GET';
     })
+    .sort((a, b) => getLogTimeMs(b.timestamp) - getLogTimeMs(a.timestamp))
     .slice(0, 50);
 
   if (!rows.length) {
-    auditList.innerHTML = '<div class="audit-row-item"><div class="audit-text"><div class="audit-line"><span class="audit-subject">No admin actions found</span></div></div></div>';
+    auditList.innerHTML = header + '<div class="log-row-item"><span class="event-desc">No admin actions found</span></div>';
     return;
   }
 
-  const iconByMethod = {
-    POST: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
-    PUT: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>',
-    DELETE: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>'
+  const typeClassByMethod = {
+    POST: 'ei-login',
+    PUT: 'ei-admin',
+    PATCH: 'ei-admin',
+    DELETE: 'ei-failed'
   };
 
-  auditList.innerHTML = rows.map(log => {
+  auditList.innerHTML = header + rows.map(log => {
     const method = String(log.method || '').toUpperCase();
     const path = String(log.path || '');
     const status = String(log.status || '-');
-    const icon = iconByMethod[method] || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18"/></svg>';
-    return '<div class="audit-row-item">'
-      + '<div class="audit-icon-sm">' + icon + '</div>'
-      + '<div class="audit-text">'
-      + '<div class="audit-line">'
-      + '<span class="audit-actor">System Admin</span>'
-      + '<span class="audit-arrow">-></span>'
-      + '<span class="audit-verb">' + escapeHtml(method) + '</span>'
-      + '<span class="audit-arrow">-></span>'
-      + '<span class="audit-subject">' + escapeHtml(path.replace('/api/', '')) + '</span>'
-      + '<span class="audit-change-tag">Status ' + escapeHtml(status) + '</span>'
-      + '</div>'
-      + '<div class="audit-time-sm">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</div>'
-      + '</div>'
+    const actor = log.user_email ? escapeHtml(log.user_email) : 'System Admin';
+    const typeClass = typeClassByMethod[method] || 'ei-error';
+    return '<div class="log-row-item">'
+      + '<span class="log-col lc-type"><span class="event-indicator ' + typeClass + '"></span><span class="event-label">' + escapeHtml(method) + '</span></span>'
+      + '<span class="log-col lc-ip">' + actor + '</span>'
+      + '<span class="log-col lc-user audit-action-col">Status ' + escapeHtml(status) + '</span>'
+      + '<span class="log-col lc-api">' + escapeHtml(path) + '</span>'
+      + '<span class="log-col lc-time">' + escapeHtml(formatTimeAgo(log.timestamp)) + '</span>'
       + '</div>';
   }).join('');
 }
@@ -2361,8 +2413,7 @@ function openSecurityView(view) {
 async function loadSecurity() {
   showSysLoading('section-security');
   try {
-    const data = await sysAdminFetch('/api/sysadmin/logs?page=1&limit=1000');
-    SYS_STATE.logs = (data.logs || []).slice();
+    SYS_STATE.logs = await fetchAllSecurityLogs();
     if (!['failed', 'activity', 'audit'].includes(SYS_STATE.securityView)) {
       SYS_STATE.securityView = 'activity';
     }
@@ -2376,6 +2427,45 @@ async function loadSecurity() {
     if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display security data right now.');
     scheduleSysSecurityDetailHeightSync();
   }
+}
+
+/**
+ * Fetch every page of security logs so activity history is complete.
+ * @returns {Promise<any[]>}
+ */
+async function fetchAllSecurityLogs() {
+  const limit = 1000;
+  let page = 1;
+  let total = 0;
+  const merged = [];
+
+  while (true) {
+    const data = await sysAdminFetch('/api/sysadmin/logs?page=' + page + '&limit=' + limit);
+    const chunk = Array.isArray(data.logs) ? data.logs : [];
+    merged.push(...chunk);
+    total = Math.max(total, Number(data.total || 0));
+
+    if (!chunk.length || merged.length >= total) {
+      break;
+    }
+
+    page += 1;
+    // Safety break: protects UI from infinite loops caused by malformed API responses.
+    if (page > 1000) {
+      break;
+    }
+  }
+
+  const deduped = [];
+  const seen = new Set();
+  for (const log of merged) {
+    const key = log && log._id ? String(log._id) : [log?.timestamp, log?.path, log?.method, log?.ip].join('|');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(log);
+  }
+
+  return deduped;
 }
 
 /**

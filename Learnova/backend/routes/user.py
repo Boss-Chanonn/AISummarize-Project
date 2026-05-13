@@ -6,12 +6,13 @@ from datetime import datetime, timedelta, timezone
 router = APIRouter()
 
 
+# ----------------------------- User Profile Endpoint -----------------------------
 @router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
+    """Return dashboard profile stats for the currently logged-in user."""
     user_id = str(current_user["_id"])
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=7)
-    month_ago = now - timedelta(days=30)
 
     # All history for this user
     cursor = history_collection.find({"userId": user_id})
@@ -30,10 +31,6 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
     new_this_week = sum(
         1 for h in history
         if h.get("uploadedAt") and h["uploadedAt"].replace(tzinfo=timezone.utc) >= week_ago
-    )
-    quizzes_this_month = sum(
-        1 for h in completed
-        if h.get("uploadedAt") and h["uploadedAt"].replace(tzinfo=timezone.utc) >= month_ago
     )
 
     stat_subs = [

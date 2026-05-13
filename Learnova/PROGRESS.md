@@ -1,5 +1,5 @@
 # Learnova — AI Development Log
-Last updated: 2026-05-01
+Last updated: 2026-05-13
 
 ## CRITICAL RULES FOR ALL AI AGENTS
 1. NEVER modify .css files
@@ -269,6 +269,20 @@ What works now:
 | 2026-05-13 | Completed refactor Stage 15 (billing/payment/confirm inline JS) | Added JSDoc for billing flow functions, replaced anonymous payment input handlers with named functions, and added phased comments without behavior changes |
 | 2026-05-13 | Completed refactor Stage 16 (admin-users inline JS) | Added JSDoc across admin user management functions, renamed openActionModal/switchUserDetailTab for clarity, and documented local helper duplicates without behavior changes |
 | 2026-05-13 | Completed refactor Stage 17 (admin-stats/admin-history inline JS) | Added JSDoc for 16 functions, documented chart scaling behavior, and clarified local helper duplicates without behavior changes |
+| 2026-05-13 | Started backend refactor B1 (unused imports cleanup) | Removed unused imports in backend main/models/auth/billing with no behavior change |
+| 2026-05-13 | Completed backend refactor B2 (auth de-duplication) | Removed duplicate helper/routes in auth.py and kept one canonical auth route set |
+| 2026-05-13 | Completed backend refactor B3 (shared serializer helper) | Added backend/utils/serializers.py and migrated history/content/admin/sysadmin serialization logic |
+| 2026-05-13 | Continued backend refactor B4 (route grouping + docstrings) | Added section grouping and beginner-friendly docstrings in auth/history/content/admin/sysadmin |
+| 2026-05-13 | Completed backend refactor B4 (remaining routes) | Added grouping and beginner-friendly docstrings in upload/billing/admin_stats/user routes |
+| 2026-05-13 | Started backend refactor B5 (error handling consistency) | Added consistent JSON message error helper in upload and unified billing plan validation errors |
+| 2026-05-13 | Continued backend refactor B5 (shared API error helper) | Added backend/utils/api_errors.py and migrated auth/history/content/admin/sysadmin/upload to consistent message-based JSON errors |
+| 2026-05-13 | Continued backend refactor B5 (compatibility-safe cleanup) | Standardized 400 raises in billing via helper and documented legacy error-key compatibility in sysadmin collection view |
+| 2026-05-13 | Started backend refactor B6 (upload readability) | Split upload flow into clear helper phases: fallback payload, AI generation, history document build, and response build |
+| 2026-05-13 | Continued backend refactor B6 (ollama service readability) | Extracted payload normalization helpers and shared Ollama call helper while preserving existing output schema |
+| 2026-05-13 | Completed backend refactor B7 (middleware and security clarity) | Grouped main/auth/security middleware sections, added helper docstrings, and revalidated auth/guard behavior with smoke checks |
+| 2026-05-13 | Completed backend refactor B8 (final cleanup and documentation) | Added remaining backend docstrings, created BACKEND_ENDPOINT_MAP.md, confirmed zero missing top-level docstrings, and passed final backend smoke checks |
+| 2026-05-13 | Fixed system activity log identity for login events | Activity logging now reads login email from request body when no Authorization header exists, so system admin can see which account attempted login |
+| 2026-05-13 | Completed tokenized protected-route smoke regression (user/admin/system_admin) | Verified role-based access matrix and protected endpoints; all checks passed (18/18) |
 | 2026-05-01 | Added POST /api/admin/user/{id}/reset-password | Reset to Learnova@2026 |
 | 2026-05-01 | Added status field to user register document | backend/routes/auth.py |
 
@@ -295,11 +309,8 @@ Active Users: users who uploaded in the last 30 days (distinct userId in history
 Auth: JWT guard + role revalidation via /api/auth/profile on every page load
 
 ## Next Steps for Next AI Agent
-1. Read this PROGRESS.md first
-2. Read mock-api.js to understand API format
-3. Build Stage 2: GET /api/user/profile
-   Returns: name, email, documentsStudied,
-            averageScore, quizzesCompleted, statSubs
-4. Then Stage 3: POST /api/upload
-   Accept PDF or text, return mock AI summary
-5. Update PROGRESS.md when done
+1. Read this PROGRESS.md first.
+2. Read [BACKEND_ENDPOINT_MAP.md](BACKEND_ENDPOINT_MAP.md) for backend ownership before changing routes or middleware.
+3. Backend refactor stages B1-B8 are complete; do not reopen old stage tasks unless a regression is found.
+4. If continuing backend work, start with a focused review or targeted bug fix, then rerun smoke checks for auth, billing, admin, and sysadmin routes.
+5. If moving to a new chat, ask the next agent to summarize status from PROGRESS.md, BACKEND_ENDPOINT_MAP.md, and REFACTOR_STAGE_TEST_CHECKLIST.md before editing code.

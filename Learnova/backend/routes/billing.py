@@ -3,17 +3,31 @@ from backend.models.user import UpgradeRequest, PaymentConfirm
 from backend.database.db import users_collection
 from backend.middleware.auth_middleware import get_current_user
 from datetime import datetime, timedelta
-from bson import ObjectId
-import os
 
 router = APIRouter()
 
 
+# ----------------------------- Billing Helpers -----------------------------
+def _bad_request(detail: str) -> None:
+    """Raise a standardized 400 HTTPException with unchanged detail schema."""
+    raise HTTPException(status_code=400, detail=detail)
+
+
+def _resolve_plan_details(plan_type: str) -> tuple[float, int]:
+    """Return (amount, expiration_days) for a plan type or raise 400 error."""
+    if plan_type == "monthly":
+        return 12.99, 30
+    if plan_type == "yearly":
+        return 99.99, 365
+    _bad_request("Invalid plan type")
+
+
+# ----------------------------- Billing Endpoints -----------------------------
 @router.get("/status")
 async def get_billing_status(
     current_user: dict = Depends(get_current_user)
 ):
-    """Return current user tier and plan info"""
+    """Return current user tier and plan information."""
     return {
         "tier": current_user.get("tier", "free"),
         "plan_type": current_user.get("plan_type", ""),
@@ -27,24 +41,11 @@ async def initiate_upgrade(
     request: UpgradeRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Return payment summary before confirmation"""
+    """Return payment summary before final confirmation step."""
     if current_user.get("tier") == "pro":
-        raise HTTPException(
-            status_code=400,
-            detail="Already on Pro plan"
-        )
+        _bad_request("Already on Pro plan")
 
-    if request.plan_type == "monthly":
-        amount = 12.99
-        expires_days = 30
-    elif request.plan_type == "yearly":
-        amount = 99.99
-        expires_days = 365
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid plan type"
-        )
+    amount, expires_days = _resolve_plan_details(request.plan_type)
 
     return {
         "plan_type": request.plan_type,
@@ -70,17 +71,7 @@ async def confirm_payment(
     For now: always succeeds and upgrades user to Pro.
     NEVER stores full card number — only last 4 digits.
     """
-    if payment.plan_type == "monthly":
-        amount = 12.99
-        expires_days = 30
-    elif payment.plan_type == "yearly":
-        amount = 99.99
-        expires_days = 365
-    else:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid plan type"
-        )
+    amount, expires_days = _resolve_plan_details(payment.plan_type)
 
     now = datetime.utcnow()
     expires = now + timedelta(days=expires_days)
@@ -112,7 +103,7 @@ async def confirm_payment(
 async def downgrade_to_free(
     current_user: dict = Depends(get_current_user)
 ):
-    """Allow user to cancel Pro and return to Free"""
+    """Downgrade current user from Pro back to Free tier."""
     await users_collection.update_one(
         {"_id": current_user["_id"]},
         {"$set": {

@@ -6,9 +6,10 @@ from datetime import datetime, timedelta
 router = APIRouter()
 
 
+# ----------------------------- Summary Cards Endpoint -----------------------------
 @router.get("/stats")
 async def get_stats(current_user: dict = Depends(get_admin_user)):
-    """Summary stats for the admin stats overview page."""
+    """Return summary metrics used by admin stats overview cards."""
     total_users = await users_collection.count_documents({})
     pro_users   = await users_collection.count_documents({"tier": "pro"})
 
@@ -52,9 +53,10 @@ async def get_stats(current_user: dict = Depends(get_admin_user)):
     }
 
 
+# ----------------------------- Chart Data Endpoints -----------------------------
 @router.get("/stats/user-growth")
 async def get_user_growth(current_user: dict = Depends(get_admin_user)):
-    """New user count per day for the last 30 days."""
+    """Return daily new-user counts for the last 30 days."""
     result = []
     base = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     for i in range(29, -1, -1):
@@ -69,7 +71,7 @@ async def get_user_growth(current_user: dict = Depends(get_admin_user)):
 
 @router.get("/stats/upload-activity")
 async def get_upload_activity(current_user: dict = Depends(get_admin_user)):
-    """Upload count per day for the last 30 days."""
+    """Return daily upload counts for the last 30 days."""
     result = []
     base = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     for i in range(29, -1, -1):

@@ -1,36 +1,27 @@
 from fastapi import APIRouter, Depends, Query
-from fastapi.responses import JSONResponse
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
-from datetime import datetime
+from backend.utils.api_errors import message_error
+from backend.utils.serializers import serialize_mongo_doc
 from bson import ObjectId
 
 router = APIRouter()
 
 
-def _serialize(doc: dict) -> dict:
-    doc = dict(doc)
-    doc["_id"] = str(doc["_id"])
-    if isinstance(doc.get("uploadedAt"), datetime):
-        doc["uploadedAt"] = doc["uploadedAt"].isoformat()
-    if isinstance(doc.get("completedAt"), datetime):
-        doc["completedAt"] = doc["completedAt"].isoformat()
-    return doc
-
-
+# ----------------------------- Results Endpoints -----------------------------
 @router.get("/results")
 async def get_results(
     id: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get quiz results for a history item by MongoDB _id."""
+    """Get quiz results for one history item or the latest completed quiz."""
     user_id = str(current_user["_id"])
 
     if id:
         try:
             oid = ObjectId(id)
         except Exception:
-            return JSONResponse(status_code=400, content={"message": "Invalid ID"})
+            return message_error(400, "Invalid ID")
         item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
         item = await history_collection.find_one(
@@ -38,9 +29,9 @@ async def get_results(
         )
 
     if not item:
-        return JSONResponse(status_code=404, content={"message": "Result not found. Complete a quiz first."})
+        return message_error(404, "Result not found. Complete a quiz first.")
 
-    doc = _serialize(item)
+    doc = serialize_mongo_doc(item, datetime_fields={"uploadedAt", "completedAt"})
     return {
         "_id": doc["_id"],
         "title": doc.get("title"),
@@ -58,19 +49,20 @@ async def get_results(
     }
 
 
+# ----------------------------- Modules Endpoints -----------------------------
 @router.get("/modules")
 async def get_modules(
     historyId: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get learning modules for a history item by MongoDB _id."""
+    """Get learning modules for one history item or the latest upload."""
     user_id = str(current_user["_id"])
 
     if historyId:
         try:
             oid = ObjectId(historyId)
         except Exception:
-            return JSONResponse(status_code=400, content={"message": "Invalid ID"})
+            return message_error(400, "Invalid ID")
         item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
         item = await history_collection.find_one(
@@ -78,12 +70,13 @@ async def get_modules(
         )
 
     if not item:
-        return JSONResponse(status_code=404, content={"message": "No modules found."})
+        return message_error(404, "No modules found.")
 
+    doc = serialize_mongo_doc(item)
     return {
-        "_id": str(item["_id"]),
-        "title": item.get("title"),
-        "modules": item.get("modules", []),
-        "studyNext": item.get("analysis", {}).get("studyNext", []),
+        "_id": doc["_id"],
+        "title": doc.get("title"),
+        "modules": doc.get("modules", []),
+        "studyNext": doc.get("analysis", {}).get("studyNext", []),
     }
 

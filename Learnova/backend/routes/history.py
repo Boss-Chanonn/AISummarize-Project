@@ -1,38 +1,32 @@
 from fastapi import APIRouter, Depends
-from fastapi.responses import JSONResponse
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_quiz_analysis
+from backend.utils.api_errors import message_error
+from backend.utils.serializers import serialize_mongo_doc, serialize_mongo_list
 from datetime import datetime, timezone
 from bson import ObjectId
 
 router = APIRouter()
 
 
-def _serialize(doc: dict) -> dict:
-    doc = dict(doc)
-    doc["_id"] = str(doc["_id"])
-    if isinstance(doc.get("uploadedAt"), datetime):
-        doc["uploadedAt"] = doc["uploadedAt"].isoformat()
-    if isinstance(doc.get("completedAt"), datetime):
-        doc["completedAt"] = doc["completedAt"].isoformat()
-    return doc
-
-
+# ----------------------------- Read Endpoints -----------------------------
 @router.get("/recent")
 async def get_recent_history(current_user: dict = Depends(get_current_user)):
+    """Return the latest five history items for the current user."""
     user_id = str(current_user["_id"])
     cursor = history_collection.find({"userId": user_id}).sort("uploadedAt", -1).limit(5)
     items = await cursor.to_list(length=5)
-    return [_serialize(item) for item in items]
+    return serialize_mongo_list(items, datetime_fields={"uploadedAt", "completedAt"})
 
 
 @router.get("")
 async def get_all_history(current_user: dict = Depends(get_current_user)):
+    """Return all history items for the current user, newest first."""
     user_id = str(current_user["_id"])
     cursor = history_collection.find({"userId": user_id}).sort("uploadedAt", -1)
     items = await cursor.to_list(length=1000)
-    return [_serialize(item) for item in items]
+    return serialize_mongo_list(items, datetime_fields={"uploadedAt", "completedAt"})
 
 
 @router.get("/{history_id}")
@@ -40,33 +34,35 @@ async def get_history_item(
     history_id: str,
     current_user: dict = Depends(get_current_user)
 ):
+    """Return one history item by ID for the current user."""
     user_id = str(current_user["_id"])
     try:
         oid = ObjectId(history_id)
     except Exception:
-        return JSONResponse(status_code=400, content={"message": "Invalid history ID"})
+        return message_error(400, "Invalid history ID")
     doc = await history_collection.find_one({"_id": oid, "userId": user_id})
     if not doc:
-        return JSONResponse(status_code=404, content={"message": "History item not found"})
-    return _serialize(doc)
+        return message_error(404, "History item not found")
+    return serialize_mongo_doc(doc, datetime_fields={"uploadedAt", "completedAt"})
 
 
+# ----------------------------- Write Endpoints -----------------------------
 @router.post("/{history_id}/submit-quiz")
 async def submit_quiz(
     history_id: str,
     body: dict,
     current_user: dict = Depends(get_current_user)
 ):
-    """Called when user submits quiz answers. Saves score and triggers AI analysis."""
+    """Save quiz answers, calculate score, and update AI analysis."""
     user_id = str(current_user["_id"])
     try:
         oid = ObjectId(history_id)
     except Exception:
-        return JSONResponse(status_code=400, content={"message": "Invalid history ID"})
+        return message_error(400, "Invalid history ID")
 
     doc = await history_collection.find_one({"_id": oid, "userId": user_id})
     if not doc:
-        return JSONResponse(status_code=404, content={"message": "History item not found"})
+        return message_error(404, "History item not found")
 
     user_answers = body.get("answers", [])  # list of chosen option indices
     quiz_questions = doc.get("quizFull", [])
@@ -110,7 +106,7 @@ async def submit_quiz(
     )
 
     updated = await history_collection.find_one({"_id": oid})
-    return _serialize(updated)
+    return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt"})
 
 
 @router.delete("/{history_id}")
@@ -118,13 +114,14 @@ async def delete_history_item(
     history_id: str,
     current_user: dict = Depends(get_current_user)
 ):
+    """Delete one history item owned by the current user."""
     user_id = str(current_user["_id"])
     try:
         oid = ObjectId(history_id)
     except Exception:
-        return JSONResponse(status_code=400, content={"message": "Invalid history ID"})
+        return message_error(400, "Invalid history ID")
     result = await history_collection.delete_one({"_id": oid, "userId": user_id})
     if result.deleted_count == 0:
-        return JSONResponse(status_code=404, content={"message": "History item not found"})
+        return message_error(404, "History item not found")
     return {"message": "Deleted successfully"}
 

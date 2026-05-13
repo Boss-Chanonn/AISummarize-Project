@@ -10,8 +10,20 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3:latest")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
 OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
 
+FALLBACK_QUESTIONS = [
+    {"q": "What is the primary focus of this document?", "opts": ["Empirical measurement", "Theoretical critique", "Systematic synthesis", "Policy evaluation"], "correct": 2, "explanation": "The document takes a synthesis approach."},
+    {"q": "Which methodology is primarily employed?", "opts": ["Randomised trial", "Ethnographic fieldwork", "Literature review", "Longitudinal survey"], "correct": 2, "explanation": "A literature review and analytical framework are central."},
+    {"q": "What type of evidence is most heavily used?", "opts": ["Anecdotal reports", "Peer-reviewed studies", "Government statistics", "Industry benchmarks"], "correct": 1, "explanation": "Peer-reviewed studies form the backbone of evidence."},
+    {"q": "Who is the target audience?", "opts": ["General public", "Academic researchers", "Policy makers only", "Undergrad students"], "correct": 1, "explanation": "Technical language indicates researchers and practitioners."},
+    {"q": "What gap is identified in existing work?", "opts": ["Lack of data", "Under-representation", "Insufficient longitudinal research", "Overemphasis on theory"], "correct": 2, "explanation": "Longitudinal evidence is underdeveloped in this field."},
+    {"q": "What does the document recommend?", "opts": ["Abandon frameworks", "Cross-disciplinary collaboration", "Quantitative only", "Single institution studies"], "correct": 1, "explanation": "Cross-disciplinary collaboration is most promising."},
+    {"q": "Which factor most influences outcomes?", "opts": ["Funding levels", "Institutional support", "Individual motivation", "Technology availability"], "correct": 1, "explanation": "Institutional support is the dominant conditioning factor."},
+    {"q": "What is the overall contribution?", "opts": ["Definitive theory proof", "Synthesised framework", "Replication study", "Full critique"], "correct": 1, "explanation": "A synthesised framework organises complex findings."},
+]
+
 
 def _build_prompt(title: str, file_type: str, text_content: str) -> str:
+    """Build the structured prompt sent to Ollama for a learning package."""
     snippet = text_content[:6000].strip() if text_content else ""
     content_section = (
         f'Document excerpt:\n"""\n{snippet}\n"""'
@@ -93,6 +105,7 @@ IMPORTANT REQUIREMENTS:
 
 
 def _extract_json(text: str) -> Dict[str, Any]:
+    """Parse JSON directly or recover the first JSON object embedded in text."""
     try:
         return json.loads(text)
     except Exception:
@@ -104,21 +117,21 @@ def _extract_json(text: str) -> Dict[str, Any]:
     raise ValueError("No JSON object found in Ollama response")
 
 
-def _validate_full_payload(payload: Dict[str, Any], title: str) -> Dict[str, Any]:
+def _fix_mojibake(text: str) -> str:
+    """Attempt to recover text from common UTF-8/latin-1 encoding mixups."""
+    try:
+        return text.encode("latin-1").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        return text
+
+
+def _normalize_summary(payload: Dict[str, Any], title: str) -> tuple[list[str], list[str]]:
+    """Normalize summary body and takeaways with safe fallback text counts."""
     summary = payload.get("summary", {})
-    body = summary.get("body", []) if isinstance(summary, dict) else []
-    takeaways = summary.get("takeaways", []) if isinstance(summary, dict) else []
+    body_raw = summary.get("body", []) if isinstance(summary, dict) else []
+    takeaways_raw = summary.get("takeaways", []) if isinstance(summary, dict) else []
 
-    body = [str(x).strip() for x in body if str(x).strip()]
-
-    def fix_encoding(text: str) -> str:
-        try:
-            return text.encode("latin-1").decode("utf-8")
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            return text
-
-    body = [fix_encoding(x) for x in body]
-    takeaways = [fix_encoding(x) for x in takeaways]
+    body = [_fix_mojibake(str(x).strip()) for x in body_raw if str(x).strip()]
     while len(body) < 4:
         body.append(
             f"This document titled '{title}' presents "
@@ -129,7 +142,7 @@ def _validate_full_payload(payload: Dict[str, Any], title: str) -> Dict[str, Any
         )
     body = body[:4]
 
-    takeaways = [str(x).strip() for x in takeaways if str(x).strip()]
+    takeaways = [_fix_mojibake(str(x).strip()) for x in takeaways_raw if str(x).strip()]
     while len(takeaways) < 5:
         takeaways.append(
             "Review the key concepts and connect "
@@ -137,42 +150,54 @@ def _validate_full_payload(payload: Dict[str, Any], title: str) -> Dict[str, Any
         )
     takeaways = takeaways[:5]
 
+    return body, takeaways
+
+
+def _normalize_quiz(payload: Dict[str, Any]) -> list[Dict[str, Any]]:
+    """Normalize quiz items and enforce exactly 8 questions with 4 options each."""
     quiz_raw = payload.get("quiz", [])
-    quiz = []
+    quiz: list[Dict[str, Any]] = []
+
     if isinstance(quiz_raw, list):
         for item in quiz_raw:
             if not isinstance(item, dict):
                 continue
-            q = str(item.get("q", "")).strip()
-            opts = item.get("opts", [])
+
+            question = str(item.get("q", "")).strip()
+            options = item.get("opts", [])
             correct = item.get("correct", 0)
             explanation = str(item.get("explanation", "")).strip()
-            if not q or not isinstance(opts, list) or len(opts) < 2:
+
+            if not question or not isinstance(options, list) or len(options) < 2:
                 continue
-            opts = [str(o).strip() for o in opts]
-            while len(opts) < 4:
-                opts.append("None of the above")
-            opts = opts[:4]
+
+            options = [str(option).strip() for option in options]
+            while len(options) < 4:
+                options.append("None of the above")
+            options = options[:4]
+
             try:
                 correct = int(correct) % 4
             except Exception:
                 correct = 0
-            quiz.append({"q": q, "opts": opts, "correct": correct, "explanation": explanation})
 
-    FALLBACK_QUESTIONS = [
-        {"q": "What is the primary focus of this document?", "opts": ["Empirical measurement", "Theoretical critique", "Systematic synthesis", "Policy evaluation"], "correct": 2, "explanation": "The document takes a synthesis approach."},
-        {"q": "Which methodology is primarily employed?", "opts": ["Randomised trial", "Ethnographic fieldwork", "Literature review", "Longitudinal survey"], "correct": 2, "explanation": "A literature review and analytical framework are central."},
-        {"q": "What type of evidence is most heavily used?", "opts": ["Anecdotal reports", "Peer-reviewed studies", "Government statistics", "Industry benchmarks"], "correct": 1, "explanation": "Peer-reviewed studies form the backbone of evidence."},
-        {"q": "Who is the target audience?", "opts": ["General public", "Academic researchers", "Policy makers only", "Undergrad students"], "correct": 1, "explanation": "Technical language indicates researchers and practitioners."},
-        {"q": "What gap is identified in existing work?", "opts": ["Lack of data", "Under-representation", "Insufficient longitudinal research", "Overemphasis on theory"], "correct": 2, "explanation": "Longitudinal evidence is underdeveloped in this field."},
-        {"q": "What does the document recommend?", "opts": ["Abandon frameworks", "Cross-disciplinary collaboration", "Quantitative only", "Single institution studies"], "correct": 1, "explanation": "Cross-disciplinary collaboration is most promising."},
-        {"q": "Which factor most influences outcomes?", "opts": ["Funding levels", "Institutional support", "Individual motivation", "Technology availability"], "correct": 1, "explanation": "Institutional support is the dominant conditioning factor."},
-        {"q": "What is the overall contribution?", "opts": ["Definitive theory proof", "Synthesised framework", "Replication study", "Full critique"], "correct": 1, "explanation": "A synthesised framework organises complex findings."},
-    ]
+            quiz.append(
+                {
+                    "q": question,
+                    "opts": options,
+                    "correct": correct,
+                    "explanation": explanation,
+                }
+            )
+
     while len(quiz) < 8:
         quiz.append(FALLBACK_QUESTIONS[len(quiz) % 8])
-    quiz = quiz[:8]
 
+    return quiz[:8]
+
+
+def _normalize_analysis(payload: Dict[str, Any]) -> Dict[str, list[str]]:
+    """Normalize strengths/weaknesses/recommendations/studyNext arrays."""
     analysis = payload.get("analysis", {})
     if not isinstance(analysis, dict):
         analysis = {}
@@ -180,57 +205,110 @@ def _validate_full_payload(payload: Dict[str, Any], title: str) -> Dict[str, Any
     strengths = [str(x).strip() for x in analysis.get("strengths", []) if str(x).strip()][:3]
     if not strengths:
         strengths = ["Core understanding", "Concept linkage", "Evidence awareness"]
+
     weaknesses = [str(x).strip() for x in analysis.get("weaknesses", []) if str(x).strip()][:2]
     if not weaknesses:
         weaknesses = ["Application depth", "Long-term retention"]
+
     recommendations = [str(x).strip() for x in analysis.get("recommendations", []) if str(x).strip()][:3]
     if not recommendations:
         recommendations = ["Review core concepts regularly", "Practice applied questions", "Revisit evidence summaries"]
+
     study_next = [str(x).strip() for x in analysis.get("studyNext", []) if str(x).strip()][:3]
     if not study_next:
         study_next = ["Related academic literature", "Applied case studies", "Cross-disciplinary research"]
 
+    return {
+        "strengths": strengths,
+        "weaknesses": weaknesses,
+        "recommendations": recommendations,
+        "studyNext": study_next,
+    }
+
+
+def _normalize_modules(payload: Dict[str, Any], study_next: list[str]) -> list[Dict[str, Any]]:
+    """Normalize modules and ensure exactly 5 URL-ready resources."""
     modules_raw = payload.get("modules", [])
-    modules = []
+    modules: list[Dict[str, Any]] = []
+
     if isinstance(modules_raw, list):
-        for m in modules_raw:
-            if not isinstance(m, dict):
+        for item in modules_raw:
+            if not isinstance(item, dict):
                 continue
-            t = str(m.get("title", "")).strip()
-            mtype = str(m.get("type", "google")).strip().lower()
-            query = str(m.get("query", t)).strip()
-            desc = str(m.get("description", "")).strip()
-            if not t or not query:
+
+            title = str(item.get("title", "")).strip()
+            module_type = str(item.get("type", "google")).strip().lower()
+            query = str(item.get("query", title)).strip()
+            description = str(item.get("description", "")).strip()
+
+            if not title or not query:
                 continue
-            encoded = query.replace(" ", "+")
+
+            encoded_query = query.replace(" ", "+")
             url = (
-                f"https://www.youtube.com/results?search_query={encoded}"
-                if mtype == "youtube"
-                else f"https://www.google.com/search?q={encoded}"
+                f"https://www.youtube.com/results?search_query={encoded_query}"
+                if module_type == "youtube"
+                else f"https://www.google.com/search?q={encoded_query}"
             )
-            modules.append({"title": t, "type": mtype, "url": url, "description": desc})
+            modules.append(
+                {
+                    "title": title,
+                    "type": module_type,
+                    "url": url,
+                    "description": description,
+                }
+            )
 
     while len(modules) < 5:
         topic = study_next[len(modules) % len(study_next)]
-        encoded = topic.replace(" ", "+")
-        mtype = "youtube" if len(modules) % 2 == 0 else "google"
+        encoded_topic = topic.replace(" ", "+")
+        module_type = "youtube" if len(modules) % 2 == 0 else "google"
         url = (
-            f"https://www.youtube.com/results?search_query={encoded}"
-            if mtype == "youtube"
-            else f"https://www.google.com/search?q={encoded}"
+            f"https://www.youtube.com/results?search_query={encoded_topic}"
+            if module_type == "youtube"
+            else f"https://www.google.com/search?q={encoded_topic}"
         )
-        modules.append({"title": topic, "type": mtype, "url": url, "description": f"Explore more about {topic}"})
-    modules = modules[:5]
+        modules.append(
+            {
+                "title": topic,
+                "type": module_type,
+                "url": url,
+                "description": f"Explore more about {topic}",
+            }
+        )
+
+    return modules[:5]
+
+
+async def _call_ollama_generate(prompt: str) -> str:
+    """Call Ollama generate API and return raw response text."""
+    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT_SECONDS) as client:
+        response = await client.post(
+            f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "format": "json",
+                "options": {"temperature": 0.3},
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+    return data.get("response", "")
+
+
+def _validate_full_payload(payload: Dict[str, Any], title: str) -> Dict[str, Any]:
+    """Normalize all AI sections and guarantee the frontend response contract."""
+    body, takeaways = _normalize_summary(payload, title)
+    quiz = _normalize_quiz(payload)
+    analysis = _normalize_analysis(payload)
+    modules = _normalize_modules(payload, analysis["studyNext"])
 
     return {
         "summary": {"body": body, "takeaways": takeaways},
         "quiz": quiz,
-        "analysis": {
-            "strengths": strengths,
-            "weaknesses": weaknesses,
-            "recommendations": recommendations,
-            "studyNext": study_next,
-        },
+        "analysis": analysis,
         "modules": modules,
     }
 
@@ -240,6 +318,7 @@ async def generate_learning_package(
     file_type: str,
     text_content: str = "",
 ) -> Dict[str, Any]:
+    """Generate summary, quiz, analysis, and modules for one uploaded document."""
     if not OLLAMA_ENABLED:
         raise RuntimeError("Ollama is disabled by configuration")
 
@@ -247,16 +326,9 @@ async def generate_learning_package(
     print(f"[ollama] Generating for: {title} ({file_type}) model={OLLAMA_MODEL}")
     t0 = time.time()
 
-    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT_SECONDS) as client:
-        response = await client.post(
-            f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False, "format": "json", "options": {"temperature": 0.3}},
-        )
-        response.raise_for_status()
-        data = response.json()
+    raw_output = await _call_ollama_generate(prompt)
 
     elapsed = time.time() - t0
-    raw_output = data.get("response", "")
     print(f"[ollama] Done in {elapsed:.1f}s — raw length={len(raw_output)} chars")
 
     parsed = _extract_json(raw_output)
@@ -304,16 +376,9 @@ Be specific to the actual questions listed above. No markdown, only JSON.""".str
     print(f"[ollama] Generating quiz analysis for: {title}")
     t0 = time.time()
 
-    async with httpx.AsyncClient(timeout=OLLAMA_TIMEOUT_SECONDS) as client:
-        response = await client.post(
-            f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
-            json={"model": OLLAMA_MODEL, "prompt": prompt, "stream": False, "format": "json", "options": {"temperature": 0.3}},
-        )
-        response.raise_for_status()
-        data = response.json()
+    raw_output = await _call_ollama_generate(prompt)
 
     elapsed = time.time() - t0
-    raw_output = data.get("response", "")
     print(f"[ollama] Quiz analysis done in {elapsed:.1f}s")
 
     try:

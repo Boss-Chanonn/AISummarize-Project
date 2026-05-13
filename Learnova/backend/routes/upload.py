@@ -3,9 +3,9 @@ import os
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
+from backend.utils.api_errors import message_error
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_learning_package
@@ -18,7 +18,9 @@ ALLOWED_EXTENSIONS_FREE = {"pdf", "txt", "doc", "docx"}
 ALLOWED_EXTENSIONS_PRO = {"pdf", "txt", "doc", "docx", "ppt", "pptx"}
 
 
+# ----------------------------- Text Extraction Helpers -----------------------------
 def _extract_text_from_pdf(data: bytes) -> str:
+    """Extract readable text from PDF bytes."""
     try:
         import PyPDF2
         reader = PyPDF2.PdfReader(io.BytesIO(data))
@@ -30,6 +32,7 @@ def _extract_text_from_pdf(data: bytes) -> str:
 
 
 def _extract_text_from_docx(data: bytes) -> str:
+    """Extract readable text from DOCX bytes."""
     try:
         import docx
         doc = docx.Document(io.BytesIO(data))
@@ -40,6 +43,7 @@ def _extract_text_from_docx(data: bytes) -> str:
 
 
 def _extract_text_from_pptx(data: bytes) -> str:
+    """Extract readable text from PPT/PPTX bytes."""
     try:
         from pptx import Presentation
         prs = Presentation(io.BytesIO(data))
@@ -55,7 +59,7 @@ def _extract_text_from_pptx(data: bytes) -> str:
 
 
 def _extract_text(filename: str, data: bytes) -> tuple[str, str, int]:
-    """Returns (text_content, file_type, page_count)"""
+    """Return extracted text, normalized file type label, and estimated page count."""
     ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "txt"
 
     if ext == "pdf":
@@ -89,59 +93,14 @@ def _extract_text(filename: str, data: bytes) -> tuple[str, str, int]:
 
 
 async def _get_next_seq_id(user_id: str) -> int:
+    """Generate the next per-user sequential ID for history records."""
     count = await history_collection.count_documents({"userId": user_id})
     return count + 1
 
 
-@router.post("/upload")
-async def upload_document(
-    current_user: dict = Depends(get_current_user),
-    file: Optional[UploadFile] = File(None),
-    text_content: Optional[str] = Form(None),
-    title: Optional[str] = Form(None),
-):
-    user_id = str(current_user["_id"])
-    user_tier = current_user.get("tier", "free")
-
-    # ── Determine source: file upload OR text paste ──────────────────────────
-    if file and file.filename:
-        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-        allowed = ALLOWED_EXTENSIONS_PRO if user_tier == "pro" else ALLOWED_EXTENSIONS_FREE
-
-        if ext not in allowed:
-            if user_tier != "pro" and ext in ("ppt", "pptx"):
-                return JSONResponse(
-                    status_code=403,
-                    content={"message": "PowerPoint upload requires a Pro account. Please upgrade to continue."}
-                )
-            return JSONResponse(
-                status_code=400,
-                content={"message": f"File type .{ext} is not supported. Allowed: {', '.join(sorted(allowed))}"}
-            )
-
-        data = await file.read()
-        if len(data) > MAX_FILE_SIZE:
-            return JSONResponse(
-                status_code=413,
-                content={"message": "File exceeds 10 MB limit. Please upload a smaller file."}
-            )
-
-        doc_title = title or file.filename.rsplit(".", 1)[0]
-        extracted_text, file_type, page_count = _extract_text(file.filename, data)
-
-    elif text_content and text_content.strip():
-        extracted_text = text_content.strip()
-        file_type = "TXT"
-        page_count = max(1, len(extracted_text) // 3000)
-        doc_title = title or "Pasted text"
-
-    else:
-        return JSONResponse(status_code=400, content={"message": "Please upload a file or paste text content."})
-
-    word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
-
-    # ── AI generation ─────────────────────────────────────────────────────────
-    fallback_payload = {
+def _build_fallback_payload(doc_title: str, page_count: int) -> dict:
+    """Build deterministic fallback content when AI service is unavailable."""
+    return {
         "summary": {
             "body": [
                 f"This document titled '{doc_title}' has been processed by Learnova's AI engine. It spans {page_count} {'page' if page_count == 1 else 'pages'} covering key academic concepts.",
@@ -178,22 +137,39 @@ async def upload_document(
         ],
     }
 
-    ai_payload = fallback_payload
+
+async def _generate_ai_payload(
+    doc_title: str,
+    file_type: str,
+    extracted_text: str,
+    fallback_payload: dict,
+) -> dict:
+    """Generate AI payload and gracefully fall back to local defaults when needed."""
     try:
-        ai_payload = await generate_learning_package(
+        payload = await generate_learning_package(
             title=doc_title,
             file_type=file_type,
             text_content=extracted_text,
         )
         print(f"[upload] AI path succeeded for: {doc_title}")
-    except Exception as e:
-        print(f"[upload] Ollama unavailable, using fallback: {repr(e)}")
+        return payload
+    except Exception as error:
+        print(f"[upload] Ollama unavailable, using fallback: {repr(error)}")
+        return fallback_payload
 
-    # ── Save to MongoDB ────────────────────────────────────────────────────────
-    now = datetime.now(timezone.utc)
-    seq_id = await _get_next_seq_id(user_id)
 
-    history_doc = {
+def _build_history_doc(
+    user_id: str,
+    seq_id: int,
+    doc_title: str,
+    file_type: str,
+    page_count: int,
+    word_estimate: int,
+    ai_payload: dict,
+    now: datetime,
+) -> dict:
+    """Build the MongoDB history document from normalized upload data."""
+    return {
         "userId": user_id,
         "seqId": seq_id,
         "title": doc_title,
@@ -212,12 +188,26 @@ async def upload_document(
         "uploadedAt": now,
         "completedAt": None,
     }
-    result = await history_collection.insert_one(history_doc)
-    history_id = str(result.inserted_id)
 
-    # ── Build response ─────────────────────────────────────────────────────────
-    processed_at = now.strftime("%-I:%M %p").lower() if os.name != "nt" else now.strftime("%I:%M %p").lower().lstrip("0")
 
+def _format_processed_time(now: datetime) -> str:
+    """Format processing time in the same style used by existing frontend."""
+    if os.name != "nt":
+        return now.strftime("%-I:%M %p").lower()
+    return now.strftime("%I:%M %p").lower().lstrip("0")
+
+
+def _build_upload_response(
+    history_id: str,
+    seq_id: int,
+    doc_title: str,
+    file_type: str,
+    page_count: int,
+    word_estimate: int,
+    ai_payload: dict,
+    processed_at: str,
+) -> dict:
+    """Build API response payload returned to upload page after processing."""
     return {
         "historyId": history_id,
         "seqId": seq_id,
@@ -245,4 +235,86 @@ async def upload_document(
         "quizData": ai_payload["quiz"],
         "modules": ai_payload["modules"],
     }
+
+
+# ----------------------------- Upload Endpoint -----------------------------
+@router.post("/upload")
+async def upload_document(
+    current_user: dict = Depends(get_current_user),
+    file: Optional[UploadFile] = File(None),
+    text_content: Optional[str] = Form(None),
+    title: Optional[str] = Form(None),
+):
+    """Process file/text upload, generate learning package, and save history."""
+    user_id = str(current_user["_id"])
+    user_tier = current_user.get("tier", "free")
+
+    # ── Determine source: file upload OR text paste ──────────────────────────
+    if file and file.filename:
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        allowed = ALLOWED_EXTENSIONS_PRO if user_tier == "pro" else ALLOWED_EXTENSIONS_FREE
+
+        if ext not in allowed:
+            if user_tier != "pro" and ext in ("ppt", "pptx"):
+                return message_error(403, "PowerPoint upload requires a Pro account. Please upgrade to continue.")
+            return message_error(
+                400,
+                f"File type .{ext} is not supported. Allowed: {', '.join(sorted(allowed))}",
+            )
+
+        data = await file.read()
+        if len(data) > MAX_FILE_SIZE:
+            return message_error(413, "File exceeds 10 MB limit. Please upload a smaller file.")
+
+        doc_title = title or file.filename.rsplit(".", 1)[0]
+        extracted_text, file_type, page_count = _extract_text(file.filename, data)
+
+    elif text_content and text_content.strip():
+        extracted_text = text_content.strip()
+        file_type = "TXT"
+        page_count = max(1, len(extracted_text) // 3000)
+        doc_title = title or "Pasted text"
+
+    else:
+        return message_error(400, "Please upload a file or paste text content.")
+
+    word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
+
+    # Phase 2: build AI payload (fallback first, AI if available).
+    fallback_payload = _build_fallback_payload(doc_title, page_count)
+    ai_payload = await _generate_ai_payload(
+        doc_title=doc_title,
+        file_type=file_type,
+        extracted_text=extracted_text,
+        fallback_payload=fallback_payload,
+    )
+
+    # Phase 3: save final history record to MongoDB.
+    now = datetime.now(timezone.utc)
+    seq_id = await _get_next_seq_id(user_id)
+    history_doc = _build_history_doc(
+        user_id=user_id,
+        seq_id=seq_id,
+        doc_title=doc_title,
+        file_type=file_type,
+        page_count=page_count,
+        word_estimate=word_estimate,
+        ai_payload=ai_payload,
+        now=now,
+    )
+    result = await history_collection.insert_one(history_doc)
+    history_id = str(result.inserted_id)
+
+    # Phase 4: return frontend payload.
+    processed_at = _format_processed_time(now)
+    return _build_upload_response(
+        history_id=history_id,
+        seq_id=seq_id,
+        doc_title=doc_title,
+        file_type=file_type,
+        page_count=page_count,
+        word_estimate=word_estimate,
+        ai_payload=ai_payload,
+        processed_at=processed_at,
+    )
 

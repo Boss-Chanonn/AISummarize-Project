@@ -1592,15 +1592,20 @@ select {
 /* Activity Log — table-style grid */
 .log-col-header{display:grid;grid-template-columns:90px 1fr 1.4fr 2fr 90px;align-items:center;padding:7px 18px;border-bottom:1px solid var(--border);background:rgba(200,184,154,0.04)}
 .lch-type,.lch-ip,.lch-user,.lch-api,.lch-time{font-size:10px;letter-spacing:0.6px;text-transform:uppercase;color:var(--cream-25);font-weight:600}
+.audit-action-header{padding-left:40px}
 .lch-time{text-align:right}
 .log-row-item{display:grid;grid-template-columns:90px 1fr 1.4fr 2fr 90px;align-items:center;padding:10px 18px;border-bottom:0.5px solid var(--border);transition:background 0.12s}
 .log-row-item:hover{background:var(--cream-05)}
 .log-row-item:last-child{border-bottom:none}
+.failed-log-header{grid-template-columns:90px 2.2fr 1.1fr 1fr 90px;column-gap:14px}
+.failed-log-row{grid-template-columns:90px 2.2fr 1.1fr 1fr 90px;column-gap:14px}
 .log-col{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
 .lc-type{display:flex;align-items:center;gap:7px}
 .lc-ip{color:var(--cream-60);font-family:monospace;font-size:11px}
 .lc-user{color:var(--cream)}
+.failed-username-col{padding-right:8px}
 .lc-user .event-anon{color:var(--cream-25);font-style:italic}
+.audit-action-col{padding-left:40px}
 .lc-api{color:var(--cream-40);font-size:11px}
 .lc-method{font-weight:600;color:var(--cream-60)}
 .lc-status{color:var(--cream-25)}
@@ -1633,6 +1638,8 @@ select {
   .security-function-menu{grid-template-columns:repeat(2,minmax(0,1fr))}
   .log-col-header{grid-template-columns:80px 1fr 1.2fr 2fr 80px}
   .log-row-item{grid-template-columns:80px 1fr 1.2fr 2fr 80px}
+  .failed-log-header{grid-template-columns:80px 2fr 1fr 1fr 80px}
+  .failed-log-row{grid-template-columns:80px 2fr 1fr 1fr 80px}
 }
 
 @media(max-width:760px){

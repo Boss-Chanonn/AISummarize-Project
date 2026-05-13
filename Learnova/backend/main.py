@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -10,10 +9,13 @@ from backend.database.db import client, token_blocklist_collection, system_logs_
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from jose import jwt as _jwt
+import json
 import os
 
 load_dotenv()
 
+
+# ----------------------------- App Configuration -----------------------------
 allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
 
 # Rate limiter
@@ -23,7 +25,8 @@ app = FastAPI(title="Learnova API")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Middleware
+
+# ----------------------------- Registered Middleware -----------------------------
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -34,39 +37,81 @@ app.add_middleware(
 )
 
 
-# Activity logging middleware
+# ----------------------------- Activity Logging -----------------------------
 _LOG_SECRET = os.getenv("SECRET_KEY", "changeme")
+
+
+def _extract_user_email_from_header(auth_header: str) -> str | None:
+    """Read the user email from a bearer token when one is present."""
+    if not auth_header.startswith("Bearer "):
+        return None
+
+    try:
+        payload = _jwt.decode(auth_header[7:], _LOG_SECRET, algorithms=["HS256"])
+        return payload.get("email")
+    except Exception:
+        return None
+
+
+async def _extract_login_email_from_request(request: Request) -> str | None:
+    """Read login email from JSON body and restore the body for the route handler."""
+    if request.method != "POST" or request.url.path != "/api/auth/login":
+        return None
+
+    try:
+        body = await request.body()
+
+        async def receive() -> dict:
+            return {"type": "http.request", "body": body, "more_body": False}
+
+        request._receive = receive
+        payload = json.loads(body.decode("utf-8")) if body else {}
+        email = payload.get("email")
+        if isinstance(email, str) and email.strip():
+            return email.strip()
+    except Exception:
+        return None
+
+    return None
+
+
+async def _resolve_log_user_email(request: Request) -> str | None:
+    """Choose the best available user identity for one activity log entry."""
+    header_email = _extract_user_email_from_header(
+        request.headers.get("Authorization", "")
+    )
+    if header_email:
+        return header_email
+
+    return await _extract_login_email_from_request(request)
+
+
+async def _write_system_log(request: Request, status_code: int, user_email: str | None) -> None:
+    """Store one API activity log entry without interrupting the request flow."""
+    await system_logs_collection.insert_one({
+        "method": request.method,
+        "path": request.url.path,
+        "status": status_code,
+        "ip": request.client.host if request.client else "unknown",
+        "user_email": user_email,
+        "timestamp": datetime.now(timezone.utc),
+    })
 
 @app.middleware("http")
 async def log_activity(request: Request, call_next):
+    """Log API requests for system-admin audit views after each response."""
+    user_email = await _resolve_log_user_email(request)
     response = await call_next(request)
     # Only log API calls (not static files)
     if request.url.path.startswith("/api/"):
         try:
-            user_email = None
-            auth_header = request.headers.get("Authorization", "")
-            if auth_header.startswith("Bearer "):
-                try:
-                    payload = _jwt.decode(
-                        auth_header[7:], _LOG_SECRET, algorithms=["HS256"]
-                    )
-                    user_email = payload.get("email")
-                except Exception:
-                    pass
-            await system_logs_collection.insert_one({
-                "method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "ip": request.client.host if request.client else "unknown",
-                "user_email": user_email,
-                "timestamp": datetime.now(timezone.utc),
-            })
+            await _write_system_log(request, response.status_code, user_email)
         except Exception:
             pass
     return response
 
 
-# Routers
+# ----------------------------- Router Registration -----------------------------
 from backend.routes.auth import router as auth_router
 from backend.routes.user import router as user_router
 from backend.routes.upload import router as upload_router
@@ -88,13 +133,16 @@ app.include_router(sysadmin_router, prefix="/api/sysadmin", tags=["sysadmin"])
 app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
 
 
+# ----------------------------- Health and Startup -----------------------------
 @app.get("/api/health")
 async def health():
+    """Return a lightweight health payload for smoke tests and monitoring."""
     return {"status": "ok", "app": "Learnova"}
 
 
 @app.on_event("startup")
 async def startup_event():
+    """Verify critical backend services and prepare DB indexes on app startup."""
     try:
         await client.admin.command("ping")
         print("✅ MongoDB connected")
@@ -105,6 +153,7 @@ async def startup_event():
         print(f"❌ MongoDB connection failed: {e}")
 
 
-# Serve frontend — must be LAST
+# ----------------------------- Frontend Hosting -----------------------------
+# Serve frontend last so API routes are matched before static file fallback.
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
 
