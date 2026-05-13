@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova â€” Payment Details</title>
+  <title>Learnova — Payment Details</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -14,19 +14,19 @@
     <div class="page-header fade-up" style="margin-bottom: 8px;">
       <div>
         <div class="page-title">Payment Details</div>
-        <div class="page-subtitle" style="color:var(--cream-25);font-size:13px;">Mock payment â€” no real charges will be made</div>
+        <div class="page-subtitle" style="color:var(--cream-25);font-size:13px;">Mock payment — no real charges will be made</div>
       </div>
     </div>
 
     <div class="payment-shell fade-up fade-up-1 reveal reveal-delay-1">
-      <a href="billing.html" class="back-link">â† Back to plans</a>
+      <a href="billing.html" class="back-link">← Back to plans</a>
 
       <div class="order-summary-box" id="order-summary">
         <div>
           <div class="order-plan-name" id="order-plan-name">Learnova Pro</div>
           <div class="order-plan-desc" id="order-plan-desc">Loading...</div>
         </div>
-        <div class="order-price" id="order-price">â€”</div>
+        <div class="order-price" id="order-price">—</div>
       </div>
 
       <div class="payment-form-card">
@@ -56,21 +56,21 @@
           </div>
           <div class="form-field">
             <label class="field-label" for="card-cvv">CVV</label>
-            <input class="input" id="card-cvv" type="password" placeholder="â€¢â€¢â€¢"
+            <input class="input" id="card-cvv" type="password" placeholder="•••"
               maxlength="3" autocomplete="cc-csc" inputmode="numeric"/>
             <div class="field-error" id="err-card-cvv">CVV must be 3 digits</div>
           </div>
         </div>
 
         <div class="secure-badges">
-          <div class="secure-badge-item">ðŸ”’ Mock Secure Payment</div>
-          <div class="secure-badge-item">ðŸ’³ All major cards accepted</div>
+          <div class="secure-badge-item">🔒 Mock Secure Payment</div>
+          <div class="secure-badge-item">💳 All major cards accepted</div>
         </div>
 
         <button class="btn btn-primary" id="btn-review"
           onclick="reviewOrder()"
           style="width:100%;justify-content:center;margin-top:20px">
-          Review Order â†’
+          Review Order →
         </button>
       </div>
     </div>
@@ -95,15 +95,15 @@
   (function () {
     const plan = sessionStorage.getItem('selected_plan') || 'monthly';
     const isYearly = plan === 'yearly';
-    document.getElementById('order-plan-name').textContent = 'Learnova Pro âœ¨';
-    document.getElementById('order-plan-desc').textContent = isYearly ? 'Yearly plan Â· Save 36%' : 'Monthly plan';
+    document.getElementById('order-plan-name').textContent = 'Learnova Pro ✨';
+    document.getElementById('order-plan-desc').textContent = isYearly ? 'Yearly plan · Save 36%' : 'Monthly plan';
     document.getElementById('order-price').textContent = isYearly ? '$99.99/yr' : '$12.99/mo';
     if (!sessionStorage.getItem('selected_plan')) {
       window.location.replace('billing.html');
     }
   })();
 
-  // Card number formatting â€” spaces every 4 digits
+  // Card number formatting — spaces every 4 digits
   document.getElementById('card-number').addEventListener('input', function (e) {
     let val = e.target.value.replace(/\D/g, '').substring(0, 16);
     e.target.value = val.replace(/(.{4})/g, '$1 ').trim();
@@ -115,14 +115,14 @@
     else brandEl.textContent = '';
   });
 
-  // Expiry formatting â€” MM/YY
+  // Expiry formatting — MM/YY
   document.getElementById('card-expiry').addEventListener('input', function (e) {
     let val = e.target.value.replace(/\D/g, '').substring(0, 4);
     if (val.length >= 3) val = val.substring(0, 2) + '/' + val.substring(2);
     e.target.value = val;
   });
 
-  // CVV â€” digits only
+  // CVV — digits only
   document.getElementById('card-cvv').addEventListener('input', function (e) {
     e.target.value = e.target.value.replace(/\D/g, '').substring(0, 3);
   });
@@ -188,7 +188,7 @@
 
     if (hasError) return;
 
-    // Save to sessionStorage â€” NEVER save full card number
+    // Save to sessionStorage — NEVER save full card number
     const paymentData = {
       card_name:  cardName,
       card_last4: cardNumberRaw.slice(-4),

@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova â€” History</title>
+  <title>Learnova — History</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -13,7 +13,7 @@
     <div class="page-header fade-up">
       <div>
         <div class="page-title">Quiz history</div>
-        <div class="page-subtitle">All your past quizzes â€” click any entry to expand the summary.</div>
+        <div class="page-subtitle">All your past quizzes — click any entry to expand the summary.</div>
       </div>
     </div>
 
@@ -29,7 +29,7 @@
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
 <script>
-// Auth guard â€” redirect to login if no token
+// Auth guard — redirect to login if no token
 (function() {
   const token = localStorage.getItem('token');
   if (!token) { window.location.replace('index.html'); }
@@ -43,7 +43,7 @@ let _historyStore = {};
 function fmtHistoryMeta(h) {
   const d = h.uploadedAt ? new Date(h.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
   const t = h.fileType || 'Text';
-  return (t + (d ? ' Â· ' + d : ''));
+  return (t + (d ? ' · ' + d : ''));
 }
 
 function flatAnalysis(h) {
@@ -100,7 +100,7 @@ async function renderHistory() {
           </div>
           <div class="hi-right">
             <div class="hi-score${!h.done?' na':''}">${h.done ? h.score+'%' : 'No quiz yet'}</div>
-            <span class="hi-chevron">â–¾</span>
+            <span class="hi-chevron">▾</span>
           </div>
         </div>
         ${h.done ? `
@@ -122,16 +122,16 @@ async function renderHistory() {
           <div class="mr-actions" onclick="event.stopPropagation()">
             <button class="btn" onclick="event.stopPropagation();openSummaryModal('${hid}')">Summary</button>
             <a href="results.html?id=${hid}" class="btn">Full results</a>
-            <a href="module.html?historyId=${hid}" class="btn btn-gold">Learning module â†’</a>
+            <a href="module.html?historyId=${hid}" class="btn btn-gold">Learning module →</a>
             <button class="btn" onclick="event.stopPropagation();confirmDelete('${hid}')">Delete</button>
           </div>
         </div>` : `
         <div class="mini-result" style="padding:14px 18px">
-          <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${escapeHtml((h.summary && h.summary.body) ? (Array.isArray(h.summary.body) ? h.summary.body[0] : h.summary.body).slice(0,200)+'â€¦' : 'No summary yet')}</div>
+          <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${escapeHtml((h.summary && h.summary.body) ? (Array.isArray(h.summary.body) ? h.summary.body[0] : h.summary.body).slice(0,200)+'…' : 'No summary yet')}</div>
           <div class="mr-actions" onclick="event.stopPropagation()">
             <button class="btn" onclick="event.stopPropagation();openSummaryModal('${hid}')">Summary</button>
-            <a href="upload.html?resume=${hid}&mode=quiz" class="btn">Take quiz â†’</a>
-            <a href="module.html?historyId=${hid}" class="btn btn-gold">Learning module â†’</a>
+            <a href="upload.html?resume=${hid}&mode=quiz" class="btn">Take quiz →</a>
+            <a href="module.html?historyId=${hid}" class="btn btn-gold">Learning module →</a>
             <button class="btn" onclick="event.stopPropagation();confirmDelete('${hid}')">Delete</button>
           </div>
         </div>`}
@@ -185,7 +185,7 @@ function openSummaryModal(id) {
       <div>
         <div class="sum-modal-kp-label">Key takeaways</div>
         <div class="sum-modal-kp">
-          ${takeaways.map(t => `<div class="sum-modal-kp-item"><span class="sum-modal-kp-dash">â€”</span><span>${escapeHtml(t)}</span></div>`).join('')}
+          ${takeaways.map(t => `<div class="sum-modal-kp-item"><span class="sum-modal-kp-dash">—</span><span>${escapeHtml(t)}</span></div>`).join('')}
         </div>
       </div>` : '') +
     ((!body.length && !takeaways.length) ? '<p class="sum-modal-para" style="color:var(--cream-25);font-style:italic">No summary available for this document.</p>' : '');
@@ -204,7 +204,7 @@ renderHistory();
   <div class="sum-modal">
     <div class="sum-modal-head">
       <div class="sum-modal-title" id="sum-modal-title"></div>
-      <button class="sum-modal-close" onclick="closeSummaryModal()">âœ•</button>
+      <button class="sum-modal-close" onclick="closeSummaryModal()">✕</button>
     </div>
     <div class="sum-modal-body" id="sum-modal-body-content"></div>
   </div>

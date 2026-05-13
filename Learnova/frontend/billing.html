@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova â€” Plan &amp; Billing</title>
+  <title>Learnova — Plan &amp; Billing</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -38,7 +38,7 @@
 
   document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
 
-  // â”€â”€ Confirm dialog â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Confirm dialog ──────────────────────────────────────────────────────────
   function showConfirm({ title, body, confirmLabel, confirmClass, onConfirm }) {
     const el = document.createElement('div');
     el.className = 'plan-confirm-overlay';
@@ -64,13 +64,13 @@
     if (el) el.remove();
   }
 
-  // â”€â”€ Navigation helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Navigation helpers ──────────────────────────────────────────────────────
   function goToPayment(planType) {
     sessionStorage.setItem('selected_plan', planType);
     window.location.href = 'payment.html';
   }
 
-  // â”€â”€ Plan action handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Plan action handlers ────────────────────────────────────────────────────
 
   // Called when user clicks "Select plan" on Free card (currently Pro)
   function confirmDowngradeToFree() {
@@ -94,7 +94,7 @@
     });
   }
 
-  // Called when user clicks "Select plan" on a different Pro tier (Monthly â†” Yearly)
+  // Called when user clicks "Select plan" on a different Pro tier (Monthly ↔ Yearly)
   function confirmSwitchPlan(fromLabel, toLabel, toPlanType) {
     const isUpgrade = toPlanType === 'yearly';
     showConfirm({
@@ -102,7 +102,7 @@
       body:  isUpgrade
         ? `Switch from <strong>Pro Monthly</strong> to <strong>Pro Yearly ($99.99/yr)</strong> and save 36%. You will be taken to the payment page.`
         : `Switch from <strong>Pro Yearly</strong> to <strong>Pro Monthly ($12.99/mo)</strong>. You will be taken to the payment page.`,
-      confirmLabel: isUpgrade ? 'Upgrade to Yearly â†’' : 'Switch to Monthly â†’',
+      confirmLabel: isUpgrade ? 'Upgrade to Yearly →' : 'Switch to Monthly →',
       confirmClass: 'btn-primary',
       onConfirm: () => goToPayment(toPlanType),
     });
@@ -121,7 +121,7 @@
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         stored.tier = 'free';
         localStorage.setItem('user', JSON.stringify(stored));
-        showToast('Plan cancelled â€” you are now on Free');
+        showToast('Plan cancelled — you are now on Free');
         setTimeout(() => renderBilling(), 600);
       } else {
         showToast('Something went wrong, please try again');
@@ -131,7 +131,7 @@
     }
   }
 
-  // â”€â”€ Render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Render ──────────────────────────────────────────────────────────────────
   async function renderBilling() {
     const status = await getBillingStatus();
     const tier   = status ? status.tier : 'free';
@@ -177,7 +177,7 @@
         <div class="plan-feature-list">
           ${freeFeatures.map(f => `
             <div class="plan-feature-item${f.ok ? '' : ' disabled'}">
-              <span class="feature-icon">${f.ok ? 'âœ“' : 'âœ—'}</span>
+              <span class="feature-icon">${f.ok ? '✓' : '✗'}</span>
               <span>${f.text}</span>
             </div>`).join('')}
         </div>
@@ -207,7 +207,7 @@
       let actionHtml;
 
       if (isActive) {
-        // This is the user's current plan â€” red Cancel plan button
+        // This is the user's current plan — red Cancel plan button
         const statusBox = expiresText
           ? `<div class="pro-status-box">
                <div class="pro-status-label">Active ${pillLabel} plan</div>
@@ -219,20 +219,20 @@
           ${statusBox}
           <button class="btn-cancel" onclick="confirmCancelPlan('${pillLabel}')">Cancel plan</button>`;
       } else if (isPro) {
-        // User is Pro but on the other tier â€” white outline Select plan
+        // User is Pro but on the other tier — white outline Select plan
         const otherLabel = isMonthly ? 'Yearly' : 'Monthly';
         actionHtml = `
           <button class="btn-select" onclick="confirmSwitchPlan('${otherLabel}','${pillLabel}','${planType}')">Select plan</button>`;
       } else {
-        // User is Free â€” gold Upgrade button
+        // User is Free — gold Upgrade button
         actionHtml = `
-          <button class="btn btn-primary" onclick="goToPayment('${planType}')" style="width:100%;justify-content:center">Upgrade to Pro â†’</button>`;
+          <button class="btn btn-primary" onclick="goToPayment('${planType}')" style="width:100%;justify-content:center">Upgrade to Pro →</button>`;
       }
 
       return `
         <div class="plan-box pro-box" style="${isActive ? 'border-color:var(--gold)' : ''}">
           <div class="plan-label">Premium</div>
-          <div class="plan-name gold">Pro âœ¨</div>
+          <div class="plan-name gold">Pro ✨</div>
           <div class="plan-badge-pill">${pillLabel}</div>
           <div class="plan-price-row">
             <span class="plan-price-big">${price}</span>
@@ -243,7 +243,7 @@
           <div class="plan-feature-list">
             ${proFeatures.map(f => `
               <div class="plan-feature-item">
-                <span class="feature-icon">âœ“</span>
+                <span class="feature-icon">✓</span>
                 <span>${f.text}</span>
               </div>`).join('')}
           </div>

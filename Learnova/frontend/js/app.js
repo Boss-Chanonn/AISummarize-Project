@@ -1,6 +1,6 @@
-﻿/* â”€â”€ Learnova shared JS â”€â”€ */
+/* ── Learnova shared JS ── */
 
-/* â”€â”€ User state (loaded from localStorage after login) â”€â”€ */
+/* ── User state (loaded from localStorage after login) ── */
 const _storedUser = JSON.parse(localStorage.getItem('user') || 'null');
 const LEARNOVA_USER = {
   name: (_storedUser && _storedUser.name) || 'User',
@@ -11,7 +11,7 @@ const LEARNOVA_USER = {
   dob: '',
   phone: '',
   password: '',
-  passwordMask: 'â€¢â€¢â€¢â€¢â€¢â€¢â€¢',
+  passwordMask: '•••••••',
   tier: (_storedUser && _storedUser.tier) || 'free',
   role: (_storedUser && _storedUser.role) || 'user',
 };
@@ -44,7 +44,7 @@ function escapeHtml(value) {
 }
 
 function renderSummaryMarkup(item, options = {}) {
-  const ctaLabel = options.ctaLabel || (item.done ? 'Retake quiz â†’' : 'Continue to quiz â†’');
+  const ctaLabel = options.ctaLabel || (item.done ? 'Retake quiz →' : 'Continue to quiz →');
   const ctaHandler = options.ctaHandler || (item.done ? "window.location.href='upload.html'" : `window.location.href='${getResumeQuizUrl(item.id, 'quiz')}'`);
   const ctaHint = options.ctaHint || (item.done ? `${item.total} questions completed` : 'Summary ready to continue');
   const ctaBefore = options.ctaBefore || '';
@@ -60,7 +60,7 @@ function renderSummaryMarkup(item, options = {}) {
     </div>
     <div class="key-points">
       <div class="kp-label">Key takeaways</div>
-      ${item.summary.takeaways.map(point => `<div class="kp-item"><span class="kp-dash">â€”</span>${escapeHtml(point)}</div>`).join('')}
+      ${item.summary.takeaways.map(point => `<div class="kp-item"><span class="kp-dash">—</span>${escapeHtml(point)}</div>`).join('')}
     </div>
     <div class="quiz-cta">
       <div class="cta-hint">${ctaHint}</div>
@@ -69,7 +69,7 @@ function renderSummaryMarkup(item, options = {}) {
   `;
 }
 
-/* â”€â”€ Theme / accessibility engine â”€â”€ */
+/* ── Theme / accessibility engine ── */
 const THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
 const FONT_SIZES = ['default','large','xlarge'];
 
@@ -104,7 +104,7 @@ function getAvatarMarkup(size = 'default') {
   return `<img src="${LEARNOVA_USER.avatarUrl}" alt="${escapeHtml(LEARNOVA_USER.name)}" class="avatar-image avatar-image-${size}">`;
 }
 
-/* â”€â”€ Toast â”€â”€ */
+/* ── Toast ── */
 function showToast(msg, duration=2800) {
   let t = document.getElementById('toast');
   if (!t) {
@@ -224,7 +224,7 @@ function handleSidebarAccountAction(action) {
   if (action === 'signout') logoutUser();
 }
 
-/* â”€â”€ Settings modal â”€â”€ */
+/* ── Settings modal ── */
 function openSettings(tab='general') {
   const currentTab = tab === 'plan' ? 'plan' : 'accessibility';
   const saved_theme = localStorage.getItem('ln_theme') || 'dark';
@@ -272,11 +272,11 @@ function openSettings(tab='general') {
         </div>
       </div>
       <div class="plan-card plan-upgrade-card">
-        <div class="plan-price-title">Learnova Pro â€” $12/month</div>
+        <div class="plan-price-title">Learnova Pro — $12/month</div>
         <div class="plan-feature-list">
           ${planFeatures.map(item => `
             <div class="plan-feature-item">
-              <span class="plan-feature-dash">â€”</span>
+              <span class="plan-feature-dash">—</span>
               <span>${item}</span>
             </div>
           `).join('')}
@@ -297,7 +297,7 @@ function openSettings(tab='general') {
     <div class="modal-box">
       <div class="modal-header">
         <div class="modal-title">${title}</div>
-        <button class="modal-close" onclick="closeSettings()">âœ•</button>
+        <button class="modal-close" onclick="closeSettings()">✕</button>
       </div>
       <div class="settings-panel active">${panel}</div>
     </div>
@@ -345,7 +345,7 @@ function openEditProfile() {
     <div class="modal-box" style="width:560px;max-width:92vw">
       <div class="modal-header">
         <div class="modal-title">Edit profile</div>
-        <button class="modal-close" onclick="closeEditProfile()">âœ•</button>
+        <button class="modal-close" onclick="closeEditProfile()">✕</button>
       </div>
       <div class="profile-avatar-editor">
         <div class="avatar-circle profile-avatar-preview${LEARNOVA_USER.avatarUrl ? ' has-avatar' : ''}" id="s-avatar-preview" data-avatar-url="${escapeHtml(LEARNOVA_USER.avatarUrl)}">${getAvatarMarkup('large')}</div>
@@ -425,7 +425,7 @@ function saveProfile() {
       return;
     }
     LEARNOVA_USER.password = newPassword;
-    LEARNOVA_USER.passwordMask = 'â€¢'.repeat(Math.max(7, newPassword.length));
+    LEARNOVA_USER.passwordMask = '•'.repeat(Math.max(7, newPassword.length));
   }
   LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
   closeSettings();
@@ -441,7 +441,7 @@ function upgradeToPro() {
   window.location.href = 'billing.html';
 }
 
-/* â”€â”€ Profile modal â”€â”€ */
+/* ── Profile modal ── */
 function openProfile() {
   const isPro = LEARNOVA_USER.tier === 'pro';
   const html = `
@@ -449,7 +449,7 @@ function openProfile() {
     <div class="modal-box" style="width:580px;max-width:92vw">
       <div class="modal-header">
         <div class="modal-title">Profile</div>
-        <button class="modal-close" onclick="closeProfile()">âœ•</button>
+        <button class="modal-close" onclick="closeProfile()">✕</button>
       </div>
       <div style="display:flex;align-items:center;gap:18px;padding:20px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-md);margin-bottom:24px">
         <div class="avatar-circle${LEARNOVA_USER.avatarUrl ? ' has-avatar' : ''}" style="width:56px;height:56px;font-size:18px">${getAvatarMarkup('large')}</div>
@@ -492,7 +492,7 @@ function openProfile() {
 }
 function closeProfile() { const el=document.getElementById('profile-mount'); if(el)el.remove(); }
 
-/* â”€â”€ Sidebar HTML â”€â”€ */
+/* ── Sidebar HTML ── */
 function renderSidebar(activePage) {
   const isPro = LEARNOVA_USER.tier === 'pro';
   return `
@@ -612,7 +612,7 @@ function openHistoryDetail(id) {
       <div class="det-title-row">
         <div class="det-kicker">Quiz complete</div>
         <div class="det-title">Here's how you <em>performed.</em></div>
-        <div class="det-doc">${escapeHtml(item.title)} Â· ${item.total} questions</div>
+        <div class="det-doc">${escapeHtml(item.title)} · ${item.total} questions</div>
       </div>
       <div style="text-align:center;flex-shrink:0;margin-left:20px" class="result-step">
         <svg width="90" height="90" viewBox="0 0 110 110">
@@ -623,7 +623,7 @@ function openHistoryDetail(id) {
         </svg>
         <div style="font-size:11px;color:var(--cream-25);margin-top:4px">${item.correct} of ${item.total} correct</div>
       </div>
-      <button class="det-close" onclick="closeHistoryDetail()">âœ•</button>
+      <button class="det-close" onclick="closeHistoryDetail()">✕</button>
     </div>
     <div class="det-panels result-step">
       <div class="det-panel s"><div class="det-ph"><span class="det-dot" style="background:var(--green)"></span><span class="det-pt">Strengths</span></div><div class="tag-cloud">${item.strengths.map(s => `<span class="badge badge-green">${escapeHtml(s)}</span>`).join('')}</div></div>
@@ -634,15 +634,15 @@ function openHistoryDetail(id) {
     <div class="q-list result-step">
       ${item.questions.map(q => `
       <div class="q-item ${q.correct ? 'correct' : 'wrong'}">
-        <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? 'âœ“' : 'âœ—'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
-        <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;Â·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
+        <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
+        <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
       </div>`).join('')}
     </div>
     <div class="det-actions">
       <button class="btn" onclick="closeHistoryDetail()">Back</button>
       <button class="btn" onclick="window.LN.setModalSourceFromEvent(event);closeHistoryDetail();openHistorySplit(${item.id})">Summary + result</button>
       <a href="upload.html" class="btn">Retake quiz</a>
-      <a href="module.html" class="btn btn-gold">View learning module â†’</a>
+      <a href="module.html" class="btn btn-gold">View learning module →</a>
     </div>
   `;
   document.getElementById('detail-modal').classList.add('open');
@@ -674,11 +674,11 @@ function openHistorySplit(id) {
         <div class="det-kicker">Summary + results</div>
         <div class="det-doc">${escapeHtml(item.title)}</div>
       </div>
-      <button class="det-close" onclick="closeHistorySplit()">âœ•</button>
+      <button class="det-close" onclick="closeHistorySplit()">✕</button>
     </div>
     <div class="split-layout">
       <div class="split-panel split-summary">
-        ${renderSummaryMarkup(item, { ctaLabel: 'Retake quiz â†’', ctaBefore: 'window.LN.setModalSourceFromEvent(event);' })}
+        ${renderSummaryMarkup(item, { ctaLabel: 'Retake quiz →', ctaBefore: 'window.LN.setModalSourceFromEvent(event);' })}
       </div>
       <div class="split-panel split-results">
         <div style="text-align:center;margin-bottom:22px" class="result-step">
@@ -699,8 +699,8 @@ function openHistorySplit(id) {
         <div class="q-list result-step">
           ${item.questions.map(q => `
           <div class="q-item ${q.correct ? 'correct' : 'wrong'}">
-            <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? 'âœ“' : 'âœ—'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
-            <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;Â·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
+            <div class="q-row"><span class="q-mark ${q.correct ? 'c' : 'w'}">${q.correct ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>
+            <div class="q-ans">Your answer: ${escapeHtml(q.your)}${!q.correct ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(q.answer)}</span>` : ''}</div>
           </div>`).join('')}
         </div>
       </div>

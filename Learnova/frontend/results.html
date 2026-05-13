@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova â€” Quiz Results</title>
+  <title>Learnova — Quiz Results</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -15,7 +15,7 @@
       <div style="max-width:420px">
         <div class="rh-tag">Quiz complete</div>
         <div class="rh-title">Here's how you <em>performed.</em></div>
-        <div class="rh-doc" id="result-doc-title">Loadingâ€¦</div>
+        <div class="rh-doc" id="result-doc-title">Loading…</div>
       </div>
       <div class="score-wrap">
         <svg width="110" height="110" viewBox="0 0 110 110">
@@ -27,9 +27,9 @@
             transform="rotate(-90 55 55)"
             id="score-ring-circle" style="stroke-dashoffset:251.2"/>
           <text x="55" y="55" text-anchor="middle" dominant-baseline="central"
-            font-family="DM Serif Display,serif" font-size="24" fill="#F0EDE8" id="score-ring-text">â€”</text>
+            font-family="DM Serif Display,serif" font-size="24" fill="#F0EDE8" id="score-ring-text">—</text>
         </svg>
-        <div class="ring-label" id="score-ring-label">â€” of â€” correct</div>
+        <div class="ring-label" id="score-ring-label">— of — correct</div>
       </div>
     </div>
 
@@ -43,7 +43,7 @@
     <div class="bottom-actions fade-up fade-up-3">
       <a href="dashboard.html" class="btn">Back to dashboard</a>
       <button class="btn" id="btn-retake">Retake quiz</button>
-      <a href="module.html" class="btn btn-gold" id="btn-module">View learning module â†’</a>
+      <a href="module.html" class="btn btn-gold" id="btn-module">View learning module →</a>
     </div>
 
   </main>
@@ -52,7 +52,7 @@
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
 <script>
-// Auth guard â€” redirect to login if no token
+// Auth guard — redirect to login if no token
 (function() {
   const token = localStorage.getItem('token');
   if (!token) { window.location.replace('index.html'); }
@@ -77,7 +77,7 @@ async function loadResults() {
     const correct = data.correct || 0;
     const total = data.total || quizFull.length;
 
-    document.getElementById('result-doc-title').textContent = (data.title || '') + ' Â· ' + total + ' questions';
+    document.getElementById('result-doc-title').textContent = (data.title || '') + ' · ' + total + ' questions';
     document.getElementById('score-ring-text').textContent = (data.score || 0) + '%';
     document.getElementById('score-ring-label').textContent = correct + ' of ' + total + ' correct';
 
@@ -101,8 +101,8 @@ async function loadResults() {
       const yourAnswer = chosen !== undefined ? (q.opts[chosen] || 'No answer') : 'No answer';
       const correctAnswer = q.opts[q.correct] || '';
       return `<div class="q-item ${isCorrect ? 'correct' : 'wrong'}">` +
-        `<div class="q-row"><span class="q-mark ${isCorrect ? 'c' : 'w'}">${isCorrect ? 'âœ“' : 'âœ—'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>` +
-        `<div class="q-ans">Your answer: ${escapeHtml(yourAnswer)}${!isCorrect && correctAnswer ? ` &nbsp;Â·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(correctAnswer)}</span>` : ''}</div>` +
+        `<div class="q-row"><span class="q-mark ${isCorrect ? 'c' : 'w'}">${isCorrect ? '✓' : '✗'}</span><span class="q-text">${escapeHtml(q.q)}</span></div>` +
+        `<div class="q-ans">Your answer: ${escapeHtml(yourAnswer)}${!isCorrect && correctAnswer ? ` &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ${escapeHtml(correctAnswer)}</span>` : ''}</div>` +
       `</div>`;
     }).join('');
 
@@ -124,7 +124,7 @@ async function loadResults() {
 function showResultsError(msg) {
   document.querySelector('main.main-content').innerHTML =
     '<div style="padding:60px 40px;color:var(--cream-25);font-size:14px">' + (msg || 'Result not found') +
-    ' â€” <a href="upload.html" style="color:var(--gold)">Take a new quiz â†’</a></div>';
+    ' — <a href="upload.html" style="color:var(--gold)">Take a new quiz →</a></div>';
 }
 
 loadResults();

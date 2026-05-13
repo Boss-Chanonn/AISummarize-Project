@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Learnova â€” Admin Â· User Management</title>
+<title>Learnova — Admin · User Management</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 <script src="js/admin-sidebar.js"></script>
@@ -33,23 +33,23 @@
     <div class="stats-row">
       <div class="stat-card">
         <div class="stat-label">Total Users</div>
-        <div class="stat-value" id="statTotal">â€”</div>
-        <div class="stat-sub" id="statTotalSub">Loadingâ€¦</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub" id="statTotalSub">Loading…</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Pro Users</div>
-        <div class="stat-value" id="statPro">â€”</div>
-        <div class="stat-sub" id="statProSub"><span class="stat-dot dot-gold"></span>â€”</div>
+        <div class="stat-value" id="statPro">—</div>
+        <div class="stat-sub" id="statProSub"><span class="stat-dot dot-gold"></span>—</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Free Users</div>
-        <div class="stat-value" id="statFree">â€”</div>
-        <div class="stat-sub" id="statFreeSub"><span class="stat-dot dot-green"></span>â€”</div>
+        <div class="stat-value" id="statFree">—</div>
+        <div class="stat-sub" id="statFreeSub"><span class="stat-dot dot-green"></span>—</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Admins</div>
-        <div class="stat-value" id="statAdmins">â€”</div>
-        <div class="stat-sub" id="statAdminsSub"><span class="stat-dot dot-gold"></span>â€”</div>
+        <div class="stat-value" id="statAdmins">—</div>
+        <div class="stat-sub" id="statAdminsSub"><span class="stat-dot dot-gold"></span>—</div>
       </div>
     </div>
 
@@ -73,7 +73,7 @@
       <div class="filter-bar">
         <div class="search-wrap">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-          <input class="search-input" type="text" placeholder="Search by name or emailâ€¦" id="searchInput" oninput="applyFilters()">
+          <input class="search-input" type="text" placeholder="Search by name or email…" id="searchInput" oninput="applyFilters()">
         </div>
         <select class="filter-select" id="roleFilter" onchange="applyFilters()">
           <option value="">All Roles</option>
@@ -86,7 +86,7 @@
           <option value="free">Free</option>
           <option value="pro">Pro</option>
         </select>
-        <span class="filter-count" id="filterCount">Loadingâ€¦</span>
+        <span class="filter-count" id="filterCount">Loading…</span>
       </div>
 
       <!-- Table -->
@@ -123,7 +123,7 @@
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr class="loading-row"><td colspan="7">Loading usersâ€¦</td></tr>
+            <tr class="loading-row"><td colspan="7">Loading users…</td></tr>
           </tbody>
         </table>
         <div class="pagination">
@@ -143,8 +143,8 @@
     <div class="udm-header">
       <div class="udm-avatar" id="modalUserInitials">?</div>
       <div class="udm-header-info">
-        <div class="udm-name" id="modalUserName">â€”</div>
-        <div class="udm-email" id="modalUserEmail">â€”</div>
+        <div class="udm-name" id="modalUserName">—</div>
+        <div class="udm-email" id="modalUserEmail">—</div>
       </div>
       <button class="udm-close" onclick="closeUserModal()" title="Close">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -166,25 +166,25 @@
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Full Name</div>
-              <div class="udm-field-value" id="vName">â€”</div>
+              <div class="udm-field-value" id="vName">—</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Email</div>
-              <div class="udm-field-value" id="vEmail">â€”</div>
+              <div class="udm-field-value" id="vEmail">—</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Phone</div>
-              <div class="udm-field-value" id="vPhone">â€”</div>
+              <div class="udm-field-value" id="vPhone">—</div>
             </div>
           </div>
           <div class="udm-field-row">
             <div class="udm-field-left">
               <div class="udm-field-label">Date of Birth</div>
-              <div class="udm-field-value" id="vDob">â€”</div>
+              <div class="udm-field-value" id="vDob">—</div>
             </div>
           </div>
           <div style="display:flex;justify-content:center;margin-top:16px">
@@ -231,14 +231,14 @@
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Role</span>
               <div class="udm-account-value">
-                <span id="accBadgeRole">â€”</span>
+                <span id="accBadgeRole">—</span>
                 <div id="accEditRole" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelRole">
                     <option value="user">user</option>
                     <option value="admin">admin</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('role')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('role')" title="Cancel">Ã—</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('role')" title="Cancel">×</button>
                 </div>
               </div>
             </div>
@@ -254,14 +254,14 @@
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Tier</span>
               <div class="udm-account-value">
-                <span id="accBadgeTier">â€”</span>
+                <span id="accBadgeTier">—</span>
                 <div id="accEditTier" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelTier">
                     <option value="free">free</option>
                     <option value="pro">pro</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('tier')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('tier')" title="Cancel">Ã—</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('tier')" title="Cancel">×</button>
                 </div>
               </div>
             </div>
@@ -277,14 +277,14 @@
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Status</span>
               <div class="udm-account-value">
-                <span id="accBadgeStatus">â€”</span>
+                <span id="accBadgeStatus">—</span>
                 <div id="accEditStatus" style="display:none;align-items:center;gap:6px">
                   <select class="udm-inline-select" id="accSelStatus">
                     <option value="active">active</option>
                     <option value="inactive">inactive</option>
                   </select>
                   <button class="udm-inline-save" onclick="saveAccountField('status')">Save</button>
-                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('status')" title="Cancel">Ã—</button>
+                  <button class="udm-inline-cancel" onclick="cancelAccountEdit('status')" title="Cancel">×</button>
                 </div>
               </div>
             </div>
@@ -299,7 +299,7 @@
           <div class="udm-account-left">
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Member Since</span>
-              <span id="accJoined" style="font-size:13px;color:var(--cream-60);font-weight:400">â€”</span>
+              <span id="accJoined" style="font-size:13px;color:var(--cream-60);font-weight:400">—</span>
             </div>
           </div>
         </div>
@@ -333,7 +333,7 @@
     <div id="bulkInfoWrap"></div>
     <div id="modalExtraWrap"></div>
     <div class="modal-label" id="modalInputLabel">Type username to confirm</div>
-    <input class="modal-input" id="confirmInput" placeholder="Enter usernameâ€¦" oninput="checkConfirm()">
+    <input class="modal-input" id="confirmInput" placeholder="Enter username…" oninput="checkConfirm()">
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
       <button class="btn btn-danger" id="confirmBtn" disabled onclick="executeAction()">Confirm</button>
@@ -351,7 +351,7 @@
 
 <script>
 
-/* â”€â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── State ──────────────────────────────────────────────────────────────────── */
 let ALL_USERS = [];
 let filteredUsers = [];
 let selectedIds = new Set();
@@ -364,7 +364,7 @@ let currentPage = 1;
 const PAGE_SIZE = 20;
 let totalUsers = 0;
 
-/* â”€â”€ Fetch users from API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Fetch users from API ───────────────────────────────────────────────────── */
 async function fetchUsers(page = 1) {
   try {
     const res = await fetch(`/api/admin/users?page=${page}&limit=${PAGE_SIZE}`, { headers: AUTH });
@@ -376,7 +376,7 @@ async function fetchUsers(page = 1) {
     ALL_USERS = (data.users || []).map(u => ({
       ...u,
       initials: (u.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?',
-      joinedLabel: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'â€”',
+      joinedLabel: u.createdAt ? new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—',
       joined: u.createdAt || '',
     }));
     totalUsers = data.total || ALL_USERS.length;
@@ -385,11 +385,11 @@ async function fetchUsers(page = 1) {
     renderStats();
     renderPagination();
   } catch (e) {
-    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users â€” check your connection</td></tr>';
+    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
   }
 }
 
-/* â”€â”€ Fetch admin dashboard stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Fetch admin dashboard stats ────────────────────────────────────────────── */
 async function fetchStats() {
   try {
     const res = await fetch('/api/admin/dashboard', { headers: AUTH });
@@ -412,7 +412,7 @@ function renderStats() {
   document.getElementById('statAdminsSub').innerHTML = `<span class="stat-dot dot-gold"></span>privileged accounts`;
 }
 
-/* â”€â”€ Filters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Filters ────────────────────────────────────────────────────────────────── */
 function applyFilters() {
   const search = document.getElementById('searchInput').value.toLowerCase();
   const role = document.getElementById('roleFilter').value;
@@ -432,7 +432,7 @@ function applyFilters() {
   clearSelection();
 }
 
-/* â”€â”€ Sort â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Sort ───────────────────────────────────────────────────────────────────── */
 function sortBy(col) {
   document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
   if (sortCol === col) {
@@ -461,7 +461,7 @@ function applySort() {
   renderTable();
 }
 
-/* â”€â”€ Render table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Render table ───────────────────────────────────────────────────────────── */
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   if (!filteredUsers.length) {
@@ -481,14 +481,14 @@ function renderTable() {
         <div class="user-cell">
           <div class="user-av">${u.initials}</div>
           <div>
-            <div class="user-name">${escHtml(u.name || 'â€”')}</div>
-            <div class="user-email">${escHtml(u.email || 'â€”')}</div>
+            <div class="user-name">${escHtml(u.name || '—')}</div>
+            <div class="user-email">${escHtml(u.email || '—')}</div>
           </div>
         </div>
       </td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
       <td><span class="badge badge-${u.tier}">${u.tier}</span></td>
-      <td style="color:var(--cream-60)">${u.files ?? 'â€”'}</td>
+      <td style="color:var(--cream-60)">${u.files ?? '—'}</td>
       <td style="color:var(--cream-40);font-size:12px">${u.joinedLabel}</td>
       <td onclick="event.stopPropagation()">
         <div class="actions-cell">
@@ -511,7 +511,7 @@ function renderTable() {
   updateSelectAll();
 }
 
-/* â”€â”€ Pagination â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Pagination ─────────────────────────────────────────────────────────────── */
 function renderPagination() {
   const totalPages = Math.ceil(totalUsers / PAGE_SIZE);
   document.getElementById('pageInfo').textContent = `Page ${currentPage} of ${totalPages}`;
@@ -520,7 +520,7 @@ function renderPagination() {
 
   const prev = document.createElement('button');
   prev.className = 'page-btn';
-  prev.textContent = 'â€¹';
+  prev.textContent = '‹';
   prev.disabled = currentPage <= 1;
   prev.onclick = () => { if (currentPage > 1) { currentPage--; fetchUsers(currentPage); } };
   container.appendChild(prev);
@@ -538,13 +538,13 @@ function renderPagination() {
 
   const next = document.createElement('button');
   next.className = 'page-btn';
-  next.textContent = 'â€º';
+  next.textContent = '›';
   next.disabled = currentPage >= totalPages;
   next.onclick = () => { if (currentPage < totalPages) { currentPage++; fetchUsers(currentPage); } };
   container.appendChild(next);
 }
 
-/* â”€â”€ Selection â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Selection ──────────────────────────────────────────────────────────────── */
 function toggleRow(cb, id) {
   if (cb.checked) selectedIds.add(id);
   else selectedIds.delete(id);
@@ -581,7 +581,7 @@ function clearSelection() {
   renderTable();
 }
 
-/* â”€â”€ Modal config â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Modal config ───────────────────────────────────────────────────────────── */
 const MODAL_CFG = {
   delete: { title: 'Delete User', icon: 'red', btnText: 'Delete', btn: 'btn-danger' },
   role:   { title: 'Change Role', icon: 'gold', btnText: 'Update Role', btn: 'btn-outline' },
@@ -669,7 +669,7 @@ function closeModal() {
   document.getElementById('confirmOverlay').classList.remove('open');
 }
 
-/* â”€â”€ Execute API actions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Execute API actions ─────────────────────────────────────────────────────── */
 async function executeAction() {
   closeModal();
 
@@ -753,7 +753,7 @@ async function executeAction() {
   }
 }
 
-/* â”€â”€ CSV Export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── CSV Export ─────────────────────────────────────────────────────────────── */
 function exportCSV() {
   const rows = [['Name', 'Email', 'Role', 'Tier', 'Joined']];
   ALL_USERS.forEach(u => rows.push([u.name, u.email, u.role, u.tier, u.joinedLabel]));
@@ -765,7 +765,7 @@ function exportCSV() {
   showToast('CSV exported', 'success');
 }
 
-/* â”€â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Toast ──────────────────────────────────────────────────────────────────── */
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;
@@ -775,7 +775,7 @@ function showToast(msg, type) {
   toast._t = setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-/* â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Helpers ────────────────────────────────────────────────────────────────── */
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
@@ -783,10 +783,10 @@ function escAttr(s) {
   return String(s).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
 }
 
-/* â”€â”€ User Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── User Detail Modal ──────────────────────────────────────────────────────── */
 
 function formatDateDisplay(dateStr) {
-  if (!dateStr) return 'â€”';
+  if (!dateStr) return '—';
   const parts = dateStr.split('-');
   if (parts.length !== 3) return dateStr;
   return `${parts[2]}/${parts[1]}/${parts[0]}`;
@@ -808,24 +808,24 @@ function openUserModal(userId) {
 
   // Header
   document.getElementById('modalUserInitials').textContent = user.initials || '?';
-  document.getElementById('modalUserName').textContent     = user.name  || 'â€”';
-  document.getElementById('modalUserEmail').textContent    = user.email || 'â€”';
+  document.getElementById('modalUserName').textContent     = user.name  || '—';
+  document.getElementById('modalUserEmail').textContent    = user.email || '—';
 
-  // Tab 1 â€” view mode
-  document.getElementById('vName').textContent  = user.name  || 'â€”';
-  document.getElementById('vEmail').textContent = user.email || 'â€”';
-  document.getElementById('vPhone').textContent = user.phone || 'â€”';
+  // Tab 1 — view mode
+  document.getElementById('vName').textContent  = user.name  || '—';
+  document.getElementById('vEmail').textContent = user.email || '—';
+  document.getElementById('vPhone').textContent = user.phone || '—';
   document.getElementById('vDob').textContent   = formatDateDisplay(user.dob || '');
 
   // Reset to view mode
   cancelProfileEdit();
 
-  // Tab 2 â€” account
+  // Tab 2 — account
   const status = user.status || 'active';
-  document.getElementById('accBadgeRole').innerHTML   = `<span class="badge badge-${user.role}">${escHtml(user.role || 'â€”')}</span>`;
-  document.getElementById('accBadgeTier').innerHTML   = `<span class="badge badge-${user.tier}">${escHtml(user.tier || 'â€”')}</span>`;
+  document.getElementById('accBadgeRole').innerHTML   = `<span class="badge badge-${user.role}">${escHtml(user.role || '—')}</span>`;
+  document.getElementById('accBadgeTier').innerHTML   = `<span class="badge badge-${user.tier}">${escHtml(user.tier || '—')}</span>`;
   document.getElementById('accBadgeStatus').innerHTML = `<span class="badge badge-${status}">${escHtml(status)}</span>`;
-  document.getElementById('accJoined').textContent    = user.joinedLabel || 'â€”';
+  document.getElementById('accJoined').textContent    = user.joinedLabel || '—';
 
   // Reset any open account edits
   ['role','tier','status'].forEach(f => cancelAccountEdit(f));
@@ -840,7 +840,7 @@ function closeUserModal() {
   document.getElementById('userDetailOverlay').classList.remove('open');
 }
 
-/* â”€â”€ Tab 1: Profile edit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tab 1: Profile edit ────────────────────────────────────────────────────── */
 function startProfileEdit() {
   const user = window._modalUser;
   if (!user) return;
@@ -869,7 +869,7 @@ async function saveProfile() {
   };
   const body = Object.fromEntries(Object.entries(raw).filter(([,v]) => v !== undefined));
 
-  btn.textContent = 'Savingâ€¦';
+  btn.textContent = 'Saving…';
   btn.disabled = true;
   errEl.style.display = 'none';
 
@@ -891,16 +891,16 @@ async function saveProfile() {
     applyFilters();
     const updated = { ...window._modalUser, ...body };
     window._modalUser = updated;
-    document.getElementById('modalUserName').textContent  = updated.name  || 'â€”';
-    document.getElementById('modalUserEmail').textContent = updated.email || 'â€”';
-    document.getElementById('vName').textContent  = updated.name  || 'â€”';
-    document.getElementById('vEmail').textContent = updated.email || 'â€”';
-    document.getElementById('vPhone').textContent = updated.phone || 'â€”';
+    document.getElementById('modalUserName').textContent  = updated.name  || '—';
+    document.getElementById('modalUserEmail').textContent = updated.email || '—';
+    document.getElementById('vName').textContent  = updated.name  || '—';
+    document.getElementById('vEmail').textContent = updated.email || '—';
+    document.getElementById('vPhone').textContent = updated.phone || '—';
     document.getElementById('vDob').textContent   = formatDateDisplay(updated.dob || '');
     cancelProfileEdit();
     showToast('Profile updated', 'success');
   } catch (_) {
-    errEl.textContent = 'Network error â€” try again';
+    errEl.textContent = 'Network error — try again';
     errEl.style.display = 'block';
   } finally {
     btn.textContent = 'Save Changes';
@@ -908,7 +908,7 @@ async function saveProfile() {
   }
 }
 
-/* â”€â”€ Tab 2: Account field edit â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Tab 2: Account field edit ──────────────────────────────────────────────── */
 const _ACC_FIELDS = ['role','tier','status'];
 
 function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -943,7 +943,7 @@ async function saveAccountField(field) {
   const errEl   = document.getElementById(`accErr${cap(field)}`);
   const newVal  = document.getElementById(`accSel${cap(field)}`).value;
   const origText = saveBtn.textContent;
-  saveBtn.textContent = 'â€¦';
+  saveBtn.textContent = '…';
   saveBtn.disabled = true;
   errEl.style.display = 'none';
   try {
@@ -975,11 +975,11 @@ async function saveAccountField(field) {
   }
 }
 
-/* â”€â”€ Reset password â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Reset password ─────────────────────────────────────────────────────────── */
 async function doResetPassword() {
   const btn = document.getElementById('udmResetPwBtn');
   const origHTML = btn.innerHTML;
-  btn.innerHTML = '<span style="color:var(--cream-40)">Resettingâ€¦</span>';
+  btn.innerHTML = '<span style="color:var(--cream-40)">Resetting…</span>';
   btn.disabled = true;
   try {
     const res = await fetch(`/api/admin/user/${window._modalUserId}/reset-password`, {
@@ -1000,12 +1000,12 @@ async function doResetPassword() {
   }
 }
 
-// Legacy wrappers â€” keep existing row action buttons working
+// Legacy wrappers — keep existing row action buttons working
 function modalChangeRole() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('role', u._id, u.name); }
 function modalChangeTier() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('tier', u._id, u.name); }
 function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('delete', u._id, u.name); }
 
-/* â”€â”€ Close modal on overlay click â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Close modal on overlay click ──────────────────────────────────────────── */
 document.getElementById('confirmOverlay').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
@@ -1019,7 +1019,7 @@ document.addEventListener('keydown', function(e) {
   }
 });
 
-/* â”€â”€ Init â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Init ───────────────────────────────────────────────────────────────────── */
 fetchStats();
 fetchUsers(1);
 </script>

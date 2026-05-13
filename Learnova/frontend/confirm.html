@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Learnova â€” Confirm Order</title>
+  <title>Learnova — Confirm Order</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -19,36 +19,36 @@
     </div>
 
     <div class="confirm-shell fade-up fade-up-1 reveal reveal-delay-1">
-      <a href="payment.html" class="back-link">â† Back to payment</a>
+      <a href="payment.html" class="back-link">← Back to payment</a>
 
       <div class="confirm-summary-box">
         <div class="confirm-summary-title">Order Summary</div>
         <div class="confirm-row">
           <span class="confirm-row-label">Plan</span>
-          <span class="confirm-row-value gold" id="summary-plan">â€”</span>
+          <span class="confirm-row-value gold" id="summary-plan">—</span>
         </div>
         <div class="confirm-row">
           <span class="confirm-row-label">Card</span>
-          <span class="confirm-row-value" id="summary-card">â€”</span>
+          <span class="confirm-row-value" id="summary-card">—</span>
         </div>
         <div class="confirm-row">
           <span class="confirm-row-label">Name</span>
-          <span class="confirm-row-value" id="summary-name">â€”</span>
+          <span class="confirm-row-value" id="summary-name">—</span>
         </div>
         <div class="confirm-total-row">
           <span class="confirm-total-label">Total due today</span>
-          <span class="confirm-total-amount" id="summary-amount">â€”</span>
+          <span class="confirm-total-amount" id="summary-amount">—</span>
         </div>
       </div>
 
       <div class="confirm-buttons">
-        <a href="payment.html" class="btn" style="text-decoration:none;display:flex;align-items:center;">â† Back</a>
+        <a href="payment.html" class="btn" style="text-decoration:none;display:flex;align-items:center;">← Back</a>
         <button class="btn btn-primary" id="btn-confirm" onclick="submitPayment()">
           Confirm &amp; Pay
         </button>
       </div>
       <div class="confirm-error" id="confirm-error">Payment failed. Please try again.</div>
-      <div class="lock-note">ðŸ”’ Mock payment â€” no real charges will be made</div>
+      <div class="lock-note">🔒 Mock payment — no real charges will be made</div>
     </div>
 
   </main>
@@ -82,11 +82,11 @@
     const period   = isYearly ? '/year' : '/month';
 
     document.getElementById('summary-plan').textContent =
-      'Learnova Pro âœ¨ â€” ' + (isYearly ? 'Yearly' : 'Monthly');
+      'Learnova Pro ✨ — ' + (isYearly ? 'Yearly' : 'Monthly');
     document.getElementById('summary-card').textContent =
-      'â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ â€¢â€¢â€¢â€¢ ' + (paymentData.card_last4 || '????');
+      '•••• •••• •••• ' + (paymentData.card_last4 || '????');
     document.getElementById('summary-name').textContent =
-      paymentData.card_name || 'â€”';
+      paymentData.card_name || '—';
     document.getElementById('summary-amount').textContent = amount + period;
   })();
 
