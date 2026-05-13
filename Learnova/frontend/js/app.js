@@ -105,15 +105,47 @@ function getAvatarMarkup(size = 'default') {
 }
 
 /* ── Toast ── */
-function showToast(msg, duration=2800) {
+function showToast(msg, typeOrDuration, maybeDuration) {
+  let type = '';
+  let duration = 2800;
+
+  if (typeof typeOrDuration === 'string') {
+    type = typeOrDuration.toLowerCase();
+    if (typeof maybeDuration === 'number') duration = maybeDuration;
+  } else if (typeof typeOrDuration === 'number') {
+    duration = typeOrDuration;
+  }
+
+  if (!type) {
+    const low = String(msg || '').toLowerCase();
+    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing)/.test(low)
+      ? 'error'
+      : 'success';
+  }
+  if (type !== 'success') type = 'error';
+
   let t = document.getElementById('toast');
   if (!t) {
-    t = document.createElement('div'); t.id='toast'; t.className='toast';
-    t.innerHTML='<div class="toast-dot"></div><span id="toast-msg"></span>';
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.className = 'toast';
     document.body.appendChild(t);
   }
-  document.getElementById('toast-msg').textContent = msg;
-  t.classList.add('show'); clearTimeout(t._timer);
+
+  let icon = t.querySelector('.toast-icon');
+  let msgEl = t.querySelector('#toast-msg');
+  if (!icon || !msgEl) {
+    t.innerHTML = '<div class="toast-icon" aria-hidden="true">&#10003;</div><span id="toast-msg"></span>';
+    icon = t.querySelector('.toast-icon');
+    msgEl = t.querySelector('#toast-msg');
+  }
+
+  icon.className = 'toast-icon ' + type;
+  icon.innerHTML = type === 'success' ? '&#10003;' : '&#10005;';
+  msgEl.textContent = msg;
+
+  t.classList.add('show');
+  clearTimeout(t._timer);
   t._timer = setTimeout(() => t.classList.remove('show'), duration);
 }
 

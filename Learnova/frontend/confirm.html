@@ -134,14 +134,12 @@
       } else {
         btn.disabled    = false;
         btn.textContent = 'Confirm & Pay';
-        errEl.textContent = result.detail || 'Payment failed. Please try again.';
-        errEl.classList.add('show');
+        showToast(result.detail || 'Payment could not be completed.', 'error');
       }
     } catch (e) {
       btn.disabled    = false;
       btn.textContent = 'Confirm & Pay';
-      errEl.textContent = 'Network error. Please check your connection and try again.';
-      errEl.classList.add('show');
+      showToast('Network error. Please check your connection and try again.', 'error');
     }
   }
 </script>
