@@ -77,6 +77,46 @@ function _adminCloseAccountMenu() {
   if (bottom) bottom.classList.remove('open');
 }
 
+function _adminEscapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function _adminGetInitials(name) {
+  return String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(function (part) { return part[0].toUpperCase(); })
+    .join('') || 'A';
+}
+
+function _adminGetAvatarMarkup(size) {
+  var safeSize = size || 'large';
+  if (!_stored || !_stored.avatarUrl) return _adminEscapeHtml(_adminGetInitials((_stored && _stored.name) || 'Admin'));
+  return '<img src="' + _adminEscapeHtml(_stored.avatarUrl) + '" alt="' + _adminEscapeHtml((_stored && _stored.name) || 'Admin') + '" class="avatar-image avatar-image-' + safeSize + '">';
+}
+
+function _adminShowToast(msg) {
+  if (typeof showToast === 'function') {
+    showToast(msg, 'success');
+    return;
+  }
+  var toast = document.getElementById('toast');
+  var toastMsg = document.getElementById('toastMsg');
+  if (toast && toastMsg) {
+    toastMsg.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toast._timer);
+    toast._timer = setTimeout(function() { toast.classList.remove('show'); }, 2800);
+  }
+}
+
 function _adminToggleAccountMenu(event) {
   if (event) event.stopPropagation();
   var existing = document.getElementById('admin-account-mount');
@@ -87,7 +127,8 @@ function _adminToggleAccountMenu(event) {
 
   var name  = (_stored && _stored.name)  || 'Admin';
   var email = (_stored && _stored.email) || '';
-  var role  = (_stored && _stored.role === 'system_admin') ? 'System Admin' : 'Admin';
+  var isPro = (_stored && _stored.tier) === 'pro';
+  var tierLabel = isPro ? 'Pro' : 'Free';
   var initials = name.split(' ').map(function(w){ return w[0]; }).join('').toUpperCase().slice(0,2) || '?';
 
   var mount = document.createElement('div');
@@ -97,12 +138,16 @@ function _adminToggleAccountMenu(event) {
     +   '<div class="sidebar-account-card">'
     +     '<div class="avatar-circle sidebar-account-large" style="background:rgba(200,184,154,0.15);color:var(--gold);font-size:16px;font-weight:500">' + initials + '</div>'
     +     '<div style="min-width:0">'
-    +       '<div class="sidebar-menu-name">' + name + '</div>'
-    +       '<div class="sidebar-menu-email">' + email + '</div>'
-    +       '<div style="font-size:11px;letter-spacing:0.5px;text-transform:uppercase;color:var(--gold);margin-top:6px">' + role + '</div>'
+    +       '<div class="sidebar-menu-name">' + _adminEscapeHtml(name) + '</div>'
+    +       '<div class="sidebar-menu-email">' + _adminEscapeHtml(email) + '</div>'
     +     '</div>'
+    +     '<div class="tier-badge ' + (isPro ? 'tier-pro' : 'tier-free') + '" style="margin-top:0;margin-left:auto">' + tierLabel + '</div>'
     +   '</div>'
     +   '<div class="sidebar-account-actions">'
+    +     '<button class="sidebar-account-item" type="button" onclick="_adminCloseAccountMenu();_adminOpenEditProfile()">'
+    +       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11.5 2.5a1.4 1.4 0 012 2L7 11l-2.5.5L5 9l6.5-6.5z"/><path d="M2.5 13.5h11"/></svg>'
+    +       '<span>Edit profile</span>'
+    +     '</button>'
     +     '<button class="sidebar-account-item" type="button" onclick="_adminCloseAccountMenu();_adminOpenAccessibility()">'
     +       '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5V8l2.2 1.7"/></svg>'
     +       '<span>Accessibility settings</span>'
@@ -118,6 +163,173 @@ function _adminToggleAccountMenu(event) {
   document.body.appendChild(mount);
   bottom.classList.add('open');
   trigger.setAttribute('aria-expanded', 'true');
+}
+
+function _adminOpenEditProfile() {
+  var isPro = (_stored && _stored.tier) === 'pro';
+  var currentName = (_stored && _stored.name) || '';
+  var currentEmail = (_stored && _stored.email) || '';
+  var pendingEmail = (_stored && _stored.pendingEmail) || '';
+  var pendingEmailNotice = pendingEmail
+    ? '<div class="profile-note">Pending email verification for ' + _adminEscapeHtml(pendingEmail) + '.</div>'
+    : '<div class="profile-note">Email changes stay pending until the new address is verified.</div>';
+
+  var html = '<div class="modal-overlay open" id="admin-edit-profile-overlay" onclick="if(event.target===this)_adminCloseEditProfile()">'
+    + '<div class="modal-box" style="width:560px;max-width:92vw">'
+    +   '<div class="modal-header">'
+    +     '<div class="modal-title">Edit profile</div>'
+    +     '<button class="modal-close" onclick="_adminCloseEditProfile()">✕</button>'
+    +   '</div>'
+    +   '<div class="sidebar-account-card" style="margin-bottom:18px">'
+    +     '<div class="avatar-circle sidebar-account-large' + ((_stored && _stored.avatarUrl) ? ' has-avatar' : '') + '">' + _adminGetAvatarMarkup('large') + '</div>'
+    +     '<div style="min-width:0">'
+    +       '<div class="sidebar-menu-name">' + _adminEscapeHtml(currentName || 'Admin') + '</div>'
+    +       '<div class="sidebar-menu-email">' + _adminEscapeHtml(currentEmail || '') + '</div>'
+    +     '</div>'
+    +     '<div class="tier-badge ' + (isPro ? 'tier-pro' : 'tier-free') + '" style="margin-top:0;margin-left:auto">' + (isPro ? 'Pro' : 'Free') + '</div>'
+    +   '</div>'
+    +   '<div class="form-field">'
+    +     '<label class="field-label" for="admin-edit-name">Full name</label>'
+    +     '<input class="input" id="admin-edit-name" type="text" value="' + _adminEscapeHtml(currentName) + '">'
+    +   '</div>'
+    +   '<div class="form-field">'
+    +     '<label class="field-label" for="admin-edit-email">Email</label>'
+    +     '<input class="input" id="admin-edit-email" type="email" value="' + _adminEscapeHtml(currentEmail) + '">'
+    +     pendingEmailNotice
+    +   '</div>'
+    +   '<div class="profile-password-grid">'
+    +     '<div class="form-field">'
+    +       '<label class="field-label" for="admin-current-password">Current password</label>'
+    +       '<input class="input" id="admin-current-password" type="password" placeholder="Enter current password">'
+    +     '</div>'
+    +     '<div class="form-field">'
+    +       '<label class="field-label" for="admin-new-password">New password</label>'
+    +       '<input class="input" id="admin-new-password" type="password" placeholder="At least 8 characters">'
+    +     '</div>'
+    +     '<div class="form-field">'
+    +       '<label class="field-label" for="admin-confirm-password">Confirm new password</label>'
+    +       '<input class="input" id="admin-confirm-password" type="password" placeholder="Re-enter new password">'
+    +     '</div>'
+    +   '</div>'
+    +   '<div id="admin-edit-error" style="display:none;color:var(--red-soft);font-size:12px;margin:6px 0 14px"></div>'
+    +   '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px">'
+    +     '<button class="btn" type="button" onclick="_adminCloseEditProfile()">Cancel</button>'
+    +     '<button class="btn btn-primary" id="admin-edit-save" type="button" onclick="_adminSaveProfile()">Save changes</button>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
+
+  var el = document.createElement('div');
+  el.id = 'admin-edit-profile-mount';
+  el.innerHTML = html;
+  document.body.appendChild(el);
+}
+
+function _adminCloseEditProfile() {
+  var el = document.getElementById('admin-edit-profile-mount');
+  if (el) el.remove();
+}
+
+async function _adminSaveProfile() {
+  var nameInput = document.getElementById('admin-edit-name');
+  var emailInput = document.getElementById('admin-edit-email');
+  var currentPasswordInput = document.getElementById('admin-current-password');
+  var newPasswordInput = document.getElementById('admin-new-password');
+  var confirmPasswordInput = document.getElementById('admin-confirm-password');
+  var errorEl = document.getElementById('admin-edit-error');
+  var saveBtn = document.getElementById('admin-edit-save');
+  if (!nameInput || !emailInput || !currentPasswordInput || !newPasswordInput || !confirmPasswordInput || !errorEl || !saveBtn) return;
+
+  var name = (nameInput.value || '').trim();
+  var email = (emailInput.value || '').trim();
+  var currentPassword = currentPasswordInput.value || '';
+  var newPassword = newPasswordInput.value || '';
+  var confirmPassword = confirmPasswordInput.value || '';
+  var emailChanged = Boolean(email && _stored && email !== _stored.email);
+  var wantsPasswordChange = Boolean(currentPassword || newPassword || confirmPassword);
+
+  if (!name || !email) {
+    errorEl.textContent = 'Please fill in both name and email.';
+    errorEl.style.display = 'block';
+    return;
+  }
+
+  if (wantsPasswordChange) {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      errorEl.textContent = 'Fill in all password fields';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (newPassword.length < 8) {
+      errorEl.textContent = 'New password must be at least 8 characters';
+      errorEl.style.display = 'block';
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      errorEl.textContent = 'New passwords do not match';
+      errorEl.style.display = 'block';
+      return;
+    }
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+  errorEl.style.display = 'none';
+
+  try {
+    if (wantsPasswordChange) {
+      var passRes = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+      });
+      var passData = {};
+      try { passData = await passRes.json(); } catch (_) {}
+      if (!passRes.ok) {
+        errorEl.textContent = passData.message || 'Unable to update password.';
+        errorEl.style.display = 'block';
+        return;
+      }
+    }
+
+    var profileRes = await fetch('/api/auth/profile', {
+      method: 'PUT',
+      headers: { Authorization: 'Bearer ' + TOKEN, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email })
+    });
+    var profileData = {};
+    try { profileData = await profileRes.json(); } catch (_) {}
+    if (!profileRes.ok) {
+      errorEl.textContent = profileData.message || 'Unable to update profile.';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    if (_stored) {
+      _stored.name = name;
+      _stored.email = email;
+      _stored.pendingEmail = emailChanged ? email : '';
+      localStorage.setItem('user', JSON.stringify(_stored));
+    }
+
+    var initials = _adminGetInitials(name);
+    var nameEl = document.getElementById('adminName');
+    var initialsEl = document.getElementById('adminInitials');
+    if (nameEl) nameEl.textContent = name;
+    if (initialsEl) initialsEl.textContent = initials;
+
+    _adminCloseEditProfile();
+    if (emailChanged && wantsPasswordChange) _adminShowToast('Profile updated. Verify your new email address.');
+    else if (emailChanged) _adminShowToast('Profile updated. Verify your new email address.');
+    else if (wantsPasswordChange) _adminShowToast('Password updated');
+    else _adminShowToast('Profile updated');
+  } catch (e) {
+    errorEl.textContent = 'Network error. Please try again.';
+    errorEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Save changes';
+  }
 }
 
 function _adminOpenAccessibility() {
@@ -167,7 +379,7 @@ document.addEventListener('click', function(event) {
   if (!event.target.closest('.sidebar-bottom')) _adminCloseAccountMenu();
 });
 document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') { _adminCloseAccountMenu(); _adminCloseAccessibility(); }
+  if (event.key === 'Escape') { _adminCloseAccountMenu(); _adminCloseAccessibility(); _adminCloseEditProfile(); }
 });
 
 /* ── Inject sidebar on DOM ready ─────────────────────────────────────────────── */

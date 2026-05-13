@@ -141,8 +141,8 @@ function renderSidebarAccountMenuMarkup() {
       <div style="min-width:0">
         <div class="sidebar-menu-name">${LEARNOVA_USER.name}</div>
         <div class="sidebar-menu-email">${LEARNOVA_USER.email}</div>
-        <div class="tier-badge ${isPro?'tier-pro':'tier-free'}">${isPro?'Pro':'Free'}</div>
       </div>
+      <div class="tier-badge ${isPro?'tier-pro':'tier-free'}" style="margin-top:0;margin-left:auto">${isPro?'Pro':'Free'}</div>
     </div>
     <div class="sidebar-account-actions">
       <button class="sidebar-account-item" type="button" onclick="handleSidebarAccountAction('profile')">
@@ -337,6 +337,7 @@ function handleAvatarUpload(event) {
 }
 
 function openEditProfile() {
+  const isPro = LEARNOVA_USER.tier === 'pro';
   const pendingEmailNotice = LEARNOVA_USER.pendingEmail
     ? `<div class="profile-note">Pending email verification for ${escapeHtml(LEARNOVA_USER.pendingEmail)}.</div>`
     : `<div class="profile-note">Email changes stay pending until the new address is verified.</div>`;
@@ -347,14 +348,13 @@ function openEditProfile() {
         <div class="modal-title">Edit profile</div>
         <button class="modal-close" onclick="closeEditProfile()">✕</button>
       </div>
-      <div class="profile-avatar-editor">
-        <div class="avatar-circle profile-avatar-preview${LEARNOVA_USER.avatarUrl ? ' has-avatar' : ''}" id="s-avatar-preview" data-avatar-url="${escapeHtml(LEARNOVA_USER.avatarUrl)}">${getAvatarMarkup('large')}</div>
-        <div style="flex:1">
-          <div class="field-label">Profile photo / avatar</div>
-          <div class="profile-note" style="margin-bottom:12px">Upload a square image for the cleanest result.</div>
-          <input id="s-avatar-file" type="file" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
-          <button class="btn" type="button" onclick="triggerAvatarUpload()">Upload photo</button>
+      <div class="sidebar-account-card" style="margin-bottom:18px">
+        <div class="avatar-circle sidebar-account-large${LEARNOVA_USER.avatarUrl ? ' has-avatar' : ''}">${getAvatarMarkup('large')}</div>
+        <div style="min-width:0">
+          <div class="sidebar-menu-name">${escapeHtml(LEARNOVA_USER.name)}</div>
+          <div class="sidebar-menu-email">${escapeHtml(LEARNOVA_USER.email)}</div>
         </div>
+        <div class="tier-badge ${isPro ? 'tier-pro' : 'tier-free'}" style="margin-top:0;margin-left:auto">${isPro ? 'Pro' : 'Free'}</div>
       </div>
       <div class="form-field">
         <label class="field-label" for="s-name">Full name</label>
