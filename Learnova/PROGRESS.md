@@ -283,6 +283,7 @@ What works now:
 | 2026-05-13 | Completed backend refactor B8 (final cleanup and documentation) | Added remaining backend docstrings, created BACKEND_ENDPOINT_MAP.md, confirmed zero missing top-level docstrings, and passed final backend smoke checks |
 | 2026-05-13 | Fixed system activity log identity for login events | Activity logging now reads login email from request body when no Authorization header exists, so system admin can see which account attempted login |
 | 2026-05-13 | Completed tokenized protected-route smoke regression (user/admin/system_admin) | Verified role-based access matrix and protected endpoints; all checks passed (18/18) |
+| 2026-05-13 | Removed 4 refactor/handoff markdown docs by request | Deleted BACKEND_ENDPOINT_MAP.md, BACKEND_REFACTOR_PLAN_BEGINNER.md, REFACTOR_PLAN.md, and REFACTOR_STAGE_TEST_CHECKLIST.md after confirming they are not runtime dependencies |
 | 2026-05-01 | Added POST /api/admin/user/{id}/reset-password | Reset to Learnova@2026 |
 | 2026-05-01 | Added status field to user register document | backend/routes/auth.py |
 
@@ -310,7 +311,7 @@ Auth: JWT guard + role revalidation via /api/auth/profile on every page load
 
 ## Next Steps for Next AI Agent
 1. Read this PROGRESS.md first.
-2. Read [BACKEND_ENDPOINT_MAP.md](BACKEND_ENDPOINT_MAP.md) for backend ownership before changing routes or middleware.
+2. Identify backend ownership by route prefix directly from `backend/main.py` router registration and corresponding files in `backend/routes/`.
 3. Backend refactor stages B1-B8 are complete; do not reopen old stage tasks unless a regression is found.
 4. If continuing backend work, start with a focused review or targeted bug fix, then rerun smoke checks for auth, billing, admin, and sysadmin routes.
-5. If moving to a new chat, ask the next agent to summarize status from PROGRESS.md, BACKEND_ENDPOINT_MAP.md, and REFACTOR_STAGE_TEST_CHECKLIST.md before editing code.
+5. If moving to a new chat, ask the next agent to summarize current status from PROGRESS.md before editing code.
