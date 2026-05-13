@@ -101,15 +101,12 @@ async def update_user_role(
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
-    try:
-        oid = ObjectId(user_id)
-    except Exception:
-        return JSONResponse(status_code=400, content={"message": "Invalid user ID"})
-    result = await users_collection.delete_one({"_id": oid})
-    if result.deleted_count == 0:
-        return JSONResponse(status_code=404, content={"message": "User not found"})
-    await history_collection.delete_many({"userId": user_id})
-    return {"message": "User and all their data deleted"}
+    return JSONResponse(
+        status_code=403,
+        content={
+            "message": "User deletion is disabled. Use archive by setting status to 'inactive'."
+        },
+    )
 
 
 @router.get("/history")

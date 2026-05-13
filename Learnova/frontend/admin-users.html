@@ -61,9 +61,9 @@
         <span class="bulk-label">users selected</span>
         <div class="bulk-divider"></div>
         <div class="bulk-actions">
-          <button class="btn btn-danger-outline btn-sm" onclick="bulkAction('delete')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
-            Delete All
+          <button class="btn btn-outline btn-sm" onclick="bulkAction('archive')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
+            Archive All
           </button>
           <button class="btn btn-outline btn-sm" onclick="clearSelection()">Clear</button>
         </div>
@@ -500,9 +500,9 @@ function renderTable() {
             onclick="openModal('tier','${u._id}','${escAttr(u.name)}')">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </button>
-          <button class="action-btn danger" title="Delete"
-            onclick="openModal('delete','${u._id}','${escAttr(u.name)}')">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H8L5 6"/></svg>
+          <button class="action-btn warn" title="Archive"
+            onclick="openModal('archive','${u._id}','${escAttr(u.name)}')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>
           </button>
         </div>
       </td>
@@ -583,9 +583,15 @@ function clearSelection() {
 
 /* ── Modal config ───────────────────────────────────────────────────────────── */
 const MODAL_CFG = {
-  delete: { title: 'Delete User', icon: 'red', btnText: 'Delete', btn: 'btn-danger' },
+  archive: { title: 'Archive User', icon: 'gold', btnText: 'Archive', btn: 'btn-outline' },
   role:   { title: 'Change Role', icon: 'gold', btnText: 'Update Role', btn: 'btn-outline' },
   tier:   { title: 'Change Tier', icon: 'gold', btnText: 'Update Tier', btn: 'btn-outline' },
+};
+
+const MODAL_ICON = {
+  archive: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>',
+  role: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>',
+  tier: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
 };
 
 function openModal(action, userId, userName) {
@@ -595,7 +601,7 @@ function openModal(action, userId, userName) {
 
   const cfg = MODAL_CFG[action];
   const descMap = {
-    delete: `Permanently delete <strong>${escHtml(userName)}</strong> and all their data. This cannot be undone.`,
+    archive: `Archive <strong>${escHtml(userName)}</strong> by setting the account status to inactive. User data will be kept.`,
     role:   `Change the role for <strong>${escHtml(userName)}</strong>.`,
     tier:   `Change the plan tier for <strong>${escHtml(userName)}</strong>.`,
   };
@@ -603,6 +609,7 @@ function openModal(action, userId, userName) {
   document.getElementById('modalTitle').textContent = cfg.title;
   document.getElementById('modalDesc').innerHTML = descMap[action];
   document.getElementById('modalIcon').className = `modal-icon ${cfg.icon}`;
+  document.getElementById('modalIcon').innerHTML = MODAL_ICON[action] || MODAL_ICON.archive;
   document.getElementById('confirmBtn').textContent = cfg.btnText;
   document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
   document.getElementById('bulkInfoWrap').innerHTML = '';
@@ -645,8 +652,9 @@ function bulkAction(action) {
   const count = selectedIds.size;
 
   document.getElementById('modalTitle').textContent = `${cfg.title} (${count} users)`;
-  document.getElementById('modalDesc').innerHTML = `Permanently delete <strong>${count} users</strong> and all their data. This cannot be undone.`;
+  document.getElementById('modalDesc').innerHTML = `Archive <strong>${count} users</strong> by setting status to inactive. User data will be kept.`;
   document.getElementById('modalIcon').className = `modal-icon ${cfg.icon}`;
+  document.getElementById('modalIcon').innerHTML = MODAL_ICON[action] || MODAL_ICON.archive;
   document.getElementById('confirmBtn').textContent = cfg.btnText;
   document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
   document.getElementById('modalExtraWrap').innerHTML = '';
@@ -673,14 +681,19 @@ function closeModal() {
 async function executeAction() {
   closeModal();
 
-  if (isBulkAction && currentAction === 'delete') {
+  if (isBulkAction && currentAction === 'archive') {
     const ids = Array.from(selectedIds);
     let success = 0, failed = 0;
     for (const id of ids) {
       try {
-        const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE', headers: AUTH });
+        const res = await fetch(`/api/admin/user/${id}/account`, {
+          method: 'PUT',
+          headers: { ...AUTH, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'inactive' }),
+        });
         if (res.ok) {
-          ALL_USERS = ALL_USERS.filter(u => u._id !== id);
+          const u = ALL_USERS.find(user => user._id === id);
+          if (u) u.status = 'inactive';
           success++;
         } else {
           failed++;
@@ -690,23 +703,28 @@ async function executeAction() {
     clearSelection();
     applyFilters();
     renderStats();
-    showToast(failed ? `${success} deleted, ${failed} failed` : `${success} users deleted`, failed ? 'warning' : 'success');
+    showToast(failed ? `${success} archived, ${failed} failed` : `${success} users archived`, failed ? 'warning' : 'success');
     return;
   }
 
   const { _id, name } = currentTargetUser;
 
-  if (currentAction === 'delete') {
+  if (currentAction === 'archive') {
     try {
-      const res = await fetch(`/api/admin/users/${_id}`, { method: 'DELETE', headers: AUTH });
+      const res = await fetch(`/api/admin/user/${_id}/account`, {
+        method: 'PUT',
+        headers: { ...AUTH, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'inactive' }),
+      });
       if (res.ok) {
-        ALL_USERS = ALL_USERS.filter(u => u._id !== _id);
+        const u = ALL_USERS.find(user => user._id === _id);
+        if (u) u.status = 'inactive';
         applyFilters();
         renderStats();
-        showToast(`${name} deleted`, 'success');
+        showToast(`${name} archived`, 'success');
       } else {
         const d = await res.json();
-        showToast(d.message || 'Delete failed', 'warning');
+        showToast(d.message || 'Archive failed', 'warning');
       }
     } catch (_) { showToast('Network error', 'warning'); }
 
@@ -1003,7 +1021,7 @@ async function doResetPassword() {
 // Legacy wrappers — keep existing row action buttons working
 function modalChangeRole() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('role', u._id, u.name); }
 function modalChangeTier() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('tier', u._id, u.name); }
-function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('delete', u._id, u.name); }
+function modalDeleteUser() { const u = window._modalUser; if (!u) return; closeUserModal(); openModal('archive', u._id, u.name); }
 
 /* ── Close modal on overlay click ──────────────────────────────────────────── */
 document.getElementById('confirmOverlay').addEventListener('click', function(e) {
