@@ -9,6 +9,8 @@ from backend.middleware.security import SecurityHeadersMiddleware
 from backend.database.db import client, token_blocklist_collection, system_logs_collection
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+#Connection with AWS Lambda - Cloud Library 
+from mangum import Mangum 
 import os
 
 load_dotenv()
@@ -93,4 +95,7 @@ async def startup_event():
 
 # Serve frontend — must be LAST
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
+
+#Handler Variable 
+handler = Mangum(app) 
 
