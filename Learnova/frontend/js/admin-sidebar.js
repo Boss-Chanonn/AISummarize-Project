@@ -48,6 +48,18 @@ var _ADMIN_NAV = [
   }
 ];
 
+if (_stored && _stored.role === 'admin') {
+  _ADMIN_NAV = _ADMIN_NAV.map(function(group) {
+    if (group.section !== 'Overview') return group;
+    return {
+      section: group.section,
+      items: group.items.filter(function(item) { return item.href !== 'dashboard.html'; })
+    };
+  }).filter(function(group) {
+    return group.items && group.items.length > 0;
+  });
+}
+
 /* ── Logout ──────────────────────────────────────────────────────────────────── */
 function logoutAdmin() {
   localStorage.removeItem('token');

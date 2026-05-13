@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from backend.database.db import users_collection, history_collection
-from backend.middleware.auth_middleware import get_admin_user
+from backend.middleware.auth_middleware import get_admin_user, get_system_admin_user
 from backend.models.user import AdminUpdateProfile, AdminUpdateAccount
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
@@ -22,7 +22,7 @@ def _serialize_user(u: dict) -> dict:
 
 
 @router.get("/dashboard")
-async def admin_dashboard(current_user: dict = Depends(get_admin_user)):
+async def admin_dashboard(current_user: dict = Depends(get_system_admin_user)):
     total_users = await users_collection.count_documents({})
     total_docs = await history_collection.count_documents({})
     completed = await history_collection.count_documents({"done": True})
@@ -50,7 +50,25 @@ async def list_users(
     cursor = users_collection.find({}).sort("createdAt", -1).skip(skip).limit(limit)
     users = await cursor.to_list(length=limit)
     total = await users_collection.count_documents({})
-    return {"users": [_serialize_user(u) for u in users], "total": total, "page": page, "limit": limit}
+
+    # Add per-user document counts for the "Files" column in admin-users.html.
+    user_ids = [str(u.get("_id")) for u in users if u.get("_id")]
+    file_count_map = {}
+    if user_ids:
+        pipeline = [
+            {"$match": {"userId": {"$in": user_ids}}},
+            {"$group": {"_id": "$userId", "count": {"$sum": 1}}},
+        ]
+        async for row in history_collection.aggregate(pipeline):
+            file_count_map[str(row.get("_id", ""))] = int(row.get("count", 0))
+
+    out_users = []
+    for u in users:
+        su = _serialize_user(u)
+        su["files"] = file_count_map.get(su["_id"], 0)
+        out_users.append(su)
+
+    return {"users": out_users, "total": total, "page": page, "limit": limit}
 
 
 @router.get("/users/{user_id}")

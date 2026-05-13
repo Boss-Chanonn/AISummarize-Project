@@ -363,6 +363,8 @@ let isBulkAction = false;
 let currentPage = 1;
 const PAGE_SIZE = 20;
 let totalUsers = 0;
+const ADMIN_ROLE = (_stored && _stored.role) || '';
+const IS_ADMIN_ONLY = ADMIN_ROLE === 'admin';
 
 /* ── Fetch users from API ───────────────────────────────────────────────────── */
 async function fetchUsers(page = 1) {
@@ -382,7 +384,7 @@ async function fetchUsers(page = 1) {
     totalUsers = data.total || ALL_USERS.length;
     currentPage = data.page || page;
     applyFilters();
-    renderStats();
+    if (!IS_ADMIN_ONLY) renderStats();
     renderPagination();
   } catch (e) {
     document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
@@ -702,7 +704,7 @@ async function executeAction() {
     }
     clearSelection();
     applyFilters();
-    renderStats();
+    if (!IS_ADMIN_ONLY) renderStats();
     showToast(failed ? `${success} archived, ${failed} failed` : `${success} users archived`, failed ? 'warning' : 'success');
     return;
   }
@@ -720,7 +722,7 @@ async function executeAction() {
         const u = ALL_USERS.find(user => user._id === _id);
         if (u) u.status = 'inactive';
         applyFilters();
-        renderStats();
+        if (!IS_ADMIN_ONLY) renderStats();
         showToast(`${name} archived`, 'success');
       } else {
         const d = await res.json();
@@ -761,7 +763,7 @@ async function executeAction() {
         const u = ALL_USERS.find(u => u._id === _id);
         if (u) u.tier = newTier;
         applyFilters();
-        renderStats();
+        if (!IS_ADMIN_ONLY) renderStats();
         showToast(`${name}'s tier updated to ${newTier}`, 'success');
       } else {
         const d = await res.json();
@@ -1038,7 +1040,12 @@ document.addEventListener('keydown', function(e) {
 });
 
 /* ── Init ───────────────────────────────────────────────────────────────────── */
-fetchStats();
+if (IS_ADMIN_ONLY) {
+  const statsRow = document.querySelector('.stats-row');
+  if (statsRow) statsRow.remove();
+} else {
+  fetchStats();
+}
 fetchUsers(1);
 </script>
 </body>
