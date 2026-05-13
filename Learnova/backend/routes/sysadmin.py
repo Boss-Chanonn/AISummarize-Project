@@ -53,7 +53,7 @@ async def system_stats(current_user: dict = Depends(get_system_admin_user)):
 @router.get("/logs")
 async def get_logs(
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=200),
+    limit: int = Query(50, ge=1, le=1000),
     current_user: dict = Depends(get_system_admin_user)
 ):
     skip = (page - 1) * limit

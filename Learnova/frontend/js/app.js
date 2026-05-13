@@ -1842,7 +1842,7 @@ function openSecurityView(view) {
 async function loadSecurity() {
   showSysLoading('section-security');
   try {
-    const data = await sysAdminFetch('/api/sysadmin/logs?page=1&limit=200');
+    const data = await sysAdminFetch('/api/sysadmin/logs?page=1&limit=1000');
     SYS_STATE.logs = (data.logs || []).slice();
     if (!['failed', 'activity', 'audit'].includes(SYS_STATE.securityView)) {
       SYS_STATE.securityView = 'activity';
