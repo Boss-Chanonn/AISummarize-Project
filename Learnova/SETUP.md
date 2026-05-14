@@ -41,7 +41,7 @@ SECRET_KEY=<any-long-random-string>
 ALLOWED_ORIGINS=http://localhost:8000
 OLLAMA_ENABLED=true
 OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=llama3:latest
+OLLAMA_MODEL=gpt-oss:120b-cloud
 OLLAMA_TIMEOUT_SECONDS=300
 ```
 
@@ -55,7 +55,7 @@ OLLAMA_TIMEOUT_SECONDS=300
 | `ALLOWED_ORIGINS` | CORS allowed origin. Keep as `http://localhost:8000` for local dev |
 | `OLLAMA_ENABLED` | Set to `true` to use Ollama AI, `false` to disable AI features |
 | `OLLAMA_BASE_URL` | URL where Ollama is running. `host.docker.internal` points to your machine from inside Docker |
-| `OLLAMA_MODEL` | The Ollama model to use. Must match the model you pulled (e.g. `llama3:latest`) |
+| `OLLAMA_MODEL` | The Ollama model to use. Must match the model you pulled (e.g. `gpt-oss:120b-cloud`) |
 | `OLLAMA_TIMEOUT_SECONDS` | Seconds to wait for Ollama to respond before timing out |
 
 ---
@@ -69,7 +69,7 @@ Ollama runs **directly on your machine**, not inside Docker.
 ollama serve
 
 # 2. Pull the model (only needed once — downloads ~4 GB)
-ollama pull llama3
+ollama pull gpt-oss:120b-cloud
 ```
 
 Leave `ollama serve` running in a separate terminal while the app is running.

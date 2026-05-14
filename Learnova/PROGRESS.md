@@ -20,7 +20,7 @@ NOTE: .html files CAN be modified (owner approved on 2026-04-20)
 - Frontend : HTML/CSS/JS (served via FastAPI)
 - Database : MongoDB Atlas (cloud) — NOT local
 - Auth     : JWT + bcrypt + token blocklist
-- AI       : Ollama llama3:latest (with fallback if Ollama offline)
+- AI       : Ollama gpt-oss:120b-cloud (with fallback if Ollama offline)
 - Port     : 8000 (everything)
 
 ## User Roles
