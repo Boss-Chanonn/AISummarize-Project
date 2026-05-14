@@ -1,5 +1,5 @@
 # Learnova — AI Development Log
-Last updated: 2026-05-13
+Last updated: 2026-05-14
 
 ## CRITICAL RULES FOR ALL AI AGENTS
 1. NEVER modify .css files
@@ -122,6 +122,8 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
 | 2026-04-23 | Set OLLAMA_TIMEOUT_SECONDS=300 in .env | Prevent ReadTimeout on large documents |
 | 2026-04-23 | Reduced ollama_service.py snippet to 1500 chars | Faster AI generation |
 | 2026-04-29 | Added Payment & Billing feature | Pro upgrade flow |
+| 2026-05-14 | Simplified SETUP.md for Mac/Windows | Faster onboarding with minimal essential steps |
+| 2026-05-14 | Added Ollama service to docker-compose | app + ollama start together and use gpt-oss:120b-cloud |
 
 ---
 

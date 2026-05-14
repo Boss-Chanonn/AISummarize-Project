@@ -1,168 +1,85 @@
-# Learnova — Local Setup Guide
+# Learnova Setup (Mac + Windows)
 
-A step-by-step guide for running Learnova on a new machine.
+## 1) Install Required Tools
+- Git
+- Docker Desktop
 
----
-
-## Prerequisites
-
-Install the following before you begin:
-
-| Tool | Purpose | Download |
-|---|---|---|
-| Git | Clone the repository | https://git-scm.com |
-| Docker Desktop | Run the application in a container | https://www.docker.com/products/docker-desktop |
-| Ollama *(optional)* | Run the local AI model for summarisation and quiz generation | https://ollama.com |
-
-> **Note:** You do **not** need to install Python manually. Docker handles everything inside the container.
-
----
-
-## Step 1 — Clone the Repository
-
+## 2) Clone Project
 ```bash
-git clone https://github.com/<your-username>/<repo-name>.git
+git clone <repo-url>
 cd <repo-name>/Learnova
 ```
 
----
-
-## Step 2 — Create the `.env` File
-
-The `.env` file is **not included in the repository** (it is listed in `.gitignore` for security reasons).  
-You must create it yourself inside the `Learnova/` folder.
-
-Create a file named `.env` with the following content:
-
+## 3) Create `.env` in `Learnova/`
 ```env
-MONGO_URL=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/
+MONGO_URL=<your-mongodb-atlas-url>
 DATABASE_NAME=learnova
-SECRET_KEY=<any-long-random-string>
+SECRET_KEY=<your-secret>
 ALLOWED_ORIGINS=http://localhost:8000
 OLLAMA_ENABLED=true
-OLLAMA_BASE_URL=http://host.docker.internal:11434
+OLLAMA_BASE_URL=http://ollama:11434
 OLLAMA_MODEL=gpt-oss:120b-cloud
 OLLAMA_TIMEOUT_SECONDS=300
 ```
 
-### Variable Reference
-
-| Variable | Description |
-|---|---|
-| `MONGO_URL` | MongoDB Atlas connection string. Get it from your Atlas cluster → **Connect** → **Drivers** |
-| `DATABASE_NAME` | Name of the MongoDB database. Keep as `learnova` unless you changed it |
-| `SECRET_KEY` | A secret string used to sign JWT tokens. Use any long random string |
-| `ALLOWED_ORIGINS` | CORS allowed origin. Keep as `http://localhost:8000` for local dev |
-| `OLLAMA_ENABLED` | Set to `true` to use Ollama AI, `false` to disable AI features |
-| `OLLAMA_BASE_URL` | URL where Ollama is running. `host.docker.internal` points to your machine from inside Docker |
-| `OLLAMA_MODEL` | The Ollama model to use. Must match the model you pulled (e.g. `gpt-oss:120b-cloud`) |
-| `OLLAMA_TIMEOUT_SECONDS` | Seconds to wait for Ollama to respond before timing out |
-
----
-
-## Step 3 — Set Up Ollama (Optional — Required for AI Features)
-
-Ollama runs **directly on your machine**, not inside Docker.
-
+## 4) Prepare Ollama Model
+Start stack:
 ```bash
-# 1. Start the Ollama server
-ollama serve
-
-# 2. Pull the model (only needed once — downloads ~4 GB)
-ollama pull gpt-oss:120b-cloud
+docker compose up -d --build
 ```
 
-Leave `ollama serve` running in a separate terminal while the app is running.
+This compose setup mounts your host `~/.ollama` into the container.
+If you are already signed in on host, container reuses that session.
 
-> If you set `OLLAMA_ENABLED=false` in `.env`, you can skip this step.  
-> AI summaries and quiz generation will be unavailable, but the rest of the app will still work.
-
----
-
-## Step 4 — Build and Run with Docker
-
-Make sure Docker Desktop is running, then:
-
+If needed, login once inside container:
 ```bash
-# From inside the Learnova/ folder
-docker compose up --build
+docker compose exec ollama ollama signin
 ```
 
-The first run will take a few minutes while Docker downloads the Python image and installs dependencies.  
-Subsequent runs are much faster.
-
-### What Docker does
-
-```
-docker compose up --build
-│
-├── Reads Dockerfile
-│     ├── Pulls python:3.10-slim base image
-│     ├── Installs all packages from requirements.txt
-│     └── Copies project files into the container
-│
-└── Starts container (learnova-app-1)
-      ├── Exposes port 8000
-      ├── Loads environment variables from .env
-      ├── Mounts your local folder so code changes reload instantly
-      └── Runs: uvicorn backend.main:app --reload
+Pull model once:
+```bash
+docker compose exec ollama ollama pull gpt-oss:120b-cloud
 ```
 
----
+Quick test (from host):
 
-## Step 5 — Open the App
-
-Once Docker is running, open your browser and go to:
-
+### Mac / Linux (Terminal)
+```bash
+curl -s http://localhost:11434/api/generate \
+  -H "Content-Type: application/json" \
+  -d '{"model":"gpt-oss:120b-cloud","prompt":"Respond with exactly: ok","stream":false}'
 ```
+
+### Windows (PowerShell)
+```powershell
+curl.exe -s http://localhost:11434/api/generate -H "Content-Type: application/json" -d "{\"model\":\"gpt-oss:120b-cloud\",\"prompt\":\"Respond with exactly: ok\",\"stream\":false}"
+```
+
+Expected: response contains `"response":"ok"`.
+
+## 5) Run App with Docker
+From `Learnova/`:
+```bash
+docker compose up -d
+```
+
+Open:
+```text
 http://localhost:8000
 ```
 
----
-
-## Stopping the App
-
+## 6) If You Changed `.env` (Reload Config)
+Use recreate to ensure new env is loaded:
 ```bash
-# Press Ctrl+C in the terminal running docker compose
-
-# Or stop and remove the container:
-docker compose down
+docker compose up -d --force-recreate app
 ```
 
----
-
-## Common Issues
-
-| Problem | Fix |
-|---|---|
-| `MONGO_URL` connection error | Check your Atlas IP allowlist — add `0.0.0.0/0` for local dev, or your specific IP |
-| Ollama not responding | Make sure `ollama serve` is running on your machine before starting Docker |
-| Port 8000 already in use | Stop any other service on port 8000, or change the port mapping in `docker-compose.yml` |
-| Docker not found | Make sure Docker Desktop is installed and running (check the system tray icon) |
-| `.env` not loaded | Make sure the file is named exactly `.env` (no `.txt` extension) and is inside the `Learnova/` folder |
-
----
-
-## Project Structure (Quick Reference)
-
-```
-Learnova/
-├── backend/              # FastAPI application
-│   ├── main.py           # App entry point, routes registered here
-│   ├── routes/           # API route handlers (auth, history, upload, etc.)
-│   ├── models/           # Pydantic models
-│   ├── database/         # MongoDB connection
-│   └── middleware/       # Auth middleware, security
-├── frontend/             # Static HTML/CSS/JS (served by FastAPI)
-│   ├── index.html        # Login page
-│   ├── dashboard.html    # Main dashboard
-│   ├── upload.html       # Upload + Quiz page
-│   ├── history.html      # History page
-│   ├── results.html      # Quiz results page
-│   ├── css/              # Stylesheets
-│   └── js/               # Shared JavaScript (app.js, animations.js)
-├── Dockerfile            # Docker image definition
-├── docker-compose.yml    # Docker service configuration
-├── requirements.txt      # Python dependencies
-└── .env                  # ⚠️ NOT in repo — you must create this yourself
-```
+## 7) Common Errors (Quick Fix)
+- `no configuration file provided: not found`
+  - Run command inside `Learnova/` or specify file:
+  - `docker compose -f /absolute/path/to/Learnova/docker-compose.yml up -d --force-recreate app`
+- Ollama not responding
+  - Check Ollama container: `docker compose logs ollama --tail 100`
+  - Verify model exists: `docker compose exec ollama ollama list`
+- MongoDB connection error
+  - Recheck `MONGO_URL` and Atlas IP allowlist.
