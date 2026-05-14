@@ -49,16 +49,15 @@ jobs:
           platforms: linux/amd64
           provenance: false
 
-    #Fix this part of the Code (tomorrow morning - 07/05/26) 
       #Lambda Deployment with ECR (Elastic Container Registry) Image 
       - name: Deploy to Lambda with Elastic Container Image
         run: |
           aws lambda update-function-code \
-            --function-name 301_website_learnova \
+            --function-name projectaisummarize2 \
             --image-uri ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
             --region ${{ env.AWS_REGION }} || \
           aws lambda create-function \
-            --function-name 301_website_learnova \
+            --function-name projectaisummarize2 \
             --package-type Image \
             --code ImageUri=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
             --role arn:aws:iam::${{ env.ACCOUNT_ID }}:role/service-role/301_website_learnova-role-ml8sy2om \
