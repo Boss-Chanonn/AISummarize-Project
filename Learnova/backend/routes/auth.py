@@ -9,6 +9,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from jose import jwt
 from datetime import datetime, timedelta, timezone
+from pymongo.errors import DuplicateKeyError, PyMongoError
 import os
 import uuid
 
@@ -54,21 +55,33 @@ async def register(user: UserCreate):
         return message_error(400, "Password must be at least 8 characters")
     if not user.dob:
         return message_error(400, "Date of birth is required")
-    existing = await users_collection.find_one({"email": user.email})
-    if existing:
+    normalized_email = user.email.strip().lower()
+    try:
+        existing = await users_collection.find_one({"email": normalized_email})
+        if existing:
+            return message_error(409, "Email already registered")
+
+        hashed = hash_password(user.password)
+        await users_collection.insert_one({
+            "name": user.name,
+            "email": normalized_email,
+            "password": hashed,
+            "dob": user.dob,
+            "phone": user.phone or "",
+            "role": "user",
+            "tier": "free",
+            "status": "active",
+            "createdAt": datetime.utcnow()
+        })
+    except DuplicateKeyError:
         return message_error(409, "Email already registered")
-    hashed = hash_password(user.password)
-    await users_collection.insert_one({
-        "name": user.name,
-        "email": user.email,
-        "password": hashed,
-        "dob": user.dob,
-        "phone": user.phone or "",
-        "role": "user",
-        "tier": "free",
-        "status": "active",
-        "createdAt": datetime.utcnow()
-    })
+    except PyMongoError as error:
+        print(f"[auth.register] Database error: {repr(error)}")
+        return message_error(503, "Database temporarily unavailable. Please try again.")
+    except Exception as error:
+        print(f"[auth.register] Unexpected error: {repr(error)}")
+        return message_error(500, "Registration failed due to a server error.")
+
     return {"message": "Account created — please sign in"}
 
 
