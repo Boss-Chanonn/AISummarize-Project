@@ -1142,6 +1142,11 @@ function openSysAccountMenu() {
           </div>
         </div>
         <div class="sidebar-account-actions">
+          <button class="sidebar-account-item" id="sys-accessibility-btn" type="button">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 4.5V8l2.2 1.7"/></svg>
+            <span>Accessibility settings</span>
+          </button>
+          <div class="sidebar-account-divider"></div>
           <button class="sidebar-account-item sidebar-account-item-signout" id="sys-signout-btn" type="button">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M6 3H3.5A1.5 1.5 0 002 4.5v7A1.5 1.5 0 003.5 13H6"/><path d="M9.5 5.5L13 8l-3.5 2.5"/><path d="M5 8h8"/></svg>
             <span>Sign out</span>
@@ -2532,6 +2537,12 @@ function bindSystemAdminEvents() {
       closeSysAccountMenu();
       return;
     }
+    const accessibility = event.target.closest('#sys-accessibility-btn');
+    if (accessibility) {
+      closeSysAccountMenu();
+      openSettings('accessibility');
+      return;
+    }
     const signout = event.target.closest('#sys-signout-btn');
     if (signout) {
       logoutSystemAdmin();
@@ -2545,6 +2556,7 @@ function bindSystemAdminEvents() {
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape') {
       closeSysAccountMenu();
+      closeSettings();
       closeSysRoleModal();
       closeSysDeleteModal();
       closeSysDbDeleteModal();
