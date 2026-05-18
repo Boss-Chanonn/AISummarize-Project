@@ -10,7 +10,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ValidationError
 
-from .ollama_client import OllamaClient, OllamaError
+from .ollama_client import OllamaClient, OllamaError, SummaryOllamaSettings, QuizOllamaSettings
 from .schemas import (
     AnalyzeResultsRequest,
     AnalyzeResultsResponse,
@@ -34,8 +34,9 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 
 
 class AIService:
-    def __init__(self, client: OllamaClient | None = None) -> None:
-        self.client = client or OllamaClient()
+    def __init__(self, client: OllamaClient | None = None, quiz_client: OllamaClient | None = None) -> None:
+        self.client      = client      or OllamaClient(SummaryOllamaSettings())  # Mac 1 — gpt-oss
+        self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek-r1:8b
 
     def summarize(self, payload: SummaryRequest) -> SummaryResponse:
         text = self._clean_text(payload.text)
@@ -73,7 +74,7 @@ class AIService:
             exclude_questions=payload.exclude_questions,
             follow_up=False,
         )
-        response = self._generate_structured(prompt, QuizResponse)
+        response = self._generate_structured(prompt, QuizResponse, use_quiz_client=True)
         self._assert_unique_questions(response.questions)
         return response.model_copy(update={"question_count": question_count})
 
@@ -113,7 +114,7 @@ class AIService:
             weak_topics=payload.weak_topics,
             module=payload.learning_module,
         )
-        response = self._generate_structured(prompt, FollowUpQuizResponse)
+        response = self._generate_structured(prompt, FollowUpQuizResponse, use_quiz_client=True)
         self._assert_unique_questions(response.questions)
         self._assert_no_repeated_questions(response.questions, payload.previous_questions)
         return response.model_copy(
@@ -173,11 +174,12 @@ class AIService:
             next_steps=next_steps,
         )
 
-    def _generate_structured(self, prompt: str, model_type: type[ModelT], retries: int = 2) -> ModelT:
+    def _generate_structured(self, prompt: str, model_type: type[ModelT], retries: int = 2, use_quiz_client: bool = False) -> ModelT:
         errors: list[str] = []
         for _ in range(retries + 1):
             try:
-                data = self.client.generate_json(prompt)
+                active_client = self.quiz_client if use_quiz_client else self.client
+                data = active_client.generate_json(prompt)
                 data = self._normalize_model_payload(model_type, data)
                 return model_type.model_validate(data)
             except (OllamaError, ValidationError) as exc:

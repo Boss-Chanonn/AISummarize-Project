@@ -12,14 +12,33 @@ class OllamaError(RuntimeError):
 
 @dataclass(slots=True)
 class OllamaSettings:
+    """Default single-machine settings (falls back to env vars)."""
     base_url: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
     model: str = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
 
 
+@dataclass(slots=True)
+class SummaryOllamaSettings:
+    """Mac 1 (172.16.40.120) — gpt-oss, handles summarisation."""
+    base_url: str = os.getenv("SUMMARY_OLLAMA_URL", "http://172.16.40.120:11434").rstrip("/")
+    model: str = os.getenv("SUMMARY_MODEL", "gpt-oss:120b-cloud")
+    timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
+    temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+
+
+@dataclass(slots=True)
+class QuizOllamaSettings:
+    """Mac 2 (172.16.40.122) — deepseek-r1:8b, handles quiz generation."""
+    base_url: str = os.getenv("QUIZ_OLLAMA_URL", "http://172.16.40.122:11434").rstrip("/")
+    model: str = os.getenv("QUIZ_MODEL", "deepseek-r1:8b")
+    timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
+    temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+
+
 class OllamaClient:
-    def __init__(self, settings: OllamaSettings | None = None) -> None:
+    def __init__(self, settings: OllamaSettings | SummaryOllamaSettings | QuizOllamaSettings | None = None) -> None:
         self.settings = settings or OllamaSettings()
 
     def generate_json(self, prompt: str) -> dict:
@@ -60,7 +79,8 @@ class OllamaClient:
                 return json.loads(response.read().decode("utf-8"))
         except error.URLError as exc:
             raise OllamaError(
-                "Failed to reach Ollama. Confirm the Ollama server is running and accessible."
+                f"Failed to reach Ollama at {self.settings.base_url}. "
+                "Confirm the Ollama server is running with OLLAMA_HOST=0.0.0.0."
             ) from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned invalid JSON from its HTTP API.") from exc
@@ -76,7 +96,8 @@ class OllamaClient:
                 return json.loads(response.read().decode("utf-8"))
         except error.URLError as exc:
             raise OllamaError(
-                "Failed to reach Ollama. Confirm the Ollama server is running and accessible."
+                f"Failed to reach Ollama at {self.settings.base_url}. "
+                "Confirm the Ollama server is running with OLLAMA_HOST=0.0.0.0."
             ) from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned invalid JSON from its HTTP API.") from exc
