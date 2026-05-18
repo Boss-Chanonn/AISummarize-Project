@@ -1479,17 +1479,20 @@ function normalizeSysUsers(users) {
 function applySysUserFilters() {
   const searchInput = document.getElementById('sys-user-search');
   const roleSelect = document.getElementById('sys-user-role');
+  const tierSelect = document.getElementById('sys-user-tier');
   const statusSelect = document.getElementById('sys-user-status');
 
   const q = String(searchInput ? searchInput.value : '').toLowerCase();
   const role = roleSelect ? roleSelect.value : '';
+  const tier = tierSelect ? tierSelect.value : '';
   const status = statusSelect ? statusSelect.value : '';
 
   SYS_STATE.filteredUsers = SYS_STATE.users.filter(user => {
     const qMatch = !q || user.name.toLowerCase().includes(q) || user.email.toLowerCase().includes(q);
     const roleMatch = !role || user.role === role;
+    const tierMatch = !tier || user.tier === tier;
     const statusMatch = !status || user.status === status;
-    return qMatch && roleMatch && statusMatch;
+    return qMatch && roleMatch && tierMatch && statusMatch;
   });
 
   renderUserTable(SYS_STATE.filteredUsers);
