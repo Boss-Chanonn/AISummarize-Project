@@ -105,7 +105,7 @@
   <main class="main-content" style="padding:0">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:0.5px solid var(--border);background:radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.07), transparent 42%), linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-25)">
-        <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
+        <a href="index.html" style="color:var(--cream-25)">Dashboard</a>
         <span style="color:var(--border-md)">/</span>
         <span style="color:var(--cream-60)" id="breadcrumb-cur">New document</span>
       </div>
@@ -174,7 +174,9 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/mock-api.js"></script>
 <script src="js/app.js"></script>
+<script src="js/auth-logout.js"></script>
 <script>
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 
@@ -405,19 +407,12 @@ async function processDocument() {
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
-  const _token = localStorage.getItem('token') || '';
-
-  // Build FormData for real file upload
-  const formData = new FormData();
-  if (file) {
-    formData.append('file', file);
-    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
-  } else if (hasPaste) {
-    const pastedText = document.getElementById('paste-area') ? document.getElementById('paste-area').value : '';
-    formData.append('text_content', pastedText);
-    formData.append('title', 'Pasted text');
-  }
-
+  const payload = {
+    title: file ? file.name : (hasPaste ? 'Pasted text' : 'Document'),
+    fileType: file ? file.name.split('.').pop().toUpperCase() : 'TXT',
+    pageCount: file ? Math.max(1, Math.round(file.size / 3000)) : 1
+  };
+  // Run animation + fetch in parallel so animation always plays fully
   let step = 0;
   const progressMarks = [18, 42, 71, 100];
   const animPromise = new Promise(function(resolve) {
@@ -433,22 +428,14 @@ async function processDocument() {
   });
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + _token },
-    body: formData
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   });
   try {
     const results = await Promise.all([animPromise, fetchPromise]);
     const fetchRes = results[1];
     const data = await fetchRes.json();
-    if (fetchRes.status === 401 || fetchRes.status === 403) {
-      localStorage.removeItem('token');
-      window.location.href = 'index.html';
-      return;
-    }
-    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
-    // Store historyId so quiz/results pages can use it
-    if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+    if (!fetchRes.ok) throw new Error(data.message || 'Upload failed');
     setTimeout(function() {
       showSummary(data);
       document.getElementById('btn-rescan').style.display = 'flex';
@@ -459,7 +446,7 @@ async function processDocument() {
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
-    showToast(e.message || 'Processing failed — please try again');
+    showToast('Processing failed — please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
 }
@@ -624,26 +611,38 @@ async function showQuizResults() {
       answer: isCorrect ? null : q.opts[q.correct]
     };
   });
-  // Save to history via submit-quiz endpoint
+  // Save to history
   try {
     const token = localStorage.getItem('token') || '';
-    const historyId = localStorage.getItem('currentHistoryId') || '';
-    const userAnswerIndices = answers.map(a => a.chosen);
-    let savedId = historyId;
-    if (historyId) {
-      const saveRes = await fetch('/api/history/' + historyId + '/submit-quiz', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ answers: userAnswerIndices })
-      });
-      const saved = await saveRes.json();
-      savedId = saved._id || historyId;
-    }
+    const saveRes = await fetch('/api/history/save', {
+      method: 'POST',
+      headers: Object.assign(
+        { 'Content-Type': 'application/json' },
+        token ? { 'Authorization': 'Bearer ' + token } : {}
+      ),
+      body: JSON.stringify({
+        title: currentDoc.title,
+        meta: currentDoc.meta || '',
+        fileType: currentDoc.fileType || 'TXT',
+        pageCount: currentDoc.pageCount || 1,
+        score: pct,
+        correct: correctCount,
+        total: quizData.length,
+        done: true,
+        summary: currentDoc.summary || {},
+        strengths: currentDoc.strengths || [],
+        weaknesses: currentDoc.weaknesses || [],
+        studyNext: currentDoc.studyNext || [],
+        questions: questionDetails,
+        quizFull: quizData
+      })
+    });
+    const saved = await saveRes.json();
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+      btn.onclick = function() { window.location.href = 'results.html?id=' + saved.id; };
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {
@@ -676,77 +675,30 @@ function resetUpload() {
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
 }
 
-async function loadResumedQuizFlow() {
+function loadResumedQuizFlow() {
   const params = new URLSearchParams(window.location.search);
-  const resumeId = params.get('resume'); // keep as string — MongoDB ObjectID
+  const resumeId = parseInt(params.get('resume'), 10);
   const mode = params.get('mode') || 'summary';
   if (!resumeId) return;
-
-  // Show a brief loading state in the right panel while we fetch
-  document.getElementById('right-panel').innerHTML = `
-    <div class="loading-state">
-      <div class="loading-shell">
-        <div class="loading-label">Loading document</div>
-        <div class="loading-spinner"></div>
-        <div class="loading-text">Loading your document\u2026</div>
-      </div>
-    </div>`;
-
-  try {
-    const token = localStorage.getItem('token') || '';
-    const res = await fetch('/api/history/' + resumeId, {
-      headers: { 'Authorization': 'Bearer ' + token }
-    });
-    if (!res.ok) {
-      console.error('[quiz] Failed to load history item:', res.status);
-      showToast('Could not load document \u2014 please try again');
-      document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Document not found.</div><div class="empty-sub">It may have been deleted.</div></div>`;
-      return;
-    }
-    const item = await res.json();
-
-    // Store IDs so showQuizResults can submit the quiz
-    localStorage.setItem('currentHistoryId', resumeId);
-    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
-
-    resumedSession = true;
-    const qLen = (item.quizFull || []).length;
-    currentDoc = {
-      ...item,
-      id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
-      done: false,
-      score: null,
-      correct: null,
-      total: qLen || item.total || 8
-    };
-    quizData = item.quizFull || [];
-
-    if (!quizData.length) {
-      console.error('[quiz] No quiz data found for history item:', resumeId);
-      showToast('No quiz available for this document');
-    }
-
-    currentDoc.infoRows = [
-      ['File type', currentDoc.fileType || 'PDF'],
-      ['Pages', String(currentDoc.pageCount || 1)],
-      ['Language', 'English'],
-      ['Processed at', getProcessedTime()],
-    ];
-
-    document.getElementById('breadcrumb-cur').textContent = currentDoc.title || 'Document';
-    document.getElementById('btn-rescan').style.display = 'flex';
-    document.getElementById('btn-process').style.display = 'none';
-    document.getElementById('btn-quiz').style.display = (mode === 'quiz' || !quizData.length) ? 'none' : 'flex';
-    document.getElementById('btn-process').disabled = false;
-
-    showSummary(currentDoc);
-    if (mode === 'quiz' && quizData.length) startQuiz();
-
-  } catch (e) {
-    console.error('[quiz] Error loading history item:', e);
-    showToast('Could not load document \u2014 please try again');
-    document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Failed to load document.</div><div class="empty-sub">Check your connection and try again.</div></div>`;
-  }
+  const item = getHistoryItem(resumeId);
+  if (!item) return;
+  resumedSession = true;
+  currentDoc = { ...item, done: false, score: null, correct: null, total: item.total || 8 };
+  quizData = item.quizFull || [];
+  currentDoc.infoRows = [
+    ['File type', currentDoc.fileType || 'PDF'],
+    ['File size', currentDoc.pageCount ? `${currentDoc.pageCount} pages` : 'Ready'],
+    ['Pages', String(currentDoc.pageCount || 1)],
+    ['Language', 'English'],
+    ['Processed at', getProcessedTime()],
+  ];
+  document.getElementById('breadcrumb-cur').textContent = currentDoc.title;
+  document.getElementById('btn-rescan').style.display = 'flex';
+  document.getElementById('btn-process').style.display = 'none';
+  document.getElementById('btn-quiz').style.display = mode === 'quiz' ? 'none' : 'flex';
+  document.getElementById('btn-process').disabled = false;
+  showSummary(currentDoc);
+  if (mode === 'quiz') startQuiz();
 }
 
 document.addEventListener('DOMContentLoaded', () => {

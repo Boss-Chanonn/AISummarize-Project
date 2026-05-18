@@ -26,7 +26,7 @@
     }
     .mod-tag-row { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap:wrap; }
     .mod-kicker { font-size:10px; letter-spacing:1.4px; text-transform:uppercase; color:var(--cream-25); margin-bottom:12px; }
-    .mod-title { font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -0.9px; line-height: 1.04; margin-bottom: 12px; }
+    .mod-title { font-family: var(--serif); font-size: 34px; font-weight: 400; letter-spacing: -0.9px; line-height: 1.04; margin-bottom: 12px; max-width: 10ch; }
     .mod-title em { font-style: italic; color: var(--gold); }
     .mod-desc { font-size: 13px; color: var(--cream-40); line-height: 1.82; max-width: 600px; font-weight: 300; margin-bottom: 24px; }
     .mod-meta { display: grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
@@ -198,7 +198,7 @@
 
     <!-- Breadcrumb -->
     <div style="font-size:12px;color:var(--cream-25);margin-bottom:20px;display:flex;gap:8px;align-items:center" class="fade-up">
-      <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
+      <a href="index.html" style="color:var(--cream-25)">Dashboard</a>
       <span style="color:var(--border-md)">/</span>
       <a href="results.html" style="color:var(--cream-25)" id="breadcrumb-doc">Loading…</a>
       <span style="color:var(--border-md)">/</span>
@@ -303,14 +303,10 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/mock-api.js"></script>
 <script src="js/app.js"></script>
+<script src="js/auth-logout.js"></script>
 <script>
-// Auth guard — redirect to login if no token
-(function() {
-  const token = localStorage.getItem('token');
-  if (!token) { window.location.replace('index.html'); }
-})();
-
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
 
 const calendars = [
@@ -430,99 +426,40 @@ function buildResCard(res) {
 
 async function loadModule() {
   const params = new URLSearchParams(window.location.search);
-  const historyId = params.get('historyId') || params.get('id') || localStorage.getItem('currentHistoryId') || '';
+  let historyId = params.get('historyId') || localStorage.getItem('ln_last_module_id');
+  if (!historyId) {
+    const hist = JSON.parse(localStorage.getItem('ln_history') || '[]');
+    if (hist.length) historyId = hist[0].id;
+  }
   try {
     const token = localStorage.getItem('token') || '';
-    const res = await fetch('/api/modules?historyId=' + encodeURIComponent(historyId), {
+    const res = await fetch('/api/modules?historyId=' + (historyId || ''), {
       headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     });
     const data = await res.json();
     if (!res.ok) { showEmptyModule(); return; }
-
-    const modules = data.modules || [];
-    const studyNext = data.studyNext || [];
-    totalResCount = modules.length;
-
-    document.getElementById('breadcrumb-doc').textContent = data.title || 'Document';
-    document.getElementById('mod-title-focus').textContent = (studyNext[0] || data.title || 'key concepts') + '.';
-    document.getElementById('mod-desc').textContent = 'Curated resources to strengthen your understanding based on your quiz performance.';
-    document.getElementById('mod-meta-time').textContent = (modules.length * 15) + ' min';
-    document.getElementById('mod-meta-count').textContent = modules.length + ' selected';
-
-    // Focus areas from studyNext
-    document.getElementById('mod-focus-list').innerHTML = studyNext.slice(0,3).map((f, i) => `
+    totalResCount = data.resources.length;
+    document.getElementById('breadcrumb-doc').textContent = data.docTitle;
+    document.getElementById('mod-title-focus').textContent = data.moduleTitle + '.';
+    document.getElementById('mod-desc').textContent = data.description;
+    document.getElementById('mod-meta-time').textContent = data.totalMinutes + ' min';
+    document.getElementById('mod-meta-count').textContent = data.resourceCount + ' selected';
+    document.getElementById('mod-focus-list').innerHTML = data.focusAreas.map((f, i) => `
       <div class="focus-item">
         <div class="focus-index">${i + 1}</div>
-        <div><strong>${escapeHtml(f)}</strong></div>
-      </div>`).join('') || '<div style="font-size:12px;color:var(--cream-25)">Review all module resources below.</div>';
-
-    document.getElementById('prog-pct').textContent = '0%';
-    document.getElementById('prog-fill').setAttribute('data-width', '0%');
-    document.getElementById('progress-text').textContent = '0 of ' + totalResCount + ' done';
-    document.getElementById('ms-completed').textContent = 0;
-    document.getElementById('ms-scheduled').textContent = 0;
-    document.getElementById('ms-remaining').textContent = totalResCount;
-
-    // Map modules to resource cards
-    const resources = modules.map((m, i) => {
-      // Detect type from URL or explicit type field
-      const rawType = (m.type || '').toLowerCase();
-      let type = 'article';
-      if (rawType.includes('youtube') || rawType.includes('video') || (m.url && m.url.includes('youtube'))) type = 'video';
-      else if (rawType.includes('google') || rawType.includes('article') || rawType.includes('search')) type = 'article';
-      return {
-        id: i,
-        title: m.title || 'Resource ' + (i+1),
-        source: m.url || '',
-        description: m.description || '',
-        type,
-        duration: '~15 min',
-        tag: type === 'video' ? 'YouTube' : 'Google',
-        badge: { class: 'badge-gold', label: 'Recommended' },
-        status: 'new',
-        url: m.url || '#'
-      };
-    });
-
-    document.getElementById('res-list').innerHTML = resources.map(r => buildResCardReal(r)).join('');
+        <div><strong>${escapeHtml(f.title)}</strong>${escapeHtml(f.body)}</div>
+      </div>`).join('');
+    const pct = data.progress.pct;
+    document.getElementById('prog-pct').textContent = pct + '%';
+    document.getElementById('prog-fill').setAttribute('data-width', pct + '%');
+    document.getElementById('progress-text').textContent = data.progress.done + ' of ' + totalResCount + ' done';
+    document.getElementById('ms-completed').textContent = data.progress.done;
+    document.getElementById('ms-scheduled').textContent = data.progress.scheduled;
+    document.getElementById('ms-remaining').textContent = data.progress.remaining;
+    document.getElementById('res-list').innerHTML = data.resources.map(buildResCard).join('');
   } catch (e) {
-    console.error(e);
     showEmptyModule();
   }
-}
-
-function buildResCardReal(res) {
-  const thumbClass = { video: 't-video', article: 't-article' }[res.type] || 't-article';
-  const color = { video: '#C8B89A', article: '#6B9E6B' }[res.type] || '#6B9E6B';
-  const thumbIcon = res.type === 'video'
-    ? `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="${color}" stroke="none"/></svg>`
-    : `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>`;
-  const typeLabel = res.type.charAt(0).toUpperCase() + res.type.slice(1);
-  return `
-    <div class="res-card" data-id="${res.id}">
-      <div class="res-thumb ${thumbClass}">
-        ${thumbIcon}
-        <div class="thumb-label">${typeLabel}</div>
-      </div>
-      <div class="res-body">
-        <div class="res-top">
-          <div>
-            <div class="res-title">${escapeHtml(res.title)}</div>
-            <div class="res-source">${escapeHtml(res.description)}</div>
-          </div>
-          <span class="badge ${res.badge.class}">${escapeHtml(res.badge.label)}</span>
-        </div>
-        <div class="res-bottom">
-          <div class="res-meta">
-            <div class="rm-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l1.5 1"/></svg>${escapeHtml(res.duration)}</div>
-            <div class="rm-item">${escapeHtml(res.tag)}</div>
-          </div>
-          ${res.url && res.url !== '#'
-            ? `<a href="${escapeHtml(res.url)}" target="_blank" rel="noopener noreferrer" class="sched-btn">Open resource →</a>`
-            : `<span class="sched-btn" style="opacity:0.4">No link</span>`}
-        </div>
-      </div>
-    </div>`;
 }
 
 function showEmptyModule() {
