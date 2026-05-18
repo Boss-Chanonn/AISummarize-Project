@@ -1466,7 +1466,7 @@ select {
 
 /* -- Section Switching -- */
 .sys-section{display:none}
-.sys-section.active{display:flex;flex-direction:column;gap:16px}
+.sys-section.active{display:flex;flex-direction:column;}
 .sys-loading{padding:26px 18px;font-size:13px;color:var(--cream-25);text-align:center;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)}
 
 /* -- Shared sys header/live -- */
@@ -1511,7 +1511,8 @@ select {
 .api-ok svg,.api-error svg{width:9px;height:9px}
 
 /* -- User Control -- */
-.user-filter-bar{display:flex;align-items:center;gap:10px;padding:12px 5px;border-bottom:0.5px solid var(--border);flex-wrap:wrap}
+.user-filter-bar{display:flex;align-items:center;gap:10px;padding:12px 0px;border-bottom:0.5px solid var(--border);flex-wrap:wrap}
+.user-filter-bar--no-border{border-bottom:none}
 .user-table{width:100%;border-collapse:collapse}
 .user-table th{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25);padding:10px 18px;text-align:left;border-bottom:0.5px solid var(--border);font-weight:500}
 .user-table td{padding:12px 18px;border-bottom:0.5px solid var(--border);font-size:13px;color:var(--cream-60);vertical-align:middle}

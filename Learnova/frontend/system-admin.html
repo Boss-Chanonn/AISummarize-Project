@@ -50,30 +50,30 @@
       </div>
 
       <div id="section-users" class="sys-section">
-        <div class="card sys-card-shell">
-          <div class="user-filter-bar">
-            <div class="search-wrap">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input class="search-input" id="sys-user-search" type="text" placeholder="Search name or email…">
-            </div>
-            <select class="filter-select" id="sys-user-role">
-              <option value="">All Roles</option>
-              <option value="system_admin">System Admin</option>
-              <option value="admin">Admin</option>
-              <option value="user">User</option>
-            </select>
-            <select class="filter-select" id="sys-user-tier">
-              <option value="">All Tiers</option>
-              <option value="free">Free</option>
-              <option value="pro">Pro</option>
-            </select>
-            <select class="filter-select" id="sys-user-status">
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+        <div class="user-filter-bar user-filter-bar--no-border">
+          <div class="search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input class="search-input" id="sys-user-search" type="text" placeholder="Search name or email…">
           </div>
+          <select class="filter-select" id="sys-user-role">
+            <option value="">All Roles</option>
+            <option value="system_admin">System Admin</option>
+            <option value="admin">Admin</option>
+            <option value="user">User</option>
+          </select>
+          <select class="filter-select" id="sys-user-tier">
+            <option value="">All Tiers</option>
+            <option value="free">Free</option>
+            <option value="pro">Pro</option>
+          </select>
+          <select class="filter-select" id="sys-user-status">
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
 
+        <div class="card sys-card-shell">
           <table class="user-table">
             <thead>
               <tr>
@@ -98,7 +98,7 @@
       <div id="section-database" class="sys-section">
         <div class="card sys-card-shell">
           <div class="sys-card-header sys-card-header-center">
-            <span class="sys-card-title">Database Functions</span>
+            <span class="sys-card-title">Database Manager</span>
           </div>
           <div id="dbFunctionMenu" class="db-function-menu security-function-menu db-function-menu-four"></div>
         </div>

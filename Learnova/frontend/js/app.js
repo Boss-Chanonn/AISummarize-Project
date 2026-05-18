@@ -1921,10 +1921,18 @@ function renderCollections(collections) {
     return;
   }
 
+  const COLLECTION_LABEL = {
+    history: 'History',
+    system_logs: 'System Log',
+    token_blocklist: 'Token Blocklist',
+    users: 'Users'
+  };
+
   menu.innerHTML = collections.map(item => {
     const isOpen = SYS_STATE.openCollection === item.name;
+    const label = COLLECTION_LABEL[item.name] || item.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     return '<button class="db-func-btn' + (isOpen ? ' active' : '') + '" type="button" data-expand-collection="' + escapeHtml(item.name) + '">'
-      + '<span class="db-func-name">' + escapeHtml(item.name) + '</span>'
+      + '<span class="db-func-name">' + escapeHtml(label) + '</span>'
       + '</button>';
   }).join('');
 
