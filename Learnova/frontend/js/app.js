@@ -1529,6 +1529,7 @@ function renderUserTable(users) {
       + '<td><div class="actions-cell">'
       + '<button class="action-btn sys-role-btn" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Change Role"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg></button>'
       + '<button class="action-btn sys-reset-btn" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Reset Password"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></button>'
+      + '<button class="action-btn sys-status-btn' + (isSelf ? ' sys-action-disabled' : '') + '" type="button" data-user-id="' + escapeHtml(user._id) + '" data-status="' + escapeHtml(user.status) + '" title="' + (user.status === 'active' ? 'Deactivate' : 'Activate') + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/>' + (user.status === 'active' ? '<line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>' : '<polyline points="20 6 9 17 4 12"/>') + '</svg></button>'
       + '<button class="action-btn danger sys-delete-btn' + (isSelf ? ' sys-action-disabled' : '') + '" type="button" data-user-id="' + escapeHtml(user._id) + '" title="Delete"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg></button>'
       + '</div></td>'
       + '</tr>';
@@ -1670,6 +1671,26 @@ async function deleteSysUser(userId) {
     showToast('Failed to delete user', 3200);
   } finally {
     if (confirmBtn) confirmBtn.disabled = false;
+  }
+}
+
+/**
+ * Toggle active/inactive status for a user.
+ * @param {string} userId
+ * @param {string} currentStatus
+ * @returns {Promise<void>}
+ */
+async function changeSysUserStatus(userId, currentStatus) {
+  const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+  try {
+    await sysAdminFetch('/api/sysadmin/users/' + encodeURIComponent(userId) + '/status', {
+      method: 'PUT',
+      body: JSON.stringify({ status: newStatus })
+    });
+    showToast('User ' + (newStatus === 'active' ? 'activated' : 'deactivated'), 2800);
+    await loadUserControl();
+  } catch (err) {
+    showToast(err.message || 'Failed to update status', 3200);
   }
 }
 
@@ -2580,6 +2601,14 @@ function bindSystemAdminEvents() {
     const resetBtn = event.target.closest('.sys-reset-btn');
     if (resetBtn) {
       resetSysUserPassword(resetBtn.getAttribute('data-user-id') || '');
+      return;
+    }
+    const statusBtn = event.target.closest('.sys-status-btn:not(.sys-action-disabled)');
+    if (statusBtn) {
+      changeSysUserStatus(
+        statusBtn.getAttribute('data-user-id') || '',
+        statusBtn.getAttribute('data-status') || 'active'
+      );
       return;
     }
     const deleteBtn = event.target.closest('.sys-delete-btn:not(.sys-action-disabled)');

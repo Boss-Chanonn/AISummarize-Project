@@ -91,6 +91,8 @@ async def login(credentials: UserLogin):
     user = await users_collection.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
+    if user.get("status") == "inactive":
+        return message_error(403, "Account is disabled. Contact an administrator.")
     token = create_access_token({
         "email": user["email"],
         "name": user["name"],

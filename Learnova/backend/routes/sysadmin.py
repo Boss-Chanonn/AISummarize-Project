@@ -95,6 +95,34 @@ async def view_collection(
     return {"collection": collection_name, "items": result, "total": total, "page": page, "limit": limit}
 
 
+# ----------------------------- User Status Management -----------------------------
+@router.put("/users/{user_id}/status")
+async def update_user_status(
+    user_id: str,
+    body: dict,
+    current_user: dict = Depends(get_system_admin_user)
+):
+    """Toggle a user account between active and inactive status."""
+    new_status = body.get("status")
+    if new_status not in ("active", "inactive"):
+        return message_error(400, "status must be 'active' or 'inactive'")
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return message_error(400, "Invalid user ID")
+
+    # Prevent deactivating own account
+    if str(current_user.get("_id", "")) == user_id:
+        return message_error(403, "Cannot change your own account status")
+
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return message_error(404, "User not found")
+
+    await users_collection.update_one({"_id": oid}, {"$set": {"status": new_status}})
+    return {"message": f"User status updated to {new_status}", "status": new_status}
+
+
 # ----------------------------- Destructive Actions -----------------------------
 @router.delete("/db/{collection_name}/documents")
 async def delete_documents(

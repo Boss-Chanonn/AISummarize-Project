@@ -77,6 +77,9 @@ async def get_current_user(
     if user is None:
         raise _unauthorized("User not found")
 
+    if user.get("status") == "inactive":
+        raise _forbidden("Account is disabled. Contact an administrator.")
+
     user["id"] = str(user["_id"])
     return user
 
