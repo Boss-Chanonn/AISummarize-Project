@@ -1,41 +1,179 @@
-/* ── Admin Stats page — specific styles ── */
+/* -- Admin Stats Page Styles -- */
 
-/* ── Main ── */
-.main{display:flex;flex-direction:column;min-height:100vh}
+/* -- Section: Main Layout -- */
+.main {
+	display: flex;
+	flex-direction: column;
+	min-height: 100vh;
+}
 
-/* ── Content ── */
-.content{padding:28px 32px 40px;flex:1}
+/* -- Section: Content Area -- */
+.content {
+	padding: 28px 32px 40px;
+	flex: 1;
+}
 
-/* ── Cards grid ── */
-.cards-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px}
-.stat-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px;position:relative;overflow:hidden}
-.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(200,184,154,0.2),transparent)}
-.stat-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:10px;font-weight:500}
-.stat-value{font-family:var(--serif);font-size:32px;color:var(--cream);line-height:1;margin-bottom:6px}
-.stat-sub{font-size:12px;color:var(--cream-40)}
-.stat-dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}
-.dot-green{background:var(--green)}
-.dot-gold{background:var(--gold)}
-.dot-red{background:var(--red-soft)}
+/* -- Section: Statistic Cards Grid -- */
+.cards-grid {
+	display: grid;
+	grid-template-columns: repeat(3,1fr);
+	gap: 16px;
+	margin-bottom: 28px;
+}
 
-/* ── Charts grid ── */
-.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-.chart-card{background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:20px 22px}
-.chart-title{font-size:12px;font-weight:500;color:var(--cream-60);letter-spacing:0.3px;margin-bottom:18px}
-.chart-wrap{position:relative;height:220px}
+.stat-card {
+	background: var(--surface);
+	border: 0.5px solid var(--border);
+	border-radius: var(--radius-lg);
+	padding: 20px 22px;
+	position: relative;
+	overflow: hidden;
+}
 
-/* ── Skeleton ── */
-@keyframes pulse{0%,100%{opacity:0.4}50%{opacity:0.8}}
-.skeleton{background:var(--surface2);border-radius:var(--radius-md);animation:pulse 1.4s ease-in-out infinite}
-.sk-label{height:10px;width:60%;margin-bottom:12px}
-.sk-value{height:32px;width:45%;margin-bottom:10px}
-.sk-sub{height:10px;width:55%}
-.sk-chart{height:220px;border-radius:var(--radius-md)}
+.stat-card::before {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	height: 1px;
+	background: linear-gradient(90deg,transparent,rgba(200,184,154,0.2),transparent);
+}
 
-/* ── Error state ── */
-.error-box{background:var(--surface);border:0.5px solid rgba(200,120,80,0.3);border-radius:var(--radius-lg);padding:32px;text-align:center;display:none}
-.error-box.show{display:block}
-.error-icon{font-size:28px;margin-bottom:12px;color:var(--red-soft)}
-.error-msg{font-size:14px;color:var(--cream-40);margin-bottom:20px}
-.btn-retry{background:rgba(200,120,80,0.12);color:var(--red-soft);border:0.5px solid rgba(200,120,80,0.25);padding:8px 20px;border-radius:var(--radius-md);font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s}
-.btn-retry:hover{background:rgba(200,120,80,0.22)}
+.stat-label {
+	font-size: 10px;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	color: var(--gold);
+	margin-bottom: 10px;
+	font-weight: 500;
+}
+
+.stat-value {
+	font-family: var(--serif);
+	font-size: 32px;
+	color: var(--cream);
+	line-height: 1;
+	margin-bottom: 6px;
+}
+
+.stat-sub {
+	font-size: 12px;
+	color: var(--cream-40);
+}
+
+.stat-dot {
+	display: inline-block;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	margin-right: 5px;
+}
+
+.dot-green { background: var(--green); }
+.dot-gold { background: var(--gold); }
+.dot-red { background: var(--red-soft); }
+
+/* -- Section: Charts Grid -- */
+.charts-grid {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 16px;
+}
+
+.chart-card {
+	background: var(--surface);
+	border: 0.5px solid var(--border);
+	border-radius: var(--radius-lg);
+	padding: 20px 22px;
+}
+
+.chart-title {
+	font-size: 12px;
+	font-weight: 500;
+	color: var(--cream-60);
+	letter-spacing: 0.3px;
+	margin-bottom: 18px;
+}
+
+.chart-wrap {
+	position: relative;
+	height: 220px;
+}
+
+/* -- Section: Skeleton Loading -- */
+@keyframes pulse {
+	0%,
+	100% { opacity: 0.4; }
+	50% { opacity: 0.8; }
+}
+
+.skeleton {
+	background: var(--surface2);
+	border-radius: var(--radius-md);
+	animation: pulse 1.4s ease-in-out infinite;
+}
+
+.sk-label {
+	height: 10px;
+	width: 60%;
+	margin-bottom: 12px;
+}
+
+.sk-value {
+	height: 32px;
+	width: 45%;
+	margin-bottom: 10px;
+}
+
+.sk-sub {
+	height: 10px;
+	width: 55%;
+}
+
+.sk-chart {
+	height: 220px;
+	border-radius: var(--radius-md);
+}
+
+/* -- Section: Error State -- */
+.error-box {
+	background: var(--surface);
+	border: 0.5px solid rgba(200,120,80,0.3);
+	border-radius: var(--radius-lg);
+	padding: 32px;
+	text-align: center;
+	display: none;
+}
+
+.error-box.show {
+	display: block;
+}
+
+.error-icon {
+	font-size: 28px;
+	margin-bottom: 12px;
+	color: var(--red-soft);
+}
+
+.error-msg {
+	font-size: 14px;
+	color: var(--cream-40);
+	margin-bottom: 20px;
+}
+
+.btn-retry {
+	background: rgba(200,120,80,0.12);
+	color: var(--red-soft);
+	border: 0.5px solid rgba(200,120,80,0.25);
+	padding: 8px 20px;
+	border-radius: var(--radius-md);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 0.15s;
+}
+
+.btn-retry:hover {
+	background: rgba(200,120,80,0.22);
+}

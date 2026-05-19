@@ -5,99 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Learnova — Upload Document</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .upload-layout{display:grid;grid-template-columns:1fr 1fr;gap:0;min-height:calc(100vh - 80px)}
-    .panel{padding:36px 40px}
-    .panel-left{border-right:0.5px solid var(--border);background:linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))}
-    .panel-right{background:linear-gradient(180deg, rgba(240,237,232,0.045), rgba(240,237,232,0.02))}
-    .upload-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px}
-    .upload-input-shell{transition:grid-template-rows 0.35s cubic-bezier(0.16,1,0.3,1),opacity 0.25s ease}
-    .upload-input-shell-inner{overflow:hidden}
-    .upload-summary-shell{display:none}
-    .panel-left.summary-mode .upload-input-shell{display:none!important}
-    .panel-left.summary-mode .upload-summary-shell{display:block}
-    .panel-left.compact .upload-summary-shell{display:none}
-    .panel-left.compact .upload-input-shell{grid-template-rows:0fr;opacity:0}
-    .panel-left.compact .upload-panel-head{margin-bottom:0}
-    .upload-compact-file{display:none;padding:14px 16px;border:0.5px solid rgba(200,184,154,0.22);background:rgba(200,184,154,0.06);border-radius:var(--radius-md);align-items:center;gap:12px;animation:fadeUp 0.22s ease}
-    .panel-left.compact .upload-compact-file{display:flex}
-    .upload-compact-file.live{box-shadow:0 10px 30px rgba(0,0,0,0.12);transform:translateY(0);transition:box-shadow 0.28s ease,transform 0.28s ease}
-    .compact-file-name{font-size:13px;color:var(--cream-60);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .compact-file-meta{font-size:11px;color:var(--cream-25);margin-top:2px}
-    .doc-info-card{display:flex;align-items:center;gap:18px;padding:22px;border:0.5px solid rgba(200,184,154,0.22);background:rgba(200,184,154,0.06);border-radius:var(--radius-lg);margin-bottom:26px}
-    .doc-info-main{min-width:0;flex:1}
-    .doc-info-name{font-size:14px;color:var(--cream);font-weight:500}
-    .doc-info-meta{font-size:12px;color:var(--cream-25);margin-top:6px}
-    .doc-info-rows{display:flex;flex-direction:column}
-    .doc-info-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 0;border-bottom:0.5px solid var(--border)}
-    .doc-info-row:last-child{border-bottom:none}
-    .doc-info-key{font-size:11px;color:var(--cream-25)}
-    .doc-info-value{font-size:13px;color:var(--cream-60);text-align:right}
-    .doc-upload-btn{width:100%;justify-content:center;margin-top:28px}
-    .upload-zone{border:0.5px dashed var(--border-md);border-radius:var(--radius-md);padding:44px 28px;text-align:center;cursor:pointer;transition:border-color 0.15s,background 0.15s;margin-bottom:18px}
-    .upload-zone:hover,.upload-zone.drag{border-color:var(--gold);background:rgba(200,184,154,0.03)}
-    .upload-icon{margin:0 auto 16px;opacity:0.3;display:block}
-    .upload-main{font-size:14px;color:var(--cream-60);margin-bottom:5px}
-    .upload-sub{font-size:12px;color:var(--cream-25)}
-    #file-input{display:none}
-    .or-divider{display:flex;align-items:center;gap:12px;margin:14px 0}
-    .or-line{flex:1;height:0.5px;background:var(--border)}
-    .or-text{font-size:11px;color:var(--cream-25)}
-    .file-list{display:flex;flex-direction:column;gap:6px;margin-top:12px}
-    .file-attached{display:flex;align-items:center;gap:10px;padding:10px 13px;background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.22);border-radius:var(--radius-md)}
-    .file-icon-box{width:28px;height:32px;background:rgba(200,184,154,0.12);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:var(--gold);flex-shrink:0}
-    .file-name{font-size:12px;color:var(--cream-60);flex:1}
-    .file-size{font-size:11px;color:var(--cream-25)}
-    .file-remove{background:none;border:none;color:var(--cream-25);font-size:14px;cursor:pointer;padding:2px 4px}
-    .file-remove:hover{color:var(--red-soft)}
-    /* Pro gate banner */
-    .pro-gate{background:rgba(200,184,154,0.06);border:0.5px solid rgba(200,184,154,0.22);border-radius:var(--radius-md);padding:12px 14px;display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-    .pro-gate-text{font-size:12px;color:var(--gold)}
-    .loading-state{text-align:center;padding:60px 20px}
-    .loading-spinner{width:28px;height:28px;border:1.5px solid var(--border-md);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 16px}
-    @keyframes spin{to{transform:rotate(360deg)}}
-    .loading-text{font-size:14px;color:var(--cream-40);font-family:var(--serif);font-style:italic}
-    .loading-shell{max-width:420px;margin:0 auto}
-    .loading-label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-25);margin-bottom:10px}
-    .loading-bar{height:5px;border-radius:999px;background:var(--cream-10);overflow:hidden;margin:18px 0 14px}
-    .loading-bar-fill{height:100%;width:0;background:linear-gradient(90deg, var(--gold), color-mix(in srgb, var(--gold) 70%, #fff 30%));border-radius:999px;transition:width 0.35s cubic-bezier(0.16,1,0.3,1)}
-    .loading-pct{font-size:12px;color:var(--gold);font-family:var(--serif);margin-bottom:16px}
-    .loading-steps{display:flex;flex-direction:column;gap:8px;text-align:left}
-    .loading-step{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--cream-25);padding:9px 12px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--cream-05)}
-    .loading-step.active{color:var(--cream-60);border-color:rgba(200,184,154,0.24);background:rgba(200,184,154,0.06)}
-    .loading-step.done{color:var(--green);border-color:rgba(107,158,107,0.22);background:rgba(107,158,107,0.05)}
-    .loading-step-dot{width:8px;height:8px;border-radius:50%;background:var(--cream-25);flex-shrink:0}
-    .loading-step.active .loading-step-dot{background:var(--gold);box-shadow:0 0 0 6px rgba(200,184,154,0.08)}
-    .loading-step.done .loading-step-dot{background:var(--green)}
-    .empty-state{text-align:center;padding:60px 20px}
-    .empty-icon{opacity:0.15;margin:0 auto 16px;display:block}
-    .empty-text{font-size:14px;color:var(--cream-25);font-family:var(--serif);font-style:italic}
-    .empty-sub{font-size:12px;color:var(--cream-25);margin-top:6px;opacity:0.6}
-
-    /* Quiz styles */
-    .quiz-container{padding:0}
-    .quiz-q-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}
-    .quiz-q-num{font-size:11px;color:var(--cream-25);letter-spacing:0.5px}
-    .quiz-q-prog{height:2px;background:var(--border);border-radius:1px;margin-bottom:28px}
-    .quiz-q-prog-fill{height:2px;background:var(--gold);border-radius:1px;transition:width 0.3s}
-    .quiz-question{font-family:var(--serif);font-size:18px;font-weight:400;letter-spacing:-0.3px;line-height:1.4;margin-bottom:24px;color:var(--cream)}
-    .quiz-options{display:flex;flex-direction:column;gap:8px;margin-bottom:24px}
-    .quiz-opt{display:flex;align-items:flex-start;gap:12px;padding:13px 16px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.15s,background 0.15s;text-align:left;width:100%;color:var(--cream-60);font-size:13px;font-family:var(--sans);line-height:1.45}
-    .quiz-opt:hover{border-color:var(--gold);color:var(--cream)}
-    .quiz-opt.selected{border-color:var(--gold);background:rgba(200,184,154,0.07);color:var(--cream)}
-    .quiz-opt.correct{border-color:var(--green);background:rgba(107,158,107,0.08);color:var(--cream)}
-    .quiz-opt.wrong{border-color:var(--red-soft);background:rgba(200,120,80,0.06);color:var(--cream)}
-    .opt-letter{width:22px;height:22px;border-radius:50%;background:var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:500;flex-shrink:0;margin-top:1px}
-    .quiz-opt.selected .opt-letter{background:var(--gold);color:var(--bg)}
-    .quiz-opt.correct .opt-letter{background:var(--green);color:#fff}
-    .quiz-opt.wrong .opt-letter{background:var(--red-soft);color:#fff}
-    .quiz-nav{display:flex;justify-content:space-between;align-items:center}
-    .quiz-feedback-inline{margin-top:12px;padding:10px 14px;border-radius:var(--radius-md);font-size:12px;line-height:1.6;display:none}
-    .quiz-feedback-inline.correct{background:rgba(107,158,107,0.08);border:0.5px solid rgba(107,158,107,0.22);color:var(--green);display:block}
-    .quiz-feedback-inline.wrong{background:rgba(200,120,80,0.06);border:0.5px solid rgba(200,120,80,0.2);color:var(--red-soft);display:block}
-
-    @media(max-width:860px){.upload-layout{grid-template-columns:1fr}.panel-left{border-right:none;border-bottom:0.5px solid var(--border)}}
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -105,7 +12,7 @@
   <main class="main-content" style="padding:0">
     <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 40px;border-bottom:0.5px solid var(--border);background:radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.07), transparent 42%), linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02))">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-25)">
-        <a href="index.html" style="color:var(--cream-25)">Dashboard</a>
+        <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
         <span style="color:var(--border-md)">/</span>
         <span style="color:var(--cream-60)" id="breadcrumb-cur">New document</span>
       </div>
@@ -174,9 +81,7 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
-<script src="js/mock-api.js"></script>
 <script src="js/app.js"></script>
-<script src="js/auth-logout.js"></script>
 <script>
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 
@@ -185,11 +90,26 @@ let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score:
 let resumedSession = false;
 let processingTimer = null;
 
-function isPro() { return LEARNOVA_USER.tier === 'pro'; }
+let quizData = []; // populated from POST /api/upload
 
+let quizMode = false, currentQ = 0, answers = [], answered = false;
+
+/* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
+/**
+ * Check whether the current user has Pro tier enabled.
+ * @returns {boolean}
+ */
+function isPro() {
+  return LEARNOVA_USER.tier === 'pro';
+}
+
+/**
+ * Update upload controls based on current plan tier.
+ */
 function updateUploadUI() {
   const gate = document.getElementById('pro-gate-banner');
   const fileInput = document.getElementById('file-input');
+
   if (isPro()) {
     fileInput.accept = '.pdf,.txt,.pptx,.ppt';
     document.getElementById('upload-sub-text').textContent = 'PDF, TXT, PPTX · up to 10 MB · multiple files supported';
@@ -203,59 +123,122 @@ function updateUploadUI() {
   }
 }
 
-function triggerFileInput() { document.getElementById('file-input').click(); }
-function handleDrag(e, entering) { e.preventDefault(); document.getElementById('drop-zone').classList.toggle('drag', entering); }
+/**
+ * Open hidden file picker input.
+ */
+function triggerFileInput() {
+  document.getElementById('file-input').click();
+}
+
+/**
+ * Handle drag enter/leave states for upload zone.
+ * @param {DragEvent} e
+ * @param {boolean} entering
+ */
+function handleDrag(e, entering) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.toggle('drag', entering);
+}
+
+/**
+ * Handle dropped files and pass them to file handler.
+ * @param {DragEvent} e
+ */
 function handleDrop(e) {
-  e.preventDefault(); document.getElementById('drop-zone').classList.remove('drag');
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
   handleFileInput(e.dataTransfer.files);
 }
+
+/* ── File Handling ─────────────────────────────────────────────────────────── */
+/**
+ * Validate and store selected files based on plan limits and file size.
+ * @param {FileList | File[]} files
+ */
 function handleFileInput(files) {
   if (!files || !files.length) return;
+
   const allowed = isPro() ? ['.pdf','.txt','.pptx','.ppt'] : ['.pdf','.txt'];
-  const newFiles = Array.from(files).filter(f => {
-    const ext = '.' + f.name.split('.').pop().toLowerCase();
-    if (!allowed.includes(ext)) { showToast(ext.toUpperCase() + ' upload requires Pro'); return false; }
-    if (f.size > 10*1024*1024) { showToast(f.name + ' exceeds 10 MB limit'); return false; }
+  const newFiles = Array.from(files).filter(function(file) {
+    const extension = '.' + file.name.split('.').pop().toLowerCase();
+
+    if (!allowed.includes(extension)) {
+      showToast(extension.toUpperCase() + ' upload requires Pro');
+      return false;
+    }
+
+    const maxBytes = 10 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      showToast(file.name + ' exceeds 10 MB limit');
+      return false;
+    }
+
     return true;
   });
-  if (!isPro() && newFiles.length > 0) uploadedFiles = [newFiles[0]];
-  else uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+
+  if (!isPro() && newFiles.length > 0) {
+    uploadedFiles = [newFiles[0]];
+  } else {
+    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+  }
+
   renderFileList();
   checkContent();
   document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected';
 }
+
+/**
+ * Render attached file cards in the upload panel.
+ */
 function renderFileList() {
   const list = document.getElementById('file-list');
-  const extColor = ext => ext==='pptx'||ext==='ppt'?'#B89AE8':ext==='txt'?'var(--green)':'var(--gold)';
-  list.innerHTML = uploadedFiles.map((f,i) => {
-    const ext = f.name.split('.').pop().toUpperCase();
+  const extColor = function(ext) {
+    return ext === 'pptx' || ext === 'ppt' ? '#B89AE8' : ext === 'txt' ? 'var(--green)' : 'var(--gold)';
+  };
+
+  list.innerHTML = uploadedFiles.map(function(file, index) {
+    const extension = file.name.split('.').pop().toUpperCase();
     return `<div class="file-attached">
-      <div class="file-icon-box" style="color:${extColor(ext.toLowerCase())}">${ext}</div>
-      <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name}</div><div class="file-size">${(f.size/1024).toFixed(0)} KB</div></div>
-      <button class="file-remove" onclick="removeFile(${i})">✕</button>
+      <div class="file-icon-box" style="color:${extColor(extension.toLowerCase())}">${extension}</div>
+      <div style="flex:1;min-width:0"><div class="file-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${file.name}</div><div class="file-size">${(file.size / 1024).toFixed(0)} KB</div></div>
+      <button class="file-remove" onclick="removeFile(${index})">✕</button>
     </div>`;
   }).join('');
+
   syncCompactFile();
 }
+
+/**
+ * Remove a file by index and refresh related UI.
+ * @param {number} i
+ */
 function removeFile(i) {
   uploadedFiles.splice(i,1);
   renderFileList();
   checkContent();
   document.getElementById('breadcrumb-cur').textContent = uploadedFiles.length === 0 ? 'New document' : (uploadedFiles.length === 1 ? uploadedFiles[0].name : uploadedFiles.length + ' files selected');
 }
+
+/**
+ * Toggle process button based on text/file availability.
+ */
 function checkContent() {
   const hasPaste = document.getElementById('paste-area').value.trim().length > 30;
   const hasFiles = uploadedFiles.length > 0;
-  document.getElementById('btn-process').style.display = (hasPaste||hasFiles) ? 'flex' : 'none';
+
+  document.getElementById('btn-process').style.display = (hasPaste || hasFiles) ? 'flex' : 'none';
+
   if (!hasFiles && hasPaste) document.getElementById('breadcrumb-cur').textContent = 'Pasted text';
   if (!hasFiles && !hasPaste) document.getElementById('breadcrumb-cur').textContent = 'New document';
+
   syncCompactFile();
 }
 
-let quizData = []; // populated from POST /api/upload
-
-let quizMode = false, currentQ = 0, answers = [], answered = false;
-
+/* ── Document Summary Builders ─────────────────────────────────────────────── */
+/**
+ * Resolve active upload label for compact header status.
+ * @returns {string}
+ */
 function getActiveUploadLabel() {
   if (uploadedFiles.length === 1) return uploadedFiles[0].name;
   if (uploadedFiles.length > 1) return uploadedFiles.length + ' files selected';
@@ -264,18 +247,35 @@ function getActiveUploadLabel() {
   return pasted ? 'Pasted text' : 'Document ready';
 }
 
+/**
+ * Check whether pasted text meets minimum processing length.
+ * @returns {boolean}
+ */
 function hasPastedText() {
   return document.getElementById('paste-area').value.trim().length > 30;
 }
 
+/**
+ * Determine whether current upload is text-only.
+ * @returns {boolean}
+ */
 function isTextOnlyUpload() {
   return uploadedFiles.length === 0 && hasPastedText();
 }
 
+/**
+ * Format character count label for text uploads.
+ * @param {number} count
+ * @returns {string}
+ */
 function formatChars(count) {
   return `${count} chars`;
 }
 
+/**
+ * Return local processed timestamp string.
+ * @returns {string}
+ */
 function getProcessedTime() {
   return new Date().toLocaleTimeString('en-NZ', {
     hour: '2-digit',
@@ -284,6 +284,11 @@ function getProcessedTime() {
   }).toLowerCase();
 }
 
+/**
+ * Build summary payload for pasted-text uploads.
+ * @param {string} pasted
+ * @returns {object}
+ */
 function buildPastedSummary(pasted) {
   const charCount = pasted.length;
   const processedAt = getProcessedTime();
@@ -326,6 +331,10 @@ function buildPastedSummary(pasted) {
   };
 }
 
+/**
+ * Build summary metadata from uploaded file.
+ * @returns {object}
+ */
 function buildUploadedFileSummary() {
   const file = uploadedFiles[0];
   if (!file) return { ...currentDoc };
@@ -348,12 +357,19 @@ function buildUploadedFileSummary() {
   };
 }
 
+/**
+ * Resolve the current document object from active upload state.
+ * @returns {object}
+ */
 function buildCurrentDocument() {
   if (isTextOnlyUpload()) return buildPastedSummary(document.getElementById('paste-area').value.trim());
   if (uploadedFiles.length > 0) return buildUploadedFileSummary();
   return { ...currentDoc };
 }
 
+/**
+ * Render left-panel document information card and metadata rows.
+ */
 function renderDocumentInfo() {
   const mount = document.getElementById('upload-summary-shell');
   if (!mount || !currentDoc) return;
@@ -378,12 +394,19 @@ function renderDocumentInfo() {
   `;
 }
 
+/**
+ * Toggle upload panel between input mode and summary mode.
+ * @param {boolean} active
+ */
 function setSummaryMode(active) {
   const panel = document.querySelector('.panel-left');
   panel.classList.toggle('summary-mode', active);
   document.getElementById('upload-panel-label').textContent = active ? 'Document info' : 'Upload document';
 }
 
+/**
+ * Sync compact status card text and icon.
+ */
 function syncCompactFile() {
   const compactName = document.getElementById('compact-file-name');
   const compactMeta = document.getElementById('compact-file-meta');
@@ -395,6 +418,10 @@ function syncCompactFile() {
   compactMeta.textContent = quizMode ? 'Quiz in progress' : 'Summary ready';
 }
 
+/**
+ * Collapse or expand upload panel while quiz is active.
+ * @param {boolean} collapsed
+ */
 function setUploadCollapsed(collapsed) {
   document.querySelector('.panel-left').classList.toggle('compact', collapsed);
   syncCompactFile();
@@ -402,17 +429,31 @@ function setUploadCollapsed(collapsed) {
   compact.classList.toggle('live', collapsed);
 }
 
+/* ── Document Processing ────────────────────────────────────────────────────── */
+/**
+ * Send upload payload to backend and transition to summary view.
+ * @returns {Promise<void>}
+ */
 async function processDocument() {
+  // Phase 1: Set initial loading UI state.
   showProcessingState();
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
-  const payload = {
-    title: file ? file.name : (hasPaste ? 'Pasted text' : 'Document'),
-    fileType: file ? file.name.split('.').pop().toUpperCase() : 'TXT',
-    pageCount: file ? Math.max(1, Math.round(file.size / 3000)) : 1
-  };
-  // Run animation + fetch in parallel so animation always plays fully
+  const _token = localStorage.getItem('token') || '';
+
+  // Phase 2: Build FormData payload for file or pasted text.
+  const formData = new FormData();
+  if (file) {
+    formData.append('file', file);
+    formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+  } else if (hasPaste) {
+    const pastedText = document.getElementById('paste-area') ? document.getElementById('paste-area').value : '';
+    formData.append('text_content', pastedText);
+    formData.append('title', 'Pasted text');
+  }
+
+  // Phase 3: Run animated progress and network request in parallel.
   let step = 0;
   const progressMarks = [18, 42, 71, 100];
   const animPromise = new Promise(function(resolve) {
@@ -428,14 +469,27 @@ async function processDocument() {
   });
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    headers: { 'Authorization': 'Bearer ' + _token },
+    body: formData
   });
+
   try {
+    // Phase 4: Validate response and update app state.
     const results = await Promise.all([animPromise, fetchPromise]);
     const fetchRes = results[1];
     const data = await fetchRes.json();
-    if (!fetchRes.ok) throw new Error(data.message || 'Upload failed');
+    if (fetchRes.status === 401 || fetchRes.status === 403) {
+      localStorage.removeItem('token');
+      window.location.href = 'index.html';
+      return;
+    }
+    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
+
+    // Persist IDs so quiz/results pages can continue flow.
+    if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
+    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+
+    // Phase 5: Transition to summary and reveal next actions.
     setTimeout(function() {
       showSummary(data);
       document.getElementById('btn-rescan').style.display = 'flex';
@@ -443,14 +497,18 @@ async function processDocument() {
       document.getElementById('btn-process').style.display = 'none';
     }, 260);
   } catch (e) {
+    // Phase 6: Reset actionable UI and show fallback error state.
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
-    showToast('Processing failed — please try again');
+    showToast(e.message || 'Processing failed — please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
 }
 
+/**
+ * Render right-panel processing skeleton and progress placeholders.
+ */
 function showProcessingState() {
   const html = `
     <div class="loading-state">
@@ -472,6 +530,11 @@ function showProcessingState() {
   else document.getElementById('right-panel').innerHTML = html;
 }
 
+/**
+ * Update progress bar, label, and active processing step state.
+ * @param {number} progress
+ * @param {number} activeIndex
+ */
 function updateProcessingState(progress, activeIndex) {
   const labels = [
     'Reading your document…',
@@ -491,6 +554,10 @@ function updateProcessingState(progress, activeIndex) {
   });
 }
 
+/**
+ * Render generated summary and prepare quiz entrypoint controls.
+ * @param {object} data
+ */
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
   quizData = data.quizData || data.quizFull || [];
@@ -502,6 +569,10 @@ function showSummary(data) {
   syncCompactFile();
 }
 
+/* ── Quiz Engine ────────────────────────────────────────────────────────────── */
+/**
+ * Start quiz mode and render first question.
+ */
 function startQuiz() {
   quizMode = true; currentQ = 0; answers = []; answered = false;
   document.getElementById('btn-quiz').style.display = 'none';
@@ -509,6 +580,10 @@ function startQuiz() {
   renderQuestion('forward');
 }
 
+/**
+ * Render active quiz question panel.
+ * @param {'forward'|'backward'} [direction='forward']
+ */
 function renderQuestion(direction='forward') {
   answered = false;
   const q = quizData[currentQ];
@@ -536,6 +611,10 @@ function renderQuestion(direction='forward') {
   else document.getElementById('right-panel').innerHTML = html;
 }
 
+/**
+ * Record selected answer and show immediate feedback.
+ * @param {number} i
+ */
 function selectAnswer(i) {
   if (answered) return;
   answered = true;
@@ -552,14 +631,31 @@ function selectAnswer(i) {
   document.getElementById('btn-skip').style.display = 'none';
   document.getElementById('btn-next').style.display = 'inline-flex';
 }
-function skipQuestion() { answers.push({ chosen:-1, correct:quizData[currentQ].correct }); nextQuestion(); }
+
+/**
+ * Skip current question and continue quiz flow.
+ */
+function skipQuestion() {
+  answers.push({ chosen: -1, correct: quizData[currentQ].correct });
+  nextQuestion();
+}
+
+/**
+ * Move to next question or finish quiz when completed.
+ */
 function nextQuestion() {
   currentQ++;
   if (currentQ >= quizData.length) { showQuizResults(); return; }
   renderQuestion('forward');
 }
 
+/* ── Results and Persistence ───────────────────────────────────────────────── */
+/**
+ * Render quiz results and persist answer summary to history endpoint.
+ * @returns {Promise<void>}
+ */
 async function showQuizResults() {
+  // Phase 1: Calculate score and render result UI.
   const correctCount = answers.filter(a => a.chosen === a.correct).length;
   const pct = Math.round((correctCount/quizData.length)*100);
   const circ = 251.2; const offset = circ - (pct/100)*circ;
@@ -599,7 +695,8 @@ async function showQuizResults() {
   } else {
     document.getElementById('right-panel').innerHTML = html;
   }
-  // Build per-question details for saving
+
+  // Phase 2: Build per-question details for persistence.
   const questionDetails = quizData.map((q, i) => {
     const a = answers[i];
     const chosenIdx = a ? a.chosen : -1;
@@ -611,41 +708,31 @@ async function showQuizResults() {
       answer: isCorrect ? null : q.opts[q.correct]
     };
   });
-  // Save to history
+
+  // Phase 3: Persist answers to backend and enable results navigation button.
   try {
     const token = localStorage.getItem('token') || '';
-    const saveRes = await fetch('/api/history/save', {
-      method: 'POST',
-      headers: Object.assign(
-        { 'Content-Type': 'application/json' },
-        token ? { 'Authorization': 'Bearer ' + token } : {}
-      ),
-      body: JSON.stringify({
-        title: currentDoc.title,
-        meta: currentDoc.meta || '',
-        fileType: currentDoc.fileType || 'TXT',
-        pageCount: currentDoc.pageCount || 1,
-        score: pct,
-        correct: correctCount,
-        total: quizData.length,
-        done: true,
-        summary: currentDoc.summary || {},
-        strengths: currentDoc.strengths || [],
-        weaknesses: currentDoc.weaknesses || [],
-        studyNext: currentDoc.studyNext || [],
-        questions: questionDetails,
-        quizFull: quizData
-      })
-    });
-    const saved = await saveRes.json();
+    const historyId = localStorage.getItem('currentHistoryId') || '';
+    const userAnswerIndices = answers.map(a => a.chosen);
+    let savedId = historyId;
+    if (historyId) {
+      const saveRes = await fetch('/api/history/' + historyId + '/submit-quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ answers: userAnswerIndices })
+      });
+      const saved = await saveRes.json();
+      savedId = saved._id || historyId;
+    }
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html?id=' + saved.id; };
+      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {
+    // Phase 4: Fallback to local results view when backend save fails.
     const btn = document.getElementById('btn-full-results');
     if (btn) {
       btn.disabled = false;
@@ -656,6 +743,9 @@ async function showQuizResults() {
   }
 }
 
+/**
+ * Reset upload workspace and clear transient quiz/processing state.
+ */
 function resetUpload() {
   if (processingTimer) {
     clearInterval(processingTimer);
@@ -675,32 +765,84 @@ function resetUpload() {
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
 }
 
-function loadResumedQuizFlow() {
+/**
+ * Resume summary/quiz flow from history item in query params.
+ * @returns {Promise<void>}
+ */
+async function loadResumedQuizFlow() {
   const params = new URLSearchParams(window.location.search);
-  const resumeId = parseInt(params.get('resume'), 10);
+  const resumeId = params.get('resume'); // keep as string — MongoDB ObjectID
   const mode = params.get('mode') || 'summary';
   if (!resumeId) return;
-  const item = getHistoryItem(resumeId);
-  if (!item) return;
-  resumedSession = true;
-  currentDoc = { ...item, done: false, score: null, correct: null, total: item.total || 8 };
-  quizData = item.quizFull || [];
-  currentDoc.infoRows = [
-    ['File type', currentDoc.fileType || 'PDF'],
-    ['File size', currentDoc.pageCount ? `${currentDoc.pageCount} pages` : 'Ready'],
-    ['Pages', String(currentDoc.pageCount || 1)],
-    ['Language', 'English'],
-    ['Processed at', getProcessedTime()],
-  ];
-  document.getElementById('breadcrumb-cur').textContent = currentDoc.title;
-  document.getElementById('btn-rescan').style.display = 'flex';
-  document.getElementById('btn-process').style.display = 'none';
-  document.getElementById('btn-quiz').style.display = mode === 'quiz' ? 'none' : 'flex';
-  document.getElementById('btn-process').disabled = false;
-  showSummary(currentDoc);
-  if (mode === 'quiz') startQuiz();
+
+  // Show a brief loading state in the right panel while we fetch
+  document.getElementById('right-panel').innerHTML = `
+    <div class="loading-state">
+      <div class="loading-shell">
+        <div class="loading-label">Loading document</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Loading your document\u2026</div>
+      </div>
+    </div>`;
+
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/history/' + resumeId, {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (!res.ok) {
+      console.error('[quiz] Failed to load history item:', res.status);
+      showToast('Could not load document \u2014 please try again');
+      document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Document not found.</div><div class="empty-sub">It may have been deleted.</div></div>`;
+      return;
+    }
+    const item = await res.json();
+
+    // Store IDs so showQuizResults can submit the quiz
+    localStorage.setItem('currentHistoryId', resumeId);
+    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
+
+    resumedSession = true;
+    const qLen = (item.quizFull || []).length;
+    currentDoc = {
+      ...item,
+      id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
+      done: false,
+      score: null,
+      correct: null,
+      total: qLen || item.total || 8
+    };
+    quizData = item.quizFull || [];
+
+    if (!quizData.length) {
+      console.error('[quiz] No quiz data found for history item:', resumeId);
+      showToast('No quiz available for this document');
+    }
+
+    currentDoc.infoRows = [
+      ['File type', currentDoc.fileType || 'PDF'],
+      ['Pages', String(currentDoc.pageCount || 1)],
+      ['Language', 'English'],
+      ['Processed at', getProcessedTime()],
+    ];
+
+    document.getElementById('breadcrumb-cur').textContent = currentDoc.title || 'Document';
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+    document.getElementById('btn-quiz').style.display = (mode === 'quiz' || !quizData.length) ? 'none' : 'flex';
+    document.getElementById('btn-process').disabled = false;
+
+    showSummary(currentDoc);
+    if (mode === 'quiz' && quizData.length) startQuiz();
+
+  } catch (e) {
+    console.error('[quiz] Error loading history item:', e);
+    showToast('Could not load document \u2014 please try again');
+    document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Failed to load document.</div><div class="empty-sub">Check your connection and try again.</div></div>`;
+  }
 }
 
+/* ── Page Bootstrap ─────────────────────────────────────────────────────────── */
 document.addEventListener('DOMContentLoaded', () => {
   updateUploadUI();
   syncCompactFile();

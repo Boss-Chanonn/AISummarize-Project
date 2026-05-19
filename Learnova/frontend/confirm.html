@@ -5,92 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Learnova — Confirm Order</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .confirm-shell {
-      max-width: 480px;
-      margin: 0 auto;
-    }
-
-    .confirm-summary-box {
-      background: var(--cream-05);
-      border: 0.5px solid var(--gold-dim);
-      border-radius: var(--radius-lg);
-      padding: 24px;
-      margin-bottom: 24px;
-    }
-    .confirm-summary-title {
-      font-size: 12px;
-      letter-spacing: 1px;
-      text-transform: uppercase;
-      color: var(--cream-25);
-      margin-bottom: 16px;
-    }
-    .confirm-row {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 10px 0;
-      border-bottom: 0.5px solid var(--border);
-    }
-    .confirm-row:last-child { border-bottom: none; }
-    .confirm-row-label { font-size: 12px; color: var(--cream-25); }
-    .confirm-row-value { font-size: 13px; color: var(--cream-60); text-align: right; }
-    .confirm-row-value.gold { color: var(--gold); font-weight: 600; }
-
-    .confirm-total-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-top: 18px;
-      padding-top: 18px;
-      border-top: 0.5px solid var(--border-md);
-    }
-    .confirm-total-label { font-size: 13px; color: var(--cream-60); font-weight: 600; }
-    .confirm-total-amount {
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--gold);
-      font-family: var(--serif);
-    }
-
-    .confirm-buttons {
-      display: flex;
-      gap: 12px;
-    }
-    .confirm-buttons .btn { flex: 1; justify-content: center; }
-
-    .confirm-error {
-      font-size: 12px;
-      color: #e57373;
-      margin-top: 10px;
-      display: none;
-      text-align: center;
-    }
-    .confirm-error.show { display: block; }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      color: var(--cream-25);
-      text-decoration: none;
-      margin-bottom: 20px;
-      transition: color 0.15s;
-    }
-    .back-link:hover { color: var(--cream-60); }
-
-    .lock-note {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--cream-25);
-      margin-top: 14px;
-    }
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -145,7 +59,7 @@
 <script src="js/app.js"></script>
 <script src="js/billing.js"></script>
 <script>
-  // Auth guard
+  // Auth guard: redirect to login if token is missing.
   (function () {
     const token = localStorage.getItem('token');
     if (!token) { window.location.replace('index.html'); }
@@ -153,8 +67,10 @@
 
   document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
 
-  // Populate summary from sessionStorage
-  (function () {
+  /**
+   * Populate confirm-order summary from stored payment/session values.
+   */
+  function initializeConfirmSummary() {
     const planType    = sessionStorage.getItem('selected_plan') || 'monthly';
     const paymentData = JSON.parse(sessionStorage.getItem('payment_data') || 'null');
 
@@ -174,17 +90,24 @@
     document.getElementById('summary-name').textContent =
       paymentData.card_name || '—';
     document.getElementById('summary-amount').textContent = amount + period;
-  })();
+  }
 
+  initializeConfirmSummary();
+
+  /**
+   * Submit mock payment confirmation request and finalize plan upgrade flow.
+   * @returns {Promise<void>}
+   */
   async function submitPayment() {
+    // Phase 1: Set loading UI state.
     const btn  = document.getElementById('btn-confirm');
     const errEl = document.getElementById('confirm-error');
 
-    // Loading state
     btn.disabled    = true;
     btn.textContent = 'Processing...';
     errEl.classList.remove('show');
 
+    // Phase 2: Resolve current payment payload from session.
     const planType    = sessionStorage.getItem('selected_plan') || 'monthly';
     const paymentData = JSON.parse(sessionStorage.getItem('payment_data') || 'null');
 
@@ -196,6 +119,7 @@
     const amount = planType === 'yearly' ? 99.99 : 12.99;
 
     try {
+      // Phase 3: Call billing confirm API.
       const result = await confirmPayment({
         plan_type:  planType,
         card_name:  paymentData.card_name,
@@ -205,11 +129,12 @@
       });
 
       if (result.success) {
-        // Clear payment session data
+        // Phase 4: Persist success side effects and redirect.
+        // Clear payment session data.
         sessionStorage.removeItem('payment_data');
         sessionStorage.removeItem('selected_plan');
 
-        // Update cached user tier so sidebar shows Pro after redirect
+        // Update cached user tier so sidebar shows Pro after redirect.
         try {
           const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
           storedUser.tier = 'pro';
@@ -220,14 +145,13 @@
       } else {
         btn.disabled    = false;
         btn.textContent = 'Confirm & Pay';
-        errEl.textContent = result.detail || 'Payment failed. Please try again.';
-        errEl.classList.add('show');
+        showToast(result.detail || 'Payment could not be completed.', 'error');
       }
-    } catch (e) {
+    } catch (_error) {
+      // Phase 5: Restore UI state and show network error.
       btn.disabled    = false;
       btn.textContent = 'Confirm & Pay';
-      errEl.textContent = 'Network error. Please check your connection and try again.';
-      errEl.classList.add('show');
+      showToast('Network error. Please check your connection and try again.', 'error');
     }
   }
 </script>

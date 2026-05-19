@@ -1,7 +1,10 @@
 /* ── Learnova billing.js ── */
 /* Shared billing utilities for billing.html, payment.html, confirm.html */
 
+/* -- Group: API Constants -- */
 const BILLING_API = '/api/billing';
+
+/* -- Group: Billing API Calls -- */
 
 /**
  * Fetch current billing status for the logged-in user.
@@ -16,7 +19,8 @@ async function getBillingStatus() {
     });
     if (!res.ok) return null;
     return await res.json();
-  } catch (e) {
+  } catch (_error) {
+    // On network/auth errors we intentionally return null so page code can use safe fallbacks.
     return null;
   }
 }
@@ -39,56 +43,52 @@ async function confirmPayment(paymentData) {
   return await res.json();
 }
 
+/* -- Group: Payment Success Feedback -- */
+
 /**
- * Show a gold-bordered success notification in the top-right corner,
- * then redirect to dashboard.html after 4 seconds.
+ * Inject fallback toast animation styles once.
+ * This check prevents duplicate <style> blocks when users revisit the page.
+ */
+function ensureBillingToastStyles() {
+  if (document.getElementById('billing-toast-style')) return;
+
+  const style = document.createElement('style');
+  style.id = 'billing-toast-style';
+  style.textContent = '@keyframes billing-toast-pop {'
+    + '0% { transform: translateY(-8px); opacity: 0; }'
+    + '100% { transform: translateY(0); opacity: 1; }'
+    + '}';
+
+  document.head.appendChild(style);
+}
+
+/**
+ * Show payment success toast, then redirect to dashboard.
  */
 function showSuccessNotification() {
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 24px;
-    right: 24px;
-    background: #1a1a1a;
-    border: 1px solid #c9a84c;
-    border-radius: 12px;
-    padding: 20px 24px;
-    z-index: 9999;
-    min-width: 280px;
-    max-width: 340px;
-    box-shadow: 0 8px 32px rgba(201,168,76,0.2);
-    animation: slideIn 0.3s ease;
-  `;
-  notification.innerHTML = `
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
-      <span style="font-size:24px;">✅</span>
-      <strong style="color:#c9a84c;font-size:16px;">Payment Successful!</strong>
-    </div>
-    <p style="color:#e0e0e0;margin:0;font-size:14px;line-height:1.5;">
-      Welcome to Learnova Pro ✨
-    </p>
-    <p style="color:#999;margin:6px 0 0;font-size:12px;">
-      Redirecting to your dashboard…
-    </p>
-  `;
+  if (typeof showToast === 'function') {
+    showToast('Payment completed successfully.', 'success', 2200);
+  } else {
+    ensureBillingToastStyles();
 
-  // Inject slideIn keyframe if not already present
-  if (!document.getElementById('billing-anim-style')) {
-    const style = document.createElement('style');
-    style.id = 'billing-anim-style';
-    style.textContent = `
-      @keyframes slideIn {
-        from { opacity: 0; transform: translateX(32px); }
-        to   { opacity: 1; transform: translateX(0); }
-      }
-    `;
-    document.head.appendChild(style);
+    const notification = document.createElement('div');
+    notification.textContent = 'Payment completed successfully.';
+
+    // Layout: fixed floating message at top-right.
+    // Appearance: green success color, readable text, and shadow depth.
+    // Animation: subtle pop-in motion for immediate feedback.
+    notification.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;'
+      + 'padding:12px 16px;border-radius:10px;background:#1f8f4c;color:#ffffff;'
+      + 'font-size:14px;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,0.2);'
+      + 'animation:billing-toast-pop 220ms ease-out;';
+
+    document.body.appendChild(notification);
+    setTimeout(function () {
+      notification.remove();
+    }, 1600);
   }
 
-  document.body.appendChild(notification);
-
-  setTimeout(() => {
-    notification.remove();
+  setTimeout(function() {
     window.location.href = 'dashboard.html';
-  }, 4000);
+  }, 1800);
 }

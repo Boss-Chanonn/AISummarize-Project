@@ -5,56 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Learnova — Dashboard</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .history-item { display:flex;flex-direction:column;padding:0;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:border-color 0.18s,transform 0.22s cubic-bezier(0.16,1,0.3,1),box-shadow 0.22s;text-decoration:none;color:inherit;overflow:hidden; }
-    .history-item:hover { border-color:var(--border-md);transform:translateY(-2px);box-shadow:0 10px 28px rgba(0,0,0,0.12); }
-    .history-item.open { border-color:rgba(200,184,154,0.3); }
-    .hi-row { display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:16px;padding:14px 18px;width:100%; }
-    .hi-left { display:flex;align-items:center;gap:12px;min-width:0;width:100%; }
-    .hi-dot { width:6px;height:6px;border-radius:50%;background:rgba(200,184,154,0.35);flex-shrink:0; }
-    .hi-dot.done { background:var(--green);opacity:0.85; }
-    .hi-title { font-size:13px;color:var(--cream-60);white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
-    .hi-meta { font-size:11px;color:var(--cream-25);margin-top:2px; }
-    .hi-right { display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-shrink:0;min-width:max-content; }
-    .hi-score { font-size:12px;color:var(--gold-dim);font-weight:500;white-space:nowrap; }
-    .hi-score.na { color:var(--cream-25); }
-    .hi-chevron { font-size:10px;color:var(--cream-25);transition:transform 0.2s;flex-shrink:0;width:16px;text-align:center; }
-    .history-item.open .hi-chevron { transform:rotate(180deg); }
-    .mini-result { background:transparent; }
-    .mr-top{display:grid;grid-template-columns:minmax(140px,180px) minmax(0,1fr);align-items:start;gap:20px;margin-bottom:14px}
-    .mr-score{font-family:var(--serif);font-size:36px;color:var(--gold);line-height:1}
-    .mr-correct{font-size:12px;color:var(--cream-25);margin-top:3px}
-    .mr-section{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25);margin:10px 0 6px}
-    .mr-tags{display:flex;flex-wrap:wrap;gap:5px}
-    .mr-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border)}
-    .mr-actions .btn{justify-content:center;flex:1 1 160px}
-    .sum-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.72);z-index:300;align-items:center;justify-content:center;padding:20px}
-    .sum-modal-backdrop.open{display:flex}
-    .sum-modal{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-lg);width:100%;max-width:560px;max-height:82vh;display:flex;flex-direction:column;animation:fadeUp 0.2s ease}
-    .sum-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:22px 24px 16px;border-bottom:0.5px solid var(--border);flex-shrink:0}
-    .sum-modal-title{font-family:var(--serif);font-size:20px;font-weight:400;letter-spacing:-0.3px;line-height:1.2}
-    .sum-modal-close{background:none;border:none;color:var(--cream-25);font-size:18px;cursor:pointer;flex-shrink:0;padding:2px 4px;line-height:1}
-    .sum-modal-close:hover{color:var(--cream-60)}
-    .sum-modal-body{overflow-y:auto;padding:20px 24px 24px;display:flex;flex-direction:column;gap:16px}
-    .sum-modal-badge{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin-bottom:4px}
-    .sum-modal-para{font-size:13px;color:var(--cream-60);line-height:1.75}
-    .sum-modal-kp-label{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px}
-    .sum-modal-kp{display:flex;flex-direction:column;gap:6px}
-    .sum-modal-kp-item{display:flex;gap:8px;font-size:12px;color:var(--cream-60);line-height:1.6}
-    .sum-modal-kp-dash{color:var(--gold-dim);flex-shrink:0}
-    [data-theme="light"] .sum-modal{background:linear-gradient(180deg,rgba(255,255,255,0.99),rgba(241,236,228,0.97));box-shadow:0 20px 50px rgba(42,31,19,0.12)}
-    .dash-section{
-      padding:24px;border:0.5px solid var(--border);border-radius:var(--radius-lg);
-      background:
-        radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.08), transparent 42%),
-        linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
-    }
-    [data-theme="light"] .dash-section,
-    [data-theme="light"] .history-item{
-      background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,236,228,0.94));
-      box-shadow:0 12px 30px rgba(42,31,19,0.04);
-    }
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -116,19 +66,36 @@
 <script src="js/animations.js"></script>
 <script src="js/app.js"></script>
 <script>
-// Auth guard — redirect to login if no token
+// Auth guard — redirect to login if no token.
 (function() {
   const token = localStorage.getItem('token');
   if (!token) { window.location.replace('index.html'); }
 })();
 
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('dashboard');
+
 const now = new Date();
-const h = now.getHours();
+const currentHour = now.getHours();
 document.getElementById('today-date').textContent = now.toLocaleDateString('en-NZ',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
 
+/**
+ * Resolve greeting prefix from local hour.
+ * @param {number} hour
+ * @returns {string}
+ */
+function getGreetingPrefix(hour) {
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+/**
+ * Load profile data and render dashboard greeting/stats.
+ * @returns {Promise<void>}
+ */
 async function loadDashboard() {
   try {
+    // Phase 1: Fetch user profile stats.
     const response = await fetch('/api/user/profile', {
       method: 'GET',
       headers: {
@@ -139,11 +106,11 @@ async function loadDashboard() {
     const data = await response.json();
     if (!response.ok) { showToast(data.message || 'Failed to load profile'); return; }
 
-    // Greeting
+    // Phase 2: Render greeting text.
     const firstName = data.name ? data.name.split(' ')[0] : 'User';
-    document.getElementById('greeting').textContent = (h<12?'Good morning':h<17?'Good afternoon':'Good evening') + ', ' + firstName + '.';
+    document.getElementById('greeting').textContent = getGreetingPrefix(currentHour) + ', ' + firstName + '.';
 
-    // Stats
+    // Phase 3: Render headline stats (animated when animation helpers are available).
     if (data.documentsUploaded !== undefined) {
       const docsEl = document.getElementById('stat-docs');
       const scoreEl = document.getElementById('stat-score');
@@ -161,6 +128,8 @@ async function loadDashboard() {
         quizzesEl.textContent = data.quizzesCompleted;
       }
     }
+
+    // Phase 4: Render stat subtitles.
     if (data.statSubs) {
       document.getElementById('stat-docs-sub').textContent = data.statSubs[0];
       document.getElementById('stat-score-sub').textContent = data.statSubs[1];
@@ -174,9 +143,14 @@ async function loadDashboard() {
 
 loadDashboard();
 
-function fmtMeta(item) {
-  const d = item.uploadedAt ? new Date(item.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
-  return (item.fileType || 'Text') + (d ? ' · ' + d : '');
+/**
+ * Format document metadata for recent activity rows.
+ * @param {object} doc
+ * @returns {string}
+ */
+function formatDocumentMeta(doc) {
+  const d = doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}) : '';
+  return (doc.fileType || 'Text') + (d ? ' · ' + d : '');
 }
 
 function flatAnalysis(item) {
@@ -228,6 +202,33 @@ function renderRecentPreview(item) {
       </div>
     </div>`;
 }
+
+/**
+ * Build one recent-activity row card.
+ * @param {object} item
+ * @returns {string}
+ */
+function renderRecentActivityItem(item) {
+  return `
+      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
+        <div class="hi-row">
+          <div class="hi-left">
+            <div class="hi-dot${item.done?' done':''}"></div>
+            <div style="min-width:0;flex:1">
+              <div class="hi-title">${escapeHtml(item.title)}</div>
+              <div class="hi-meta">${escapeHtml(formatDocumentMeta(item))}</div>
+            </div>
+          </div>
+          <div class="hi-right">
+            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
+            <span class="hi-chevron">▾</span>
+          </div>
+        </div>
+        ${renderRecentPreview(item)}
+      </div>
+    `;
+}
+
 let _dashStore = {};
 
 async function renderRecentActivity() {
@@ -247,24 +248,9 @@ async function renderRecentActivity() {
       document.getElementById('recent-activity-list').innerHTML = '<div style="text-align:center;padding:24px;font-size:13px;color:var(--cream-25);font-style:italic">No activity yet. Upload a document to get started.</div>';
       return;
     }
-    document.getElementById('recent-activity-list').innerHTML = items.map(item => `
-      <div class="history-item history-item-anim" id="recent-${item._id}" onclick="toggleRecentActivity('${item._id}')">
-        <div class="hi-row">
-          <div class="hi-left">
-            <div class="hi-dot${item.done?' done':''}"></div>
-            <div style="min-width:0;flex:1">
-              <div class="hi-title">${escapeHtml(item.title)}</div>
-              <div class="hi-meta">${escapeHtml(fmtMeta(item))}</div>
-            </div>
-          </div>
-          <div class="hi-right">
-            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
-            <span class="hi-chevron">▾</span>
-          </div>
-        </div>
-        ${renderRecentPreview(item)}
-      </div>
-    `).join('');
+
+    // Render each row via named helper so structure is easier to follow.
+    document.getElementById('recent-activity-list').innerHTML = items.map(renderRecentActivityItem).join('');
   } catch (error) {
     console.error('Error:', error);
     showToast('Unable to load recent activity');

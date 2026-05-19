@@ -5,46 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Learnova — Admin · Stats Overview</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/admin-base.css">
-<link rel="stylesheet" href="css/admin-stats.css">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/admin-sidebar.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <div class="app-shell">
 
   <!-- Sidebar -->
-  <aside class="sidebar">
-    <div class="sidebar-logo">Learn<span>ova</span></div>
-    <div class="sidebar-section">Overview</div>
-    <a href="dashboard.html" class="sidebar-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-      Dashboard
-    </a>
-    <div class="sidebar-section">Admin</div>
-    <a href="admin-users.html" class="sidebar-item">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-      User Management
-    </a>
-    <a href="admin-stats.html" class="sidebar-item active">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-      Stats Overview
-      <span class="admin-badge">Admin</span>
-    </a>
-    <div class="sidebar-section">Account</div>
-    <div class="sidebar-item" onclick="logoutAdmin()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-      Sign Out
-    </div>
-    <div class="sidebar-bottom">
-      <div class="sidebar-admin-info">
-        <div class="avatar-circle" id="adminInitials">—</div>
-        <div>
-          <div class="admin-name-small" id="adminName">Loading…</div>
-          <div class="admin-role-small" id="adminRole">Admin</div>
-        </div>
-      </div>
-    </div>
-  </aside>
+  <aside class="sidebar" id="adminSidebar"></aside>
 
   <!-- Main -->
   <main class="main">
@@ -106,23 +75,6 @@
 </div>
 
 <script>
-/* ── JWT Guard ──────────────────────────────────────────────────────────────── */
-const TOKEN = localStorage.getItem('token');
-const _stored = JSON.parse(localStorage.getItem('user') || 'null');
-if (!TOKEN) {
-  window.location.href = 'index.html';
-}
-
-/* ── Admin identity ─────────────────────────────────────────────────────────── */
-if (_stored) {
-  const initials = (_stored.name || '').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-  document.getElementById('adminInitials').textContent = initials || '?';
-  document.getElementById('adminName').textContent = _stored.name || 'Admin';
-  document.getElementById('adminRole').textContent = _stored.role === 'system_admin' ? 'System Admin' : 'Admin';
-}
-
-const AUTH = { Authorization: 'Bearer ' + TOKEN };
-
 /* ── Chart instances ────────────────────────────────────────────────────────── */
 let chartGrowth   = null;
 let chartUploads  = null;
@@ -155,6 +107,20 @@ const CHART_DEFAULTS = {
 };
 
 /* ── Render 6 cards ─────────────────────────────────────────────────────────── */
+/**
+ * Render six dashboard summary cards from stats payload.
+ * @param {{
+ *   total_users:number,
+ *   new_this_week:number,
+ *   active_users:number,
+ *   active_pct:number,
+ *   pro_users:number,
+ *   pro_pct:number,
+ *   total_uploads:number,
+ *   total_quizzes:number,
+ *   avg_score:number
+ * }} s
+ */
 function renderCards(s) {
   document.getElementById('cardsGrid').innerHTML = `
     <div class="stat-card">
@@ -191,11 +157,19 @@ function renderCards(s) {
 }
 
 /* ── Render line chart ──────────────────────────────────────────────────────── */
+/**
+ * Render user-growth line chart for last 30 days.
+ * @param {{date:string,count:number}[]} data
+ */
 function renderLineChart(data) {
   document.getElementById('skUserGrowth').style.display = 'none';
   const canvas = document.getElementById('chartUserGrowth');
   canvas.style.display = 'block';
   if (chartGrowth) chartGrowth.destroy();
+
+  // We pass raw values to Chart.js.
+  // Chart.js normalizes points internally using the standard ratio:
+  // (value - min) / (max - min), then maps to canvas coordinates.
   chartGrowth = new Chart(canvas, {
     type: 'line',
     data: {
@@ -217,11 +191,18 @@ function renderLineChart(data) {
 }
 
 /* ── Render bar chart ───────────────────────────────────────────────────────── */
+/**
+ * Render upload-activity bar chart for last 30 days.
+ * @param {{date:string,count:number}[]} data
+ */
 function renderBarChart(data) {
   document.getElementById('skUploadActivity').style.display = 'none';
   const canvas = document.getElementById('chartUploadActivity');
   canvas.style.display = 'block';
   if (chartUploads) chartUploads.destroy();
+
+  // As with line chart, Chart.js handles value-to-pixel scaling internally
+  // via normalized value ratios and axis range calculation.
   chartUploads = new Chart(canvas, {
     type: 'bar',
     data: {
@@ -239,8 +220,12 @@ function renderBarChart(data) {
 }
 
 /* ── Load all data ──────────────────────────────────────────────────────────── */
+/**
+ * Load stats + chart datasets and render full page state.
+ * @returns {Promise<void>}
+ */
 async function loadStats() {
-  // Show skeleton cards
+  // Phase 1: Reset loading state with skeleton cards/charts.
   document.getElementById('cardsGrid').innerHTML = `
     <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
     <div class="stat-card"><div class="skeleton sk-label"></div><div class="skeleton sk-value"></div><div class="skeleton sk-sub"></div></div>
@@ -259,6 +244,7 @@ async function loadStats() {
   document.getElementById('errorBox').classList.remove('show');
 
   try {
+    // Phase 2: Fetch all dashboard endpoints in parallel.
     const [statsRes, growthRes, uploadsRes] = await Promise.all([
       fetch('/api/admin/stats',                { headers: AUTH }),
       fetch('/api/admin/stats/user-growth',    { headers: AUTH }),
@@ -273,6 +259,7 @@ async function loadStats() {
       throw new Error('API error');
     }
 
+    // Phase 3: Parse payloads and render cards/charts.
     const stats   = await statsRes.json();
     const growth  = await growthRes.json();
     const uploads = await uploadsRes.json();
@@ -282,6 +269,7 @@ async function loadStats() {
     renderBarChart(uploads.data);
 
   } catch (err) {
+    // Phase 4: Show error fallback state.
     document.getElementById('cardsGrid').innerHTML = '';
     document.getElementById('errorBox').classList.add('show');
     document.getElementById('errorMsg').textContent = 'Failed to load stats. Please try again.';
@@ -290,6 +278,11 @@ async function loadStats() {
 }
 
 /* ── Role revalidation ──────────────────────────────────────────────────────── */
+/**
+ * Revalidate current role via profile API.
+ * Redirect when user no longer has admin privileges.
+ * @returns {Promise<void>}
+ */
 async function revalidateRole() {
   if (!TOKEN) return;
   try {
@@ -299,17 +292,16 @@ async function revalidateRole() {
     if (!['admin', 'system_admin'].includes(user.role)) {
       window.location.href = 'index.html';
     }
-  } catch (_) {}
-}
-
-/* ── Sign out ───────────────────────────────────────────────────────────────── */
-function logoutAdmin() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('user');
-  window.location.href = 'index.html';
+  } catch (_error) {}
 }
 
 /* ── Toast ──────────────────────────────────────────────────────────────────── */
+/**
+ * Local toast helper for admin stats page.
+ * Kept local so this page remains standalone with admin-side scripts.
+ * @param {string} msg
+ * @param {'success'|'warning'|'error'} type
+ */
 function showToast(msg, type) {
   const toast = document.getElementById('toast');
   document.getElementById('toastMsg').textContent = msg;

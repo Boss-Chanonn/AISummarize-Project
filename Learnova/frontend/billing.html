@@ -5,198 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Learnova — Plan &amp; Billing</title>
   <link rel="stylesheet" href="css/style.css"/>
-  <style>
-    .billing-intro { max-width: 480px; margin-bottom: 36px; }
-    .billing-intro .page-title { margin-bottom: 8px; }
-    .billing-intro .page-subtitle { color: var(--cream-25); font-size: 14px; }
-
-    .billing-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 20px;
-      max-width: 1100px;
-    }
-    @media (max-width: 900px) { .billing-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 560px) { .billing-grid { grid-template-columns: 1fr; } }
-
-    .plan-box {
-      background: var(--cream-05);
-      border: 0.5px solid var(--border);
-      border-radius: var(--radius-lg);
-      padding: 28px 24px;
-      display: flex;
-      flex-direction: column;
-      gap: 0;
-      transition: border-color 0.18s;
-    }
-    .plan-box.pro-box {
-      border-color: var(--gold-dim);
-      background: linear-gradient(160deg, rgba(200,184,154,0.07) 0%, rgba(200,184,154,0.02) 100%);
-    }
-
-    .plan-label {
-      font-size: 11px;
-      letter-spacing: 1.2px;
-      text-transform: uppercase;
-      color: var(--cream-25);
-      margin-bottom: 8px;
-    }
-    .plan-name {
-      font-size: 22px;
-      font-weight: 600;
-      color: var(--cream);
-      margin-bottom: 4px;
-      font-family: var(--serif);
-    }
-    .plan-name.gold { color: var(--gold); }
-
-    .plan-price-row {
-      display: flex;
-      align-items: baseline;
-      gap: 4px;
-      margin-bottom: 4px;
-    }
-    .plan-price-big {
-      font-size: 32px;
-      font-weight: 700;
-      color: var(--cream);
-      font-family: var(--serif);
-      line-height: 1;
-    }
-    .plan-price-period {
-      font-size: 13px;
-      color: var(--cream-25);
-    }
-    .plan-price-note {
-      font-size: 11px;
-      color: var(--cream-25);
-      margin-bottom: 20px;
-      min-height: 16px;
-    }
-    .plan-price-note.save-note { color: var(--green); }
-
-    .plan-divider {
-      height: 0.5px;
-      background: var(--border);
-      margin: 16px 0;
-    }
-
-    .plan-feature-list { display: flex; flex-direction: column; gap: 9px; margin-bottom: 24px; flex: 1; }
-    .plan-feature-item { display: flex; align-items: flex-start; gap: 9px; font-size: 13px; color: var(--cream-60); }
-    .plan-feature-item.disabled { color: var(--cream-25); }
-    .feature-icon { font-size: 12px; flex-shrink: 0; margin-top: 1px; width: 16px; }
-
-    .plan-badge-pill {
-      display: inline-block;
-      font-size: 10px;
-      letter-spacing: 0.6px;
-      text-transform: uppercase;
-      color: var(--gold);
-      background: rgba(200,184,154,0.12);
-      border: 0.5px solid var(--gold-dim);
-      border-radius: 99px;
-      padding: 3px 10px;
-      margin-bottom: 14px;
-      width: fit-content;
-    }
-
-    .plan-current-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      color: var(--green);
-      margin-bottom: 12px;
-    }
-    .plan-current-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--green);
-    }
-
-    .btn-disabled {
-      background: rgba(255,255,255,0.06);
-      color: var(--cream-25);
-      border: 0.5px solid var(--border);
-      cursor: not-allowed;
-      border-radius: var(--radius-md);
-      padding: 10px 20px;
-      font-size: 13px;
-      font-family: inherit;
-      width: 100%;
-      text-align: center;
-    }
-
-    /* White background — selectable plan button */
-    .btn-select {
-      background: #ffffff;
-      color: #1a1a1a;
-      border: none;
-      border-radius: var(--radius-md);
-      padding: 10px 20px;
-      font-size: 13px;
-      font-family: inherit;
-      width: 100%;
-      cursor: pointer;
-      transition: background 0.15s;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .btn-select:hover {
-      background: #e8e8e8;
-    }
-
-    /* Red cancel button */
-    .btn-cancel {
-      background: rgba(220,60,60,0.12);
-      color: #f08080;
-      border: 0.5px solid rgba(220,60,60,0.4);
-      border-radius: var(--radius-md);
-      padding: 10px 20px;
-      font-size: 13px;
-      font-family: inherit;
-      width: 100%;
-      cursor: pointer;
-      transition: background 0.15s, border-color 0.15s;
-      display: flex; align-items: center; justify-content: center;
-    }
-    .btn-cancel:hover {
-      background: rgba(220,60,60,0.22);
-      border-color: rgba(220,60,60,0.65);
-    }
-
-    .pro-status-box {
-      background: rgba(200,184,154,0.06);
-      border: 0.5px solid var(--gold-dim);
-      border-radius: var(--radius-md);
-      padding: 14px 16px;
-      margin-bottom: 16px;
-    }
-    .pro-status-label { font-size: 11px; color: var(--cream-25); margin-bottom: 4px; }
-    .pro-status-value { font-size: 13px; color: var(--cream-60); }
-
-    /* Confirm dialog overlay */
-    .plan-confirm-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.55);
-      z-index: 9000;
-      display: flex; align-items: center; justify-content: center;
-      animation: fadeIn 0.18s ease;
-    }
-    .plan-confirm-box {
-      background: #141414;
-      border: 0.5px solid var(--border-md);
-      border-radius: var(--radius-lg);
-      padding: 28px 28px 22px;
-      width: 380px; max-width: 92vw;
-      box-shadow: 0 24px 60px rgba(0,0,0,0.4);
-    }
-    .plan-confirm-title { font-size: 16px; font-weight: 600; color: var(--cream); margin-bottom: 8px; font-family: var(--serif); }
-    .plan-confirm-body  { font-size: 13px; color: var(--cream-25); line-height: 1.6; margin-bottom: 24px; }
-    .plan-confirm-body strong { color: var(--cream-60); }
-    .plan-confirm-actions { display: flex; gap: 10px; justify-content: flex-end; }
-    .plan-confirm-actions .btn { min-width: 90px; justify-content: center; }
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -222,7 +30,7 @@
 <script src="js/app.js"></script>
 <script src="js/billing.js"></script>
 <script>
-  // Auth guard
+  // Auth guard: redirect to login if token is missing.
   (function () {
     const token = localStorage.getItem('token');
     if (!token) { window.location.replace('index.html'); }
@@ -231,6 +39,17 @@
   document.getElementById('sidebar-mount').innerHTML = renderSidebar('billing');
 
   // ── Confirm dialog ──────────────────────────────────────────────────────────
+  /**
+   * Show reusable billing confirmation dialog.
+   * Destructured options keep call sites readable by passing named fields.
+   * @param {{
+   *   title: string,
+   *   body: string,
+   *   confirmLabel: string,
+   *   confirmClass?: string,
+   *   onConfirm: Function
+   * }} options
+   */
   function showConfirm({ title, body, confirmLabel, confirmClass, onConfirm }) {
     const el = document.createElement('div');
     el.className = 'plan-confirm-overlay';
@@ -245,18 +64,28 @@
         </div>
       </div>`;
     document.body.appendChild(el);
-    document.getElementById('plan-confirm-ok').addEventListener('click', () => {
+
+    function onConfirmClick() {
       closeConfirm();
       onConfirm();
-    });
+    }
+
+    document.getElementById('plan-confirm-ok').addEventListener('click', onConfirmClick);
   }
 
+  /**
+   * Close billing confirmation dialog if present.
+   */
   function closeConfirm() {
     const el = document.getElementById('plan-confirm');
     if (el) el.remove();
   }
 
   // ── Navigation helpers ──────────────────────────────────────────────────────
+  /**
+   * Persist selected plan and navigate to payment step.
+   * @param {'monthly'|'yearly'} planType
+   */
   function goToPayment(planType) {
     sessionStorage.setItem('selected_plan', planType);
     window.location.href = 'payment.html';
@@ -264,7 +93,9 @@
 
   // ── Plan action handlers ────────────────────────────────────────────────────
 
-  // Called when user clicks "Select plan" on Free card (currently Pro)
+  /**
+   * Confirm downgrade flow from Pro to Free plan.
+   */
   function confirmDowngradeToFree() {
     showConfirm({
       title: 'Downgrade to Free?',
@@ -275,7 +106,10 @@
     });
   }
 
-  // Called when user clicks "Cancel plan" on current Pro card
+  /**
+   * Confirm cancel action for currently active Pro plan.
+   * @param {string} planLabel
+   */
   function confirmCancelPlan(planLabel) {
     showConfirm({
       title: 'Cancel your Pro plan?',
@@ -286,7 +120,12 @@
     });
   }
 
-  // Called when user clicks "Select plan" on a different Pro tier (Monthly ↔ Yearly)
+  /**
+   * Confirm switching between Pro monthly and yearly tiers.
+   * @param {string} fromLabel
+   * @param {string} toLabel
+   * @param {'monthly'|'yearly'} toPlanType
+   */
   function confirmSwitchPlan(fromLabel, toLabel, toPlanType) {
     const isUpgrade = toPlanType === 'yearly';
     showConfirm({
@@ -300,7 +139,12 @@
     });
   }
 
+  /**
+   * Execute server-side downgrade and refresh billing UI.
+   * @returns {Promise<void>}
+   */
   async function executeDowngrade() {
+    // Phase 1: Request downgrade endpoint.
     const token = localStorage.getItem('token');
     try {
       const res  = await fetch('/api/billing/downgrade', {
@@ -308,8 +152,10 @@
         headers: { 'Authorization': 'Bearer ' + token },
       });
       const data = await res.json();
+
+      // Phase 2: Sync local cache and refresh page card states.
       if (data.success) {
-        // Sync localStorage so other pages reflect the new tier immediately
+        // Sync localStorage so other pages reflect the new tier immediately.
         const stored = JSON.parse(localStorage.getItem('user') || '{}');
         stored.tier = 'free';
         localStorage.setItem('user', JSON.stringify(stored));
@@ -318,13 +164,18 @@
       } else {
         showToast('Something went wrong, please try again');
       }
-    } catch (e) {
+    } catch (_error) {
       showToast('Network error, please try again');
     }
   }
 
   // ── Render ──────────────────────────────────────────────────────────────────
+  /**
+   * Render all billing plan cards based on current user status.
+   * @returns {Promise<void>}
+   */
   async function renderBilling() {
+    // Phase 1: Load current plan status.
     const status = await getBillingStatus();
     const tier   = status ? status.tier : 'free';
     const isPro  = tier === 'pro';
@@ -347,7 +198,7 @@
       { ok: true, text: 'Advanced analytics' },
     ];
 
-    // Free card button logic
+    // Phase 2: Build free card action state.
     let freeBtnHtml;
     if (!isPro) {
       freeBtnHtml = `<div class="plan-current-indicator"><span class="plan-current-dot"></span>Current plan</div>
@@ -356,6 +207,7 @@
       freeBtnHtml = `<button class="btn-select" onclick="confirmDowngradeToFree()">Select plan</button>`;
     }
 
+    // Phase 3: Build free plan card markup.
     const freeCard = `
       <div class="plan-box">
         <div class="plan-label">Basic</div>
@@ -387,6 +239,11 @@
       if (d) expiresText = d;
     }
 
+    /**
+     * Build one Pro plan card (monthly or yearly).
+     * @param {'monthly'|'yearly'} planType
+     * @returns {string}
+     */
     function proCardHtml(planType) {
       const isMonthly = planType === 'monthly';
       const isActive  = isMonthly ? activeMonthly : activeYearly;
@@ -398,8 +255,9 @@
 
       let actionHtml;
 
+      // Action variants: current plan, switch tier, or new upgrade.
       if (isActive) {
-        // This is the user's current plan — red Cancel plan button
+        // This is the user's current plan — red cancel button.
         const statusBox = expiresText
           ? `<div class="pro-status-box">
                <div class="pro-status-label">Active ${pillLabel} plan</div>
@@ -411,12 +269,12 @@
           ${statusBox}
           <button class="btn-cancel" onclick="confirmCancelPlan('${pillLabel}')">Cancel plan</button>`;
       } else if (isPro) {
-        // User is Pro but on the other tier — white outline Select plan
+        // User is Pro but on the other tier — outline select button.
         const otherLabel = isMonthly ? 'Yearly' : 'Monthly';
         actionHtml = `
           <button class="btn-select" onclick="confirmSwitchPlan('${otherLabel}','${pillLabel}','${planType}')">Select plan</button>`;
       } else {
-        // User is Free — gold Upgrade button
+        // User is Free — gold upgrade button.
         actionHtml = `
           <button class="btn btn-primary" onclick="goToPayment('${planType}')" style="width:100%;justify-content:center">Upgrade to Pro →</button>`;
       }
@@ -443,6 +301,7 @@
         </div>`;
     }
 
+    // Phase 4: Mount full billing grid.
     document.getElementById('billing-grid').innerHTML =
       freeCard + proCardHtml('monthly') + proCardHtml('yearly');
   }
