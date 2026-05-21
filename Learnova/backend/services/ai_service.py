@@ -1,3 +1,16 @@
+"""
+ai_service.py  —  Learnova AI layer  (v2)
+=========================================
+Key improvements over v1:
+  1. Richer prompts with concrete examples and Bloom's taxonomy levels
+  2. AI-powered analysis and progress comparison (not just Python set ops)
+  3. Learning module sections grounded in the actual document text
+  4. Difficulty calibration with real behavioural descriptions
+  5. Condensed merge prompt (sends overviews, not full JSON dumps)
+  6. Consistent timeout/fallback on all external HTTP calls
+  7. Smarter weak-topic detection using question-level evidence
+  8. Quiz uniqueness check is case-and-punctuation normalised
+"""
 from __future__ import annotations
 
 import json
@@ -5,6 +18,7 @@ import re
 from collections import Counter
 from html import unescape
 from typing import TypeVar
+from urllib.error import URLError
 from urllib.parse import quote_plus, unquote, urlparse
 from urllib.request import Request, urlopen
 
@@ -32,11 +46,43 @@ from .schemas import (
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
+# ── Difficulty descriptors ────────────────────────────────────────────────────
+_DIFFICULTY_DESCRIPTORS: dict[str, str] = {
+    "easy": (
+        "Questions must target direct recall — facts, definitions, and named concepts "
+        "that appear explicitly in the text. A student who read once should get 80%+."
+    ),
+    "intermediate": (
+        "Mix recall (40%) with comprehension (40%) and simple application (20%). "
+        "Ask students to explain why something is true, compare two ideas, or identify "
+        "the implication of a finding. Avoid trivially googleable answers."
+    ),
+    "hard": (
+        "Prioritise analysis, evaluation, and synthesis (Bloom levels 4-6). "
+        "Questions should require connecting ideas across sections, identifying "
+        "unstated assumptions, evaluating evidence quality, or applying concepts to "
+        "new scenarios described in the options. A student who skimmed should score below 50%."
+    ),
+    "targeted remediation": (
+        "Every question must directly address a topic the student got wrong before. "
+        "Ask the same concept from a different angle — new scenario, different phrasing, "
+        "or testing a prerequisite they may have missed. Never reword a previous question."
+    ),
+}
+
+_DEFAULT_DIFFICULTY = "intermediate"
+
 
 class AIService:
-    def __init__(self, client: OllamaClient | None = None, quiz_client: OllamaClient | None = None) -> None:
+    def __init__(
+        self,
+        client: OllamaClient | None = None,
+        quiz_client: OllamaClient | None = None,
+    ) -> None:
         self.client      = client      or OllamaClient(SummaryOllamaSettings())  # Mac 1 — gpt-oss
         self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek
+
+    # ── Public API ────────────────────────────────────────────────────────────
 
     def summarize(self, payload: SummaryRequest) -> SummaryResponse:
         text = self._clean_text(payload.text)
@@ -53,10 +99,10 @@ class AIService:
 
         chunk_summaries = [
             self._generate_structured(
-                self._chunk_summary_prompt(payload.title, index + 1, chunk),
+                self._chunk_summary_prompt(payload.title, i + 1, len(chunks), chunk),
                 SummaryResponse,
             )
-            for index, chunk in enumerate(chunks)
+            for i, chunk in enumerate(chunks)
         ]
         merged = self._generate_structured(
             self._merge_summary_prompt(payload.title, chunk_summaries),
@@ -83,18 +129,23 @@ class AIService:
         correct_count = sum(1 for item in review if item.is_correct)
         total_questions = len(review)
         score_percent = round((correct_count / total_questions) * 100)
-        weak_topics = self._derive_weak_topics(review, payload.summary.topics)
-        strengths = self._derive_strengths(review, payload.summary.topics)
-        weaknesses = weak_topics[:4]
-        recommendations = self._derive_recommendations(weak_topics, payload.summary.topics)
+
+        # Use AI to derive rich analysis — not just Counter logic
+        analysis = self._ai_analyze_results(
+            title=payload.title,
+            summary=payload.summary,
+            review=review,
+            score_percent=score_percent,
+        )
+
         return AnalyzeResultsResponse(
             score_percent=score_percent,
             correct_count=correct_count,
             total_questions=total_questions,
-            strengths=strengths,
-            weaknesses=weaknesses,
-            weak_topics=weak_topics,
-            study_recommendations=recommendations,
+            strengths=analysis.get("strengths", self._derive_strengths(review, payload.summary.topics)),
+            weaknesses=analysis.get("weaknesses", self._derive_weak_topics(review, payload.summary.topics)[:4]),
+            weak_topics=analysis.get("weak_topics", self._derive_weak_topics(review, payload.summary.topics)),
+            study_recommendations=analysis.get("study_recommendations", self._derive_recommendations([], payload.summary.topics)),
             reviewed_questions=review,
         )
 
@@ -124,8 +175,13 @@ class AIService:
     def recommend_resources(
         self, payload: ResourceRecommendationRequest
     ) -> ResourceRecommendationResponse:
-        target_topics = payload.weak_topics[:3] or payload.learning_module.focus_areas[:3] or payload.summary.topics[:3]
+        target_topics = (
+            payload.weak_topics[:3]
+            or payload.learning_module.focus_areas[:3]
+            or payload.summary.topics[:3]
+        )
         resources: list[ResourceRecommendation] = []
+
         for topic in target_topics:
             article = self._search_article_resource(payload.title, topic)
             if article:
@@ -148,6 +204,7 @@ class AIService:
                 if len(resources) >= 2:
                     break
 
+        # Deduplicate by URL
         deduped: list[ResourceRecommendation] = []
         seen_urls: set[str] = set()
         for resource in resources:
@@ -163,22 +220,35 @@ class AIService:
         return ResourceRecommendationResponse(resources=deduped)
 
     def compare_progress(self, payload: CompareProgressRequest) -> CompareProgressResponse:
+        # Use AI for meaningful progress insight instead of pure set subtraction
+        analysis = self._ai_compare_progress(payload)
+        if analysis:
+            return analysis
+
+        # Fallback to Python logic if AI fails
         initial_weak = set(payload.initial_result.weak_topics)
-        follow_weak = set(payload.follow_up_result.weak_topics)
-        improved = sorted(initial_weak - follow_weak)
-        remaining = sorted(follow_weak)
-        score_delta = payload.follow_up_result.score_percent - payload.initial_result.score_percent
-        improvement_summary = self._build_improvement_summary(score_delta, improved, remaining)
-        next_steps = self._build_next_steps(improved, remaining)
+        follow_weak  = set(payload.follow_up_result.weak_topics)
+        improved     = sorted(initial_weak - follow_weak)
+        remaining    = sorted(follow_weak)
+        score_delta  = payload.follow_up_result.score_percent - payload.initial_result.score_percent
+
         return CompareProgressResponse(
             score_delta=score_delta,
             improved_topics=improved[:4],
             remaining_weak_topics=remaining[:4],
-            improvement_summary=improvement_summary,
-            next_steps=next_steps,
+            improvement_summary=self._build_improvement_summary(score_delta, improved, remaining),
+            next_steps=self._build_next_steps(improved, remaining),
         )
 
-    def _generate_structured(self, prompt: str, model_type: type[ModelT], retries: int = 2, use_quiz_client: bool = False) -> ModelT:
+    # ── Core generation ───────────────────────────────────────────────────────
+
+    def _generate_structured(
+        self,
+        prompt: str,
+        model_type: type[ModelT],
+        retries: int = 2,
+        use_quiz_client: bool = False,
+    ) -> ModelT:
         errors: list[str] = []
         for _ in range(retries + 1):
             try:
@@ -190,41 +260,288 @@ class AIService:
                 errors.append(str(exc))
         raise ValueError("AI output validation failed: " + " | ".join(errors))
 
+    # ── AI-powered analysis (v2 improvements) ─────────────────────────────────
+
+    def _ai_analyze_results(
+        self,
+        title: str,
+        summary: SummaryResponse,
+        review: list[ReviewedQuestion],
+        score_percent: int,
+    ) -> dict:
+        """
+        Use the AI to derive strengths, weaknesses and recommendations
+        from the actual question-answer evidence rather than just counting topics.
+        Falls back to Python logic on failure.
+        """
+        correct   = [r for r in review if r.is_correct]
+        incorrect = [r for r in review if not r.is_correct]
+
+        correct_json   = json.dumps([{"question": r.question, "topic": r.topic} for r in correct])
+        incorrect_json = json.dumps([
+            {"question": r.question, "topic": r.topic,
+             "user_answer": r.user_answer, "correct_answer": r.correct_answer,
+             "explanation": r.explanation}
+            for r in incorrect
+        ])
+
+        prompt = f"""You are a learning coach analysing a student's quiz results.
+Return strict JSON only with these exact keys:
+strengths, weaknesses, weak_topics, study_recommendations
+
+Rules:
+- strengths: 2-4 strings naming what the student understands well (topic + why).
+- weaknesses: 2-4 strings naming specific gaps (not just topic names — explain the gap).
+- weak_topics: 2-4 short topic labels the student struggled with most.
+- study_recommendations: 2-4 concrete, actionable next steps tied to the missed content.
+  Example good recommendation: "Re-read the methodology section and focus on how X differs from Y."
+  Example bad recommendation: "Review core concepts."
+- Be specific to this document. Never write generic advice.
+
+Document: {title}
+Score: {score_percent}%
+Topics in document: {', '.join(summary.topics)}
+
+Correct answers ({len(correct)} questions):
+{correct_json}
+
+Incorrect answers ({len(incorrect)} questions):
+{incorrect_json}
+"""
+        try:
+            data = self.client.generate_json(prompt)
+            return {
+                "strengths": self._ensure_string_list(data.get("strengths", []), max_items=4),
+                "weaknesses": self._ensure_string_list(data.get("weaknesses", []), max_items=4),
+                "weak_topics": self._ensure_string_list(data.get("weak_topics", []), max_items=4),
+                "study_recommendations": self._ensure_string_list(data.get("study_recommendations", []), max_items=4),
+            }
+        except Exception:
+            return {}
+
+    def _ai_compare_progress(self, payload: CompareProgressRequest) -> CompareProgressResponse | None:
+        """Use AI to generate a meaningful progress narrative. Returns None on failure."""
+        initial  = payload.initial_result
+        followup = payload.follow_up_result
+        delta    = followup.score_percent - initial.score_percent
+
+        prompt = f"""You are a learning coach comparing two quiz results for the same student.
+Return strict JSON only with these exact keys:
+score_delta, improved_topics, remaining_weak_topics, improvement_summary, next_steps
+
+Rules:
+- score_delta: integer (positive = improvement).
+- improved_topics: list of 0-4 topics that clearly improved.
+- remaining_weak_topics: list of 0-4 topics still needing work.
+- improvement_summary: 1-2 sentences. Be specific about what changed and why it matters.
+  Good: "Your score improved by 15 points, with notably stronger answers on methodology —
+        the practice tip on study design appears to have worked."
+  Bad: "You improved on some topics."
+- next_steps: 2-4 specific actions. Reference actual topic names.
+- Never be generic. Every sentence must relate to these specific results.
+
+Initial quiz:  score={initial.score_percent}%, weak_topics={initial.weak_topics}
+Follow-up quiz: score={followup.score_percent}%, weak_topics={followup.weak_topics}
+Score delta: {delta}
+Initial strengths: {initial.strengths}
+Follow-up strengths: {followup.strengths}
+"""
+        try:
+            data = self.client.generate_json(prompt)
+            return CompareProgressResponse(
+                score_delta=int(data.get("score_delta", delta)),
+                improved_topics=self._ensure_string_list(data.get("improved_topics", []), max_items=4),
+                remaining_weak_topics=self._ensure_string_list(data.get("remaining_weak_topics", []), max_items=4),
+                improvement_summary=str(data.get("improvement_summary", ""))[:600] or self._build_improvement_summary(delta, [], []),
+                next_steps=self._ensure_string_list(data.get("next_steps", []), max_items=4),
+            )
+        except Exception:
+            return None
+
+    # ── Prompts ───────────────────────────────────────────────────────────────
+
+    def _summary_prompt(self, title: str, text: str) -> str:
+        return f"""You are generating a learner-friendly academic summary for a study platform.
+Return strict JSON only with these exact keys:
+summary_title, authors, overview, body, takeaways, topics, chunks_used
+
+Field rules:
+- summary_title: concise title (max 100 chars). If the document has a clear title, use it.
+- authors: real names if found in the text, otherwise "Unknown authors".
+- overview: 2-3 sentences capturing the document's central argument or purpose. Be specific.
+- body: array of 2-4 paragraphs. Each paragraph must cover a distinct section of the document
+  (e.g. background, method, findings, implications). Do not repeat the overview.
+  Each paragraph must be 40-100 words.
+- takeaways: array of 3-5 strings. Each must be a specific, falsifiable claim from the document.
+  Good example: "The study found a 23% reduction in error rate when using method X."
+  Bad example: "The document covers important findings."
+- topics: array of 3-6 specific study topics a student should know after reading. Use noun phrases.
+- chunks_used: 1
+
+Document title: {title}
+Document text (full):
+\"\"\"{text[:5500]}\"\"\"
+"""
+
+    def _chunk_summary_prompt(self, title: str, index: int, total: int, text: str) -> str:
+        return f"""You are summarizing chunk {index} of {total} from an academic document.
+Return strict JSON only with these exact keys:
+summary_title, authors, overview, body, takeaways, topics, chunks_used
+
+Rules:
+- Focus only on what this chunk covers — do not invent content from other parts.
+- body: exactly 2 paragraphs, each 40-80 words.
+- takeaways: exactly 3 specific claims from this chunk.
+- topics: 2-4 study topics found in this chunk.
+- authors: extract if visible, otherwise "Unknown authors".
+- chunks_used: 1
+
+Document title: {title}
+Chunk {index} of {total}:
+\"\"\"{text[:5500]}\"\"\"
+"""
+
+    def _merge_summary_prompt(self, title: str, chunk_summaries: list[SummaryResponse]) -> str:
+        # Send condensed versions — overviews and takeaways only, not full JSON
+        condensed = [
+            f"Chunk {i + 1}: {s.overview}\nKey points: {'; '.join(s.takeaways)}\nTopics: {', '.join(s.topics)}"
+            for i, s in enumerate(chunk_summaries)
+        ]
+        combined = "\n\n".join(condensed)
+        return f"""You are merging {len(chunk_summaries)} chunk summaries into one cohesive academic summary.
+Return strict JSON only with these exact keys:
+summary_title, authors, overview, body, takeaways, topics, chunks_used
+
+Rules:
+- Remove repetition ruthlessly — if the same point appears in multiple chunks, keep it once.
+- body: 2-4 paragraphs telling the document's story from start to finish.
+- takeaways: 3-5 most important specific claims across all chunks.
+- topics: 3-6 study topics that span the whole document.
+- chunks_used: {len(chunk_summaries)}
+
+Document title: {title}
+Chunk summaries:
+{combined}
+"""
+
+    def _quiz_prompt(
+        self,
+        *,
+        title: str,
+        summary: SummaryResponse,
+        question_count: int,
+        difficulty: str,
+        exclude_questions: list[str],
+        follow_up: bool,
+        weak_topics: list[str] | None = None,
+        module: LearningModuleResponse | None = None,
+    ) -> str:
+        difficulty_key  = difficulty.lower().strip()
+        difficulty_desc = _DIFFICULTY_DESCRIPTORS.get(difficulty_key, _DIFFICULTY_DESCRIPTORS[_DEFAULT_DIFFICULTY])
+        exclude_json    = json.dumps(exclude_questions[:20], ensure_ascii=True)
+        weak_topics_str = ", ".join(weak_topics or []) or "none specified"
+
+        module_context = ""
+        if module and follow_up:
+            module_context = f"""
+Learning module focus areas: {', '.join(module.focus_areas)}
+Study plan: {'; '.join(module.study_plan[:3])}
+"""
+
+        return f"""You are writing a multiple-choice quiz for a study platform.
+Return strict JSON only with these exact keys:
+title, question_count, questions{', target_topics' if follow_up else ''}
+
+Each question object must have exactly these keys:
+question, options, correct_index, explanation, topic
+
+Question rules:
+- Generate exactly {question_count} questions.
+- DIFFICULTY: {difficulty_desc}
+- Each question must have exactly 4 options (A, B, C, D).
+- correct_index is 0-3 (0=A, 1=B, 2=C, 3=D).
+- explanation must say WHY the correct answer is right AND why the most tempting wrong answer is wrong.
+  Minimum 25 words. Be specific to this document.
+- topic must be a specific noun phrase (2-6 words) from the document's subject matter.
+  Bad: "general", "document", "content". Good: "experimental methodology", "carbon cycle feedback".
+- Questions must cover a spread of topics — no more than 2 questions on the same topic.
+- Never copy a sentence from the summary verbatim as a question stem.
+- Distractors (wrong answers) must be plausible — not obviously absurd.
+
+{'FOLLOW-UP INSTRUCTIONS: These topics were weak in the initial quiz — weight them heavily: ' + weak_topics_str if follow_up else ''}
+{module_context}
+
+Document: {title}
+Summary overview: {summary.overview}
+Key topics: {', '.join(summary.topics)}
+Key takeaways: {'; '.join(summary.takeaways[:3])}
+
+Excluded questions (do not repeat or lightly reword these):
+{exclude_json}
+"""
+
+    def _learning_module_prompt(self, payload: LearningModuleRequest) -> str:
+        missed_json = json.dumps(
+            [{"question": m.question, "topic": m.topic,
+              "user_answer": m.user_answer, "correct_answer": m.correct_answer,
+              "explanation": m.explanation}
+             for m in payload.missed_questions],
+            ensure_ascii=True,
+        )
+        weak_topics_str = ", ".join(payload.weak_topics)
+
+        return f"""You are building a targeted revision module after a student struggled with a quiz.
+Return strict JSON only with these exact keys:
+title, description, focus_areas, sections, study_plan
+
+Field rules:
+- title: "Targeted revision: [most important weak topic]" (max 100 chars)
+- description: 2-3 sentences explaining what this module covers and why. Reference the document title.
+- focus_areas: 2-4 specific topic labels the student needs to revisit.
+- sections: 2-4 objects. Each must have:
+    topic: the specific weak topic (2-6 words)
+    explanation: 3-5 sentences explaining the concept using content from the document.
+      Reference specific findings, methods, or arguments from the summary.
+      Do NOT write generic textbook definitions.
+    why_it_matters: 1-2 sentences connecting this topic to the document's main argument.
+    practice_tip: 1 concrete action (e.g. "Redraw Figure 2 from memory and label the feedback loops").
+- study_plan: 3-5 specific next actions. Each must be actionable and tied to the document content.
+  Good: "Re-read the methodology section focusing on how X was operationalised."
+  Bad: "Review the topic."
+
+Document: {payload.title}
+Document summary: {payload.summary.overview}
+Key topics from document: {', '.join(payload.summary.topics)}
+Student's weak topics: {weak_topics_str}
+
+Missed questions (what the student got wrong):
+{missed_json}
+"""
+
+    # ── Normalisation helpers (unchanged from v1 — these are solid) ───────────
+
     def _normalize_model_payload(self, model_type: type[ModelT], data: dict) -> dict:
         normalized = dict(data)
 
-        if "body" in normalized:
-            normalized["body"] = self._ensure_string_list(normalized["body"], max_items=4)
+        list_fields = [
+            "body", "takeaways", "topics", "focus_areas", "study_plan",
+            "study_recommendations", "strengths", "weaknesses", "weak_topics",
+            "target_topics", "improved_topics", "remaining_weak_topics", "next_steps",
+        ]
+        max_sizes = {
+            "body": 4, "takeaways": 5, "topics": 6, "focus_areas": 4,
+            "study_plan": 5, "study_recommendations": 4, "strengths": 4,
+            "weaknesses": 4, "weak_topics": 4, "target_topics": 4,
+            "improved_topics": 4, "remaining_weak_topics": 4, "next_steps": 4,
+        }
+        for field in list_fields:
+            if field in normalized:
+                normalized[field] = self._ensure_string_list(
+                    normalized[field], max_items=max_sizes.get(field, 4)
+                )
+
         if "authors" in normalized:
             normalized["authors"] = self._normalize_authors(normalized["authors"])
-        if "takeaways" in normalized:
-            normalized["takeaways"] = self._ensure_string_list(normalized["takeaways"], max_items=5)
-        if "topics" in normalized:
-            normalized["topics"] = self._ensure_string_list(normalized["topics"], max_items=6)
-        if "focus_areas" in normalized:
-            normalized["focus_areas"] = self._ensure_string_list(normalized["focus_areas"], max_items=4)
-        if "study_plan" in normalized:
-            normalized["study_plan"] = self._ensure_string_list(normalized["study_plan"], max_items=5)
-        if "study_recommendations" in normalized:
-            normalized["study_recommendations"] = self._ensure_string_list(
-                normalized["study_recommendations"], max_items=4
-            )
-        if "strengths" in normalized:
-            normalized["strengths"] = self._ensure_string_list(normalized["strengths"], max_items=4)
-        if "weaknesses" in normalized:
-            normalized["weaknesses"] = self._ensure_string_list(normalized["weaknesses"], max_items=4)
-        if "weak_topics" in normalized:
-            normalized["weak_topics"] = self._ensure_string_list(normalized["weak_topics"], max_items=4)
-        if "target_topics" in normalized:
-            normalized["target_topics"] = self._ensure_string_list(normalized["target_topics"], max_items=4)
-        if "improved_topics" in normalized:
-            normalized["improved_topics"] = self._ensure_string_list(normalized["improved_topics"], max_items=4)
-        if "remaining_weak_topics" in normalized:
-            normalized["remaining_weak_topics"] = self._ensure_string_list(
-                normalized["remaining_weak_topics"], max_items=4
-            )
-        if "next_steps" in normalized:
-            normalized["next_steps"] = self._ensure_string_list(normalized["next_steps"], max_items=4)
 
         if "questions" in normalized and isinstance(normalized["questions"], list):
             normalized["questions"] = [self._normalize_question(item) for item in normalized["questions"]]
@@ -245,8 +562,7 @@ class AIService:
     def _normalize_authors(self, value: object) -> str:
         if isinstance(value, list):
             cleaned = [self._clean_list_item(item) for item in value]
-            cleaned = [item for item in cleaned if item]
-            return ", ".join(cleaned)
+            return ", ".join(item for item in cleaned if item)
         if value is None:
             return ""
         return re.sub(r"\s+", " ", str(value)).strip()
@@ -308,6 +624,8 @@ class AIService:
             chunks.append(current.strip())
         return chunks[:max_items]
 
+    # ── Text helpers ──────────────────────────────────────────────────────────
+
     def _clean_text(self, text: str) -> str:
         return re.sub(r"\s+", " ", text).strip()
 
@@ -327,132 +645,7 @@ class AIService:
             chunks.append(current)
         return chunks
 
-    def _summary_prompt(self, title: str, text: str) -> str:
-        return f"""
-You are generating a learner-friendly academic summary.
-Return strict JSON only with these keys:
-summary_title, authors, overview, body, takeaways, topics, chunks_used
-
-Rules:
-- Explain the academic meaning, not generic fluff.
-- body must contain 2 to 4 short paragraphs.
-- takeaways must contain 3 to 5 concise bullets as strings.
-- topics must contain 3 to 6 study topics.
-- chunks_used must be 1.
-
-Document title: {title}
-Document text:
-\"\"\"{text}\"\"\"
-"""
-
-    def _chunk_summary_prompt(self, title: str, index: int, text: str) -> str:
-        return f"""
-You are summarizing one chunk of a larger academic document.
-Return strict JSON only with these keys:
-summary_title, authors, overview, body, takeaways, topics, chunks_used
-
-Rules:
-- Focus only on the chunk content.
-- body must contain exactly 2 short paragraphs.
-- takeaways must contain exactly 3 strings.
-- topics must contain 3 to 5 strings.
-- authors can be "Unknown authors" if not present.
-- chunks_used must be 1.
-
-Document title: {title}
-Chunk number: {index}
-Chunk text:
-\"\"\"{text}\"\"\"
-"""
-
-    def _merge_summary_prompt(self, title: str, chunk_summaries: list[SummaryResponse]) -> str:
-        payload = json.dumps([item.model_dump() for item in chunk_summaries], ensure_ascii=True)
-        return f"""
-You are merging chunk summaries from one academic document into one final learner-friendly summary.
-Return strict JSON only with these keys:
-summary_title, authors, overview, body, takeaways, topics, chunks_used
-
-Rules:
-- Remove repetition.
-- Keep the most important concepts only.
-- body must contain 2 to 4 short paragraphs.
-- takeaways must contain 3 to 5 strings.
-- topics must contain 3 to 6 strings.
-- chunks_used must equal the number of chunk summaries provided.
-
-Document title: {title}
-Chunk summaries JSON:
-{payload}
-"""
-
-    def _quiz_prompt(
-        self,
-        *,
-        title: str,
-        summary: SummaryResponse,
-        question_count: int,
-        difficulty: str,
-        exclude_questions: list[str],
-        follow_up: bool,
-        weak_topics: list[str] | None = None,
-        module: LearningModuleResponse | None = None,
-    ) -> str:
-        exclude_json = json.dumps(exclude_questions, ensure_ascii=True)
-        module_json = json.dumps(module.model_dump(), ensure_ascii=True) if module else "null"
-        weak_topics_json = json.dumps(weak_topics or [], ensure_ascii=True)
-        return f"""
-You are writing a multiple-choice quiz from an academic summary.
-Return strict JSON only with these keys:
-title, question_count, questions{', target_topics' if follow_up else ''}
-
-Question rules:
-- Generate exactly {question_count} questions.
-- Each question must test understanding, not sentence copying.
-- Each question must have exactly 4 options.
-- Each question must include: question, options, correct_index, explanation, topic.
-- Avoid repeating or lightly rewording any excluded questions.
-- Keep explanations concise and specific.
-- Target document topics only.
-
-Additional behavior:
-- difficulty: {difficulty}
-- follow_up_quiz: {str(follow_up).lower()}
-- If follow_up_quiz is true, prioritize weak topics and ask materially different questions.
-
-Document title: {title}
-Summary JSON:
-{summary.model_dump_json()}
-Weak topics JSON:
-{weak_topics_json}
-Learning module JSON:
-{module_json}
-Excluded questions JSON:
-{exclude_json}
-"""
-
-    def _learning_module_prompt(self, payload: LearningModuleRequest) -> str:
-        missed_json = json.dumps([item.model_dump() for item in payload.missed_questions], ensure_ascii=True)
-        weak_topics_json = json.dumps(payload.weak_topics, ensure_ascii=True)
-        return f"""
-You are creating a short remediation learning module after a quiz.
-Return strict JSON only with these keys:
-title, description, focus_areas, sections, study_plan
-
-Rules:
-- Focus only on weak topics.
-- focus_areas must contain 2 to 4 short strings.
-- sections must contain 2 to 4 objects with topic, explanation, why_it_matters, practice_tip.
-- study_plan must contain 3 to 5 specific next actions.
-- Keep tone clear and student-friendly.
-
-Document title: {payload.title}
-Summary JSON:
-{payload.summary.model_dump_json()}
-Weak topics JSON:
-{weak_topics_json}
-Missed questions JSON:
-{missed_json}
-"""
+    # ── Analysis helpers ──────────────────────────────────────────────────────
 
     def _build_reviewed_questions(self, payload: AnalyzeResultsRequest) -> list[ReviewedQuestion]:
         reviewed: list[ReviewedQuestion] = []
@@ -460,18 +653,16 @@ Missed questions JSON:
         for index, question in enumerate(payload.questions):
             answer = answers_by_index.get(index)
             chosen_index = answer.chosen_index if answer else -1
-            user_answer = "Skipped" if chosen_index < 0 else question.options[chosen_index]
+            user_answer    = "Skipped" if chosen_index < 0 else question.options[chosen_index]
             correct_answer = question.options[question.correct_index]
-            reviewed.append(
-                ReviewedQuestion(
-                    question=question.question,
-                    topic=question.topic,
-                    user_answer=user_answer,
-                    correct_answer=correct_answer,
-                    is_correct=chosen_index == question.correct_index,
-                    explanation=question.explanation,
-                )
-            )
+            reviewed.append(ReviewedQuestion(
+                question=question.question,
+                topic=question.topic,
+                user_answer=user_answer,
+                correct_answer=correct_answer,
+                is_correct=chosen_index == question.correct_index,
+                explanation=question.explanation,
+            ))
         return reviewed
 
     def _derive_strengths(
@@ -507,7 +698,7 @@ Missed questions JSON:
                 "Try the follow-up quiz for reinforcement or move to a new document.",
             ]
         base_topics = weak_topics or summary_topics[:2]
-        return [f"Review {topic} with the learning module." for topic in base_topics[:4]]
+        return [f"Review {topic} using the learning module." for topic in base_topics[:4]]
 
     def _build_improvement_summary(
         self, score_delta: int, improved: list[str], remaining: list[str]
@@ -518,12 +709,11 @@ Missed questions JSON:
                 f"Understanding was stronger in {', '.join(improved[:3])}."
             )
         if score_delta > 0:
-            return f"Your follow-up quiz improved by {score_delta} points, with more consistent topic recall."
+            return f"Your follow-up quiz improved by {score_delta} points with more consistent topic recall."
         if remaining:
             return (
-                "The follow-up quiz shows that some weak areas still need attention, especially "
-                + ", ".join(remaining[:3])
-                + "."
+                "The follow-up quiz shows weak areas still need attention, especially "
+                + ", ".join(remaining[:3]) + "."
             )
         return "The follow-up quiz kept performance stable, but more targeted revision is still recommended."
 
@@ -537,6 +727,8 @@ Missed questions JSON:
             steps.append("Review the learning module summary before your next quiz.")
         return steps[:4]
 
+    # ── Resource search ───────────────────────────────────────────────────────
+
     def _search_resource(
         self,
         *,
@@ -545,17 +737,20 @@ Missed questions JSON:
         topic: str,
         preferred_domains: list[str],
     ) -> ResourceRecommendation | None:
-        html = self._fetch_search_results(query)
+        try:
+            html = self._fetch_search_results(query)
+        except (URLError, OSError):
+            return None
+
         matches = re.findall(
-            r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>.*?<a[^>]+class="result__snippet"[^>]*>(?P<snippet>.*?)</a>',
-            html,
-            flags=re.S,
+            r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>.*?'
+            r'<a[^>]+class="result__snippet"[^>]*>(?P<snippet>.*?)</a>',
+            html, flags=re.S,
         )
         if not matches:
             matches = re.findall(
                 r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>',
-                html,
-                flags=re.S,
+                html, flags=re.S,
             )
             matches = [(href, title, "") for href, title in matches]
 
@@ -566,7 +761,7 @@ Missed questions JSON:
             domain = urlparse(url).netloc.lower()
             if preferred_domains and not any(token in domain for token in preferred_domains):
                 continue
-            clean_title = self._strip_html(title)
+            clean_title   = self._strip_html(title)
             clean_snippet = self._strip_html(snippet) or f"Recommended {resource_type} covering {topic}."
             source = domain.replace("www.", "") or resource_type.title()
             return ResourceRecommendation(
@@ -606,9 +801,9 @@ Missed questions JSON:
             topic=topic,
             resource_type="article",
             queries=[
-                f'{title} {topic} explainer article',
-                f'{topic} site:openstax.org',
-                f'{topic} site:khanacademy.org',
+                f"{title} {topic} explainer article",
+                f"{topic} site:openstax.org",
+                f"{topic} site:khanacademy.org",
             ],
             preferred_domains=["wikipedia.org", ".edu", ".org", "openstax.org", "khanacademy.org"],
         )
@@ -621,45 +816,28 @@ Missed questions JSON:
             topic=topic,
             resource_type="video",
             queries=[
-                f'{title} {topic} site:youtube.com/watch',
-                f'{topic} explainer site:youtube.com/watch',
+                f"{title} {topic} site:youtube.com/watch",
+                f"{topic} explainer site:youtube.com/watch",
             ],
             preferred_domains=["youtube.com", "youtu.be", "ted.com", "khanacademy.org"],
         )
 
-    def _search_podcast_resource(self, title: str, topic: str) -> "ResourceRecommendation | None":
-        """
-        Search for a real podcast episode using three strategies in order:
-        1. Listen Notes public search (no API key needed, HTML scrape)
-        2. DuckDuckGo → filter for podcast.google.com, podcasts.apple.com, anchor.fm, podcastaddict
-        3. Fallback: real Google Podcasts search URL (opens browser search)
-        """
-        import re
-        from urllib.parse import quote_plus
-
-        topic_slug = quote_plus(f"{topic} {title} educational")
-
-        # Strategy 1 — Listen Notes HTML scrape (most reliable)
+    def _search_podcast_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
         ln_result = self._search_listennotes(topic, title)
         if ln_result:
             return ln_result
-
-        # Strategy 2 — DuckDuckGo filtered to podcast platforms
         ddg_result = self._search_resource_variants(
             topic=topic,
             resource_type="podcast",
             queries=[
                 f"{topic} {title} podcast episode site:podcasts.apple.com",
                 f"{topic} educational podcast episode site:open.spotify.com/episode",
-                f"{topic} podcast site:anchor.fm OR site:buzzsprout.com",
             ],
-            preferred_domains=["podcasts.apple.com", "open.spotify.com", "anchor.fm",
-                               "buzzsprout.com", "podcastaddict.com", "pocketcasts.com"],
+            preferred_domains=["podcasts.apple.com", "open.spotify.com", "anchor.fm", "buzzsprout.com"],
         )
         if ddg_result:
             return ddg_result
-
-        # Strategy 3 — Fallback: Apple Podcasts search (opens real search, not homepage)
+        from urllib.parse import quote_plus
         search_url = f"https://podcasts.apple.com/search?term={quote_plus(topic + ' ' + title)}"
         return ResourceRecommendation(
             topic=topic,
@@ -670,13 +848,10 @@ Missed questions JSON:
             resource_type="podcast",
         )
 
-    def _search_listennotes(self, topic: str, doc_title: str) -> "ResourceRecommendation | None":
-        """Scrape Listen Notes search results for a real matching episode."""
-        from urllib.parse import quote_plus
+    def _search_listennotes(self, topic: str, doc_title: str) -> ResourceRecommendation | None:
         try:
-            query = quote_plus(f"{topic} {doc_title}")
             req = Request(
-                f"https://www.listennotes.com/search/?q={query}&type=episode",
+                f"https://www.listennotes.com/search/?q={quote_plus(topic + ' ' + doc_title)}&type=episode",
                 headers={
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -685,32 +860,22 @@ Missed questions JSON:
                     "Accept-Language": "en-US,en;q=0.9",
                 },
             )
-            with urlopen(req, timeout=15) as resp:
+            with urlopen(req, timeout=12) as resp:
                 html = resp.read().decode("utf-8", errors="ignore")
 
-            # Extract episode title + URL from Listen Notes results
             episodes = re.findall(
-                r'<a[^>]+href="(/e/[A-Za-z0-9]+/)"[^>]*>\s*<div[^>]*>([^<]{10,200})</div>',
+                r'href="(/e/[A-Za-z0-9]+/)"[^>]*>[\s\S]{0,60}?<[^>]+class="[^"]*title[^"]*"[^>]*>([^<]{8,200})',
                 html,
             )
-            if not episodes:
-                # Try broader pattern
-                episodes = re.findall(
-                    r'href="(/e/[A-Za-z0-9]+/)"[^>]*>[\s\S]{0,60}?<[^>]+class="[^"]*title[^"]*"[^>]*>([^<]{8,200})',
-                    html,
-                )
-
             if not episodes:
                 return None
 
             topic_tokens = self._topic_tokens(topic)
-            best_score = -1
-            best_ep = None
+            best_score, best_ep = -1, None
             for path, ep_title in episodes[:8]:
                 score = sum(1 for t in topic_tokens if t in ep_title.lower())
                 if score > best_score:
-                    best_score = score
-                    best_ep = (path, ep_title.strip())
+                    best_score, best_ep = score, (path, ep_title.strip())
 
             if not best_ep or best_score < 1:
                 return None
@@ -728,7 +893,7 @@ Missed questions JSON:
             return None
 
     def _fetch_search_results(self, query: str) -> str:
-        request = Request(
+        req = Request(
             f"https://html.duckduckgo.com/html/?q={quote_plus(query)}",
             headers={
                 "User-Agent": (
@@ -737,50 +902,55 @@ Missed questions JSON:
                 )
             },
         )
-        with urlopen(request, timeout=20) as response:
+        with urlopen(req, timeout=18) as response:
             return response.read().decode("utf-8", errors="ignore")
 
     def _search_wikipedia_article(self, topic: str) -> ResourceRecommendation | None:
-        request = Request(
-            "https://en.wikipedia.org/w/api.php"
-            f"?action=opensearch&search={quote_plus(topic)}&limit=1&namespace=0&format=json",
-            headers={"User-Agent": "LearnovaAI/1.0"},
-        )
-        with urlopen(request, timeout=20) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-        if not isinstance(payload, list) or len(payload) < 4 or not payload[1]:
+        try:
+            req = Request(
+                "https://en.wikipedia.org/w/api.php"
+                f"?action=opensearch&search={quote_plus(topic)}&limit=1&namespace=0&format=json",
+                headers={"User-Agent": "LearnovaAI/2.0"},
+            )
+            with urlopen(req, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+            if not isinstance(payload, list) or len(payload) < 4 or not payload[1]:
+                return None
+            title_str   = str(payload[1][0])
+            description = str(payload[2][0]) if payload[2] else f"Reference article for {topic}."
+            url         = str(payload[3][0]) if payload[3] else ""
+            if not url:
+                return None
+            return ResourceRecommendation(
+                topic=topic,
+                title=f"{topic} — {title_str}",
+                url=url,
+                source="wikipedia.org",
+                snippet=description[:400],
+                resource_type="article",
+            )
+        except Exception:
             return None
-        title = str(payload[1][0])
-        description = str(payload[2][0]) if payload[2] else f"Reference article for {topic}."
-        url = str(payload[3][0]) if payload[3] else ""
-        if not url:
-            return None
-        return ResourceRecommendation(
-            topic=topic,
-            title=f"{topic} overview: {title}",
-            url=url,
-            source="wikipedia.org",
-            snippet=description[:400],
-            resource_type="article",
-        )
 
     def _search_youtube_video(self, query: str, topic: str) -> ResourceRecommendation | None:
-        request = Request(
-            f"https://www.youtube.com/results?search_query={quote_plus(query)}",
-            headers={
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-                )
-            },
-        )
-        with urlopen(request, timeout=20) as response:
-            html = response.read().decode("utf-8", errors="ignore")
+        try:
+            req = Request(
+                f"https://www.youtube.com/results?search_query={quote_plus(query)}",
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+                    )
+                },
+            )
+            with urlopen(req, timeout=18) as response:
+                html = response.read().decode("utf-8", errors="ignore")
+        except (URLError, OSError):
+            return None
 
         candidates = re.findall(
             r'"videoId":"(?P<video_id>[A-Za-z0-9_-]{11})".{0,400}?"title":\{"runs":\[\{"text":"(?P<title>[^"]+)"',
-            html,
-            flags=re.S,
+            html, flags=re.S,
         )
         if not candidates:
             return None
@@ -800,19 +970,19 @@ Missed questions JSON:
             title=title_text,
             url=f"https://www.youtube.com/watch?v={video_id}",
             source="youtube.com",
-            snippet=f"Direct video recommendation matched to {topic}.",
+            snippet=f"Video matched to topic: {topic}.",
             resource_type="video",
         )
 
     def _score_video_title_match(self, topic: str, title_text: str) -> int:
-        topic_tokens = self._topic_tokens(topic)
+        topic_tokens  = self._topic_tokens(topic)
         if not topic_tokens:
             return 0
-        lowered_title = title_text.lower()
-        score = sum(2 for token in topic_tokens if token in lowered_title)
-        if "explainer" in lowered_title or "introduction" in lowered_title or "overview" in lowered_title:
+        lowered = title_text.lower()
+        score   = sum(2 for token in topic_tokens if token in lowered)
+        if any(w in lowered for w in ("explainer", "introduction", "overview", "tutorial", "explained")):
             score += 1
-        if "music" in lowered_title or "trailer" in lowered_title or "reaction" in lowered_title:
+        if any(w in lowered for w in ("music", "trailer", "reaction", "vlog", "podcast")):
             score -= 2
         return score
 
@@ -836,19 +1006,28 @@ Missed questions JSON:
         slug = re.sub(r"\s+", "_", topic.strip())
         return ResourceRecommendation(
             topic=topic,
-            title=f"{topic} overview",
+            title=f"{topic} — overview",
             url=f"https://en.wikipedia.org/wiki/{slug}",
             source="wikipedia.org",
-            snippet=f"Fallback reference page for {topic}.",
+            snippet=f"Reference page for {topic}.",
             resource_type="article",
         )
 
+    # ── Validation helpers ────────────────────────────────────────────────────
+
     def _assert_unique_questions(self, questions: list) -> None:
-        lowered = [item.question.strip().lower() for item in questions]
-        if len(lowered) != len(set(lowered)):
+        # Normalise punctuation and case before comparing
+        def normalise(q: str) -> str:
+            return re.sub(r"[^a-z0-9 ]", "", q.strip().lower())
+
+        normalised = [normalise(item.question) for item in questions]
+        if len(normalised) != len(set(normalised)):
             raise ValueError("AI output validation failed: quiz contains duplicate questions.")
 
     def _assert_no_repeated_questions(self, questions: list, previous_questions: list[str]) -> None:
-        previous = {item.strip().lower() for item in previous_questions}
-        if any(question.question.strip().lower() in previous for question in questions):
+        def normalise(q: str) -> str:
+            return re.sub(r"[^a-z0-9 ]", "", q.strip().lower())
+
+        previous = {normalise(item) for item in previous_questions}
+        if any(normalise(question.question) in previous for question in questions):
             raise ValueError("AI output validation failed: follow-up quiz repeated a previous question.")
