@@ -31,6 +31,97 @@ def _extract_text_from_pdf(data: bytes) -> str:
         return ""
 
 
+# ── PDF quality checker ──────────────────────────────────────────────────────
+# Thresholds — tune these if needed
+_MIN_CHARS_PER_PAGE     = 80    # fewer than this per page = likely scanned/image PDF
+_MIN_WORD_LENGTH_AVG    = 3.0   # avg word length below this = likely OCR garbage
+_MAX_GARBAGE_RATIO      = 0.35  # more than 35% non-ASCII/non-printable = corrupted
+_MIN_READABLE_PAGES_PCT = 0.40  # at least 40% of pages must pass quality check
+
+
+def _assess_pdf_quality(data: bytes, extracted_text: str, page_count: int) -> tuple[bool, str]:
+    """
+    Returns (is_readable, reason).
+    is_readable=False means the PDF is scanned, blurry, or image-only.
+    """
+    if page_count == 0:
+        return False, "empty"
+
+    total_chars = len(extracted_text.strip())
+    chars_per_page = total_chars / max(page_count, 1)
+
+    # Check 1 — almost no text extracted at all
+    if total_chars < 50:
+        return False, "no_text"
+
+    if chars_per_page < _MIN_CHARS_PER_PAGE:
+        return False, "too_sparse"
+
+    # Check 2 — garbage character ratio (non-printable, replacement chars)
+    import unicodedata
+    garbage = sum(
+        1 for ch in extracted_text
+        if (not ch.isprintable() and ch not in ("
+", "	", "
+"))
+        or ch == "�"   # Unicode replacement character — sign of bad encoding
+        or (ord(ch) > 127 and unicodedata.category(ch) == "So")  # misc symbols
+    )
+    garbage_ratio = garbage / max(total_chars, 1)
+    if garbage_ratio > _MAX_GARBAGE_RATIO:
+        return False, "garbage_text"
+
+    # Check 3 — word length average (real text has avg ~4-7 chars per word)
+    words = [w for w in extracted_text.split() if w.isalpha()]
+    if words:
+        avg_len = sum(len(w) for w in words) / len(words)
+        if avg_len < _MIN_WORD_LENGTH_AVG and len(words) > 20:
+            return False, "garbled_words"
+
+    # Check 4 — per-page extraction (need at least 40% of pages to have real text)
+    try:
+        import PyPDF2
+        reader = PyPDF2.PdfReader(io.BytesIO(data))
+        readable_pages = sum(
+            1 for page in reader.pages
+            if len((page.extract_text() or "").strip()) >= _MIN_CHARS_PER_PAGE
+        )
+        readable_pct = readable_pages / max(len(reader.pages), 1)
+        if readable_pct < _MIN_READABLE_PAGES_PCT:
+            return False, "mostly_images"
+    except Exception:
+        pass  # If PyPDF2 fails here, we already have text so it's probably OK
+
+    return True, "ok"
+
+
+def _build_blur_error(reason: str) -> dict:
+    """Return a structured error payload the frontend can display."""
+    messages = {
+        "no_text":       "No readable text found in this PDF.",
+        "too_sparse":    "This PDF appears to be a scanned document — very little text could be extracted.",
+        "garbage_text":  "This PDF contains mostly unreadable characters, likely from a bad scan or image conversion.",
+        "garbled_words": "The text extracted from this PDF appears garbled — it may be a low-quality scan.",
+        "mostly_images": "Most pages in this PDF are images with no selectable text.",
+        "empty":         "This PDF appears to be empty.",
+    }
+    detail = messages.get(reason, "This PDF could not be read properly.")
+    return {
+        "error": "unreadable_pdf",
+        "detail": detail,
+        "user_message": (
+            f"{detail} "
+            "Please upload a clearer version, a text-based PDF, or paste the text directly using the text input."
+        ),
+        "suggestions": [
+            "Use a text-based PDF (not a scan)",
+            "Copy and paste the text directly",
+            "Try converting the PDF to a Word document first",
+            "If it is a scanned document, run OCR software on it first",
+        ],
+    }
+
+
 def _extract_text_from_docx(data: bytes) -> str:
     """Extract readable text from DOCX bytes."""
     try:
@@ -268,6 +359,15 @@ async def upload_document(
 
         doc_title = title or file.filename.rsplit(".", 1)[0]
         extracted_text, file_type, page_count = _extract_text(file.filename, data)
+
+        # ── PDF quality gate ────────────────────────────────────────────────
+        if ext == "pdf":
+            is_readable, reason = _assess_pdf_quality(data, extracted_text, page_count)
+            if not is_readable:
+                from fastapi.responses import JSONResponse
+                error_payload = _build_blur_error(reason)
+                return JSONResponse(status_code=422, content=error_payload)
+        # ────────────────────────────────────────────────────────────────────
 
     elif text_content and text_content.strip():
         extracted_text = text_content.strip()

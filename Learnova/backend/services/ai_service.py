@@ -36,7 +36,7 @@ ModelT = TypeVar("ModelT", bound=BaseModel)
 class AIService:
     def __init__(self, client: OllamaClient | None = None, quiz_client: OllamaClient | None = None) -> None:
         self.client      = client      or OllamaClient(SummaryOllamaSettings())  # Mac 1 — gpt-oss
-        self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek-r1:8b
+        self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek
 
     def summarize(self, payload: SummaryRequest) -> SummaryResponse:
         text = self._clean_text(payload.text)
@@ -134,6 +134,10 @@ class AIService:
             video = self._search_video_resource(payload.title, topic)
             if video:
                 resources.append(video)
+
+            podcast = self._search_podcast_resource(payload.title, topic)
+            if podcast:
+                resources.append(podcast)
 
             if not article:
                 resources.append(self._build_article_fallback(topic))
@@ -622,6 +626,106 @@ Missed questions JSON:
             ],
             preferred_domains=["youtube.com", "youtu.be", "ted.com", "khanacademy.org"],
         )
+
+    def _search_podcast_resource(self, title: str, topic: str) -> "ResourceRecommendation | None":
+        """
+        Search for a real podcast episode using three strategies in order:
+        1. Listen Notes public search (no API key needed, HTML scrape)
+        2. DuckDuckGo → filter for podcast.google.com, podcasts.apple.com, anchor.fm, podcastaddict
+        3. Fallback: real Google Podcasts search URL (opens browser search)
+        """
+        import re
+        from urllib.parse import quote_plus
+
+        topic_slug = quote_plus(f"{topic} {title} educational")
+
+        # Strategy 1 — Listen Notes HTML scrape (most reliable)
+        ln_result = self._search_listennotes(topic, title)
+        if ln_result:
+            return ln_result
+
+        # Strategy 2 — DuckDuckGo filtered to podcast platforms
+        ddg_result = self._search_resource_variants(
+            topic=topic,
+            resource_type="podcast",
+            queries=[
+                f"{topic} {title} podcast episode site:podcasts.apple.com",
+                f"{topic} educational podcast episode site:open.spotify.com/episode",
+                f"{topic} podcast site:anchor.fm OR site:buzzsprout.com",
+            ],
+            preferred_domains=["podcasts.apple.com", "open.spotify.com", "anchor.fm",
+                               "buzzsprout.com", "podcastaddict.com", "pocketcasts.com"],
+        )
+        if ddg_result:
+            return ddg_result
+
+        # Strategy 3 — Fallback: Apple Podcasts search (opens real search, not homepage)
+        search_url = f"https://podcasts.apple.com/search?term={quote_plus(topic + ' ' + title)}"
+        return ResourceRecommendation(
+            topic=topic,
+            title=f"{topic}: educational podcast episodes",
+            url=search_url,
+            source="podcasts.apple.com",
+            snippet=f"Search Apple Podcasts for episodes covering {topic}.",
+            resource_type="podcast",
+        )
+
+    def _search_listennotes(self, topic: str, doc_title: str) -> "ResourceRecommendation | None":
+        """Scrape Listen Notes search results for a real matching episode."""
+        from urllib.parse import quote_plus
+        try:
+            query = quote_plus(f"{topic} {doc_title}")
+            req = Request(
+                f"https://www.listennotes.com/search/?q={query}&type=episode",
+                headers={
+                    "User-Agent": (
+                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+                    ),
+                    "Accept-Language": "en-US,en;q=0.9",
+                },
+            )
+            with urlopen(req, timeout=15) as resp:
+                html = resp.read().decode("utf-8", errors="ignore")
+
+            # Extract episode title + URL from Listen Notes results
+            episodes = re.findall(
+                r'<a[^>]+href="(/e/[A-Za-z0-9]+/)"[^>]*>\s*<div[^>]*>([^<]{10,200})</div>',
+                html,
+            )
+            if not episodes:
+                # Try broader pattern
+                episodes = re.findall(
+                    r'href="(/e/[A-Za-z0-9]+/)"[^>]*>[\s\S]{0,60}?<[^>]+class="[^"]*title[^"]*"[^>]*>([^<]{8,200})',
+                    html,
+                )
+
+            if not episodes:
+                return None
+
+            topic_tokens = self._topic_tokens(topic)
+            best_score = -1
+            best_ep = None
+            for path, ep_title in episodes[:8]:
+                score = sum(1 for t in topic_tokens if t in ep_title.lower())
+                if score > best_score:
+                    best_score = score
+                    best_ep = (path, ep_title.strip())
+
+            if not best_ep or best_score < 1:
+                return None
+
+            path, ep_title = best_ep
+            return ResourceRecommendation(
+                topic=topic,
+                title=ep_title[:240],
+                url=f"https://www.listennotes.com{path}",
+                source="listennotes.com",
+                snippet=f"Podcast episode covering {topic}.",
+                resource_type="podcast",
+            )
+        except Exception:
+            return None
 
     def _fetch_search_results(self, query: str) -> str:
         request = Request(
