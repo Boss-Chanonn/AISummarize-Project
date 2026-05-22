@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from backend.database.db import db, system_logs_collection, users_collection, history_collection
 from backend.middleware.auth_middleware import get_system_admin_user
 from backend.utils.api_errors import message_error
+from backend.utils.rate_limit import limiter
+from backend.utils.sanitization import sanitize_choice
 from backend.utils.serializers import serialize_mongo_doc, serialize_mongo_list
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -97,13 +99,15 @@ async def view_collection(
 
 # ----------------------------- User Status Management -----------------------------
 @router.put("/users/{user_id}/status")
+@limiter.limit("30/minute")
 async def update_user_status(
+    request: Request,
     user_id: str,
     body: dict,
     current_user: dict = Depends(get_system_admin_user)
 ):
     """Toggle a user account between active and inactive status."""
-    new_status = body.get("status")
+    new_status = sanitize_choice(body.get("status"), {"active", "inactive"})
     if new_status not in ("active", "inactive"):
         return message_error(400, "status must be 'active' or 'inactive'")
     try:
@@ -125,7 +129,9 @@ async def update_user_status(
 
 # ----------------------------- Destructive Actions -----------------------------
 @router.delete("/db/{collection_name}/documents")
+@limiter.limit("10/minute")
 async def delete_documents(
+    request: Request,
     collection_name: str,
     body: dict,
     current_user: dict = Depends(get_system_admin_user)

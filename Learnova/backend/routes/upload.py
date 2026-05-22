@@ -1,11 +1,14 @@
 import io
 import os
+import zipfile
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 
 from backend.utils.api_errors import message_error
+from backend.utils.rate_limit import limiter
+from backend.utils.sanitization import sanitize_multiline_text, sanitize_single_line
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_learning_package
@@ -16,6 +19,7 @@ MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 ALLOWED_EXTENSIONS_FREE = {"pdf", "txt", "doc", "docx"}
 ALLOWED_EXTENSIONS_PRO = {"pdf", "txt", "doc", "docx", "ppt", "pptx"}
+_OLE_SIGNATURE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
 
 
 # ----------------------------- Text Extraction Helpers -----------------------------
@@ -90,6 +94,46 @@ def _extract_text(filename: str, data: bytes) -> tuple[str, str, int]:
             text = ""
         pages = max(1, len(text) // 3000)
         return text, ext.upper(), pages
+
+
+def _zip_contains_prefix(data: bytes, prefix: str) -> bool:
+    """Return True when a ZIP-based Office file contains an expected folder."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+            return any(name.startswith(prefix) for name in archive.namelist())
+    except zipfile.BadZipFile:
+        return False
+
+
+def _validate_uploaded_file(filename: str, data: bytes) -> str | None:
+    """Validate uploaded file bytes against the extension before extraction."""
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    head = data[:16]
+
+    if ext == "pdf":
+        if not data.lstrip().startswith(b"%PDF"):
+            return "Uploaded .pdf file is not a valid PDF document."
+    elif ext == "txt":
+        if b"\x00" in data[:4096]:
+            return "Uploaded .txt file appears to contain binary data."
+        try:
+            data[:4096].decode("utf-8")
+        except UnicodeDecodeError:
+            return "Uploaded .txt file must be valid UTF-8 text."
+    elif ext == "docx":
+        if not _zip_contains_prefix(data, "word/"):
+            return "Uploaded .docx file is not a valid Word document."
+    elif ext == "pptx":
+        if not _zip_contains_prefix(data, "ppt/"):
+            return "Uploaded .pptx file is not a valid PowerPoint document."
+    elif ext == "doc":
+        if not (head.startswith(_OLE_SIGNATURE) or _zip_contains_prefix(data, "word/")):
+            return "Uploaded .doc file is not a valid Word document."
+    elif ext == "ppt":
+        if not (head.startswith(_OLE_SIGNATURE) or _zip_contains_prefix(data, "ppt/")):
+            return "Uploaded .ppt file is not a valid PowerPoint document."
+
+    return None
 
 
 async def _get_next_seq_id(user_id: str) -> int:
@@ -239,7 +283,9 @@ def _build_upload_response(
 
 # ----------------------------- Upload Endpoint -----------------------------
 @router.post("/upload")
+@limiter.limit("10/hour")
 async def upload_document(
+    request: Request,
     current_user: dict = Depends(get_current_user),
     file: Optional[UploadFile] = File(None),
     text_content: Optional[str] = Form(None),
@@ -265,15 +311,20 @@ async def upload_document(
         data = await file.read()
         if len(data) > MAX_FILE_SIZE:
             return message_error(413, "File exceeds 10 MB limit. Please upload a smaller file.")
+        validation_error = _validate_uploaded_file(file.filename, data)
+        if validation_error:
+            return message_error(400, validation_error)
 
-        doc_title = title or file.filename.rsplit(".", 1)[0]
+        raw_title = title or file.filename.rsplit(".", 1)[0]
+        doc_title = sanitize_single_line(raw_title, max_length=160) or "Uploaded document"
         extracted_text, file_type, page_count = _extract_text(file.filename, data)
 
     elif text_content and text_content.strip():
-        extracted_text = text_content.strip()
+        extracted_text = sanitize_multiline_text(text_content)
         file_type = "TXT"
         page_count = max(1, len(extracted_text) // 3000)
-        doc_title = title or "Pasted text"
+        doc_title = sanitize_single_line(title, max_length=160) if title else "Pasted text"
+        doc_title = doc_title or "Pasted text"
 
     else:
         return message_error(400, "Please upload a file or paste text content.")
@@ -317,4 +368,3 @@ async def upload_document(
         ai_payload=ai_payload,
         processed_at=processed_at,
     )
-

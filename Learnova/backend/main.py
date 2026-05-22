@@ -1,11 +1,11 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from backend.middleware.security import SecurityHeadersMiddleware
 from backend.database.db import client, token_blocklist_collection, system_logs_collection
+from backend.utils.rate_limit import limiter
 from dotenv import load_dotenv
 from datetime import datetime, timezone
 from jose import jwt as _jwt
@@ -16,10 +16,16 @@ load_dotenv()
 
 
 # ----------------------------- App Configuration -----------------------------
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:8000").split(",")
-
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+_raw_allowed_origins = os.getenv("ALLOWED_ORIGINS") or "http://localhost:8000"
+allowed_origins = [
+    origin.strip()
+    for origin in _raw_allowed_origins.split(",")
+    if origin.strip()
+]
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()
+_secret_key = os.getenv("SECRET_KEY", "changeme")
+if ENVIRONMENT == "production" and (not _secret_key or _secret_key == "changeme"):
+    raise RuntimeError("SECRET_KEY must be set to a strong value in production")
 
 app = FastAPI(title="Learnova API")
 app.state.limiter = limiter
@@ -32,8 +38,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 
@@ -156,4 +162,3 @@ async def startup_event():
 # ----------------------------- Frontend Hosting -----------------------------
 # Serve frontend last so API routes are matched before static file fallback.
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-

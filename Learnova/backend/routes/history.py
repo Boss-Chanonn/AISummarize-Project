@@ -3,6 +3,7 @@ from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_quiz_analysis
 from backend.utils.api_errors import message_error
+from backend.utils.sanitization import sanitize_answer_indices
 from backend.utils.serializers import serialize_mongo_doc, serialize_mongo_list
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -64,7 +65,7 @@ async def submit_quiz(
     if not doc:
         return message_error(404, "History item not found")
 
-    user_answers = body.get("answers", [])  # list of chosen option indices
+    user_answers = sanitize_answer_indices(body.get("answers", []))
     quiz_questions = doc.get("quizFull", [])
     total = len(quiz_questions)
     correct_count = sum(
@@ -124,4 +125,3 @@ async def delete_history_item(
     if result.deleted_count == 0:
         return message_error(404, "History item not found")
     return {"message": "Deleted successfully"}
-

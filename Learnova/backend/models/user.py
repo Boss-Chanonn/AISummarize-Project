@@ -1,5 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional
+
+from backend.utils.sanitization import sanitize_digits, sanitize_single_line
 
 
 # ----------------------------- Auth Models -----------------------------
@@ -11,6 +13,21 @@ class UserCreate(BaseModel):
     password: str
     dob: str           # required — format YYYY-MM-DD
     phone: Optional[str] = None
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def sanitize_name(cls, value):
+        return sanitize_single_line(value, max_length=120)
+
+    @field_validator("dob", mode="before")
+    @classmethod
+    def sanitize_dob(cls, value):
+        return sanitize_single_line(value, max_length=32)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def sanitize_phone(cls, value):
+        return sanitize_single_line(value, max_length=32)
 
 
 class UserLogin(BaseModel):
@@ -46,6 +63,16 @@ class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
 
+    @field_validator("name", mode="before")
+    @classmethod
+    def sanitize_name(cls, value):
+        return sanitize_single_line(value, max_length=120)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def sanitize_phone(cls, value):
+        return sanitize_single_line(value, max_length=32)
+
 
 # ----------------------------- Admin Models -----------------------------
 class AdminUpdateProfile(BaseModel):
@@ -55,6 +82,21 @@ class AdminUpdateProfile(BaseModel):
     email         : Optional[EmailStr] = None
     phone         : Optional[str]      = None
     dob           : Optional[str]      = None   # YYYY-MM-DD
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def sanitize_name(cls, value):
+        return sanitize_single_line(value, max_length=120)
+
+    @field_validator("phone", mode="before")
+    @classmethod
+    def sanitize_phone(cls, value):
+        return sanitize_single_line(value, max_length=32)
+
+    @field_validator("dob", mode="before")
+    @classmethod
+    def sanitize_dob(cls, value):
+        return sanitize_single_line(value, max_length=32)
 
 
 class AdminUpdateAccount(BaseModel):
@@ -79,6 +121,13 @@ class UpgradeRequest(BaseModel):
 
     plan_type: str  # "monthly" or "yearly"
 
+    @field_validator("plan_type", mode="before")
+    @classmethod
+    def sanitize_plan_type(cls, value):
+        if not isinstance(value, str):
+            return value
+        return sanitize_single_line(value, max_length=16).lower()
+
 
 class PaymentConfirm(BaseModel):
     """Mock payment confirmation body used to upgrade a user to Pro."""
@@ -88,6 +137,30 @@ class PaymentConfirm(BaseModel):
     card_last4: str     # last 4 digits only — NEVER store full card number
     amount: float
     currency: str = "USD"
+
+    @field_validator("plan_type", mode="before")
+    @classmethod
+    def sanitize_plan_type(cls, value):
+        if not isinstance(value, str):
+            return value
+        return sanitize_single_line(value, max_length=16).lower()
+
+    @field_validator("card_name", mode="before")
+    @classmethod
+    def sanitize_card_name(cls, value):
+        return sanitize_single_line(value, max_length=120)
+
+    @field_validator("card_last4", mode="before")
+    @classmethod
+    def sanitize_card_last4(cls, value):
+        return sanitize_digits(value, max_length=4)
+
+    @field_validator("currency", mode="before")
+    @classmethod
+    def sanitize_currency(cls, value):
+        if not isinstance(value, str):
+            return value
+        return sanitize_single_line(value, max_length=8).upper()
 
 
 class BillingResponse(BaseModel):

@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from backend.models.user import (
     UserCreate, UserLogin, UserUpdate, PasswordChange
 )
 from backend.database.db import users_collection, token_blocklist_collection
 from backend.middleware.auth_middleware import get_current_user, security
 from backend.utils.api_errors import message_error
+from backend.utils.rate_limit import limiter
+from backend.utils.sanitization import sanitize_single_line
 from fastapi.security import HTTPAuthorizationCredentials
 from passlib.context import CryptContext
 from jose import jwt
@@ -49,7 +51,8 @@ async def health_check():
 
 
 @router.post("/register", status_code=201)
-async def register(user: UserCreate):
+@limiter.limit("3/minute")
+async def register(request: Request, user: UserCreate):
     """Create a new user account after validating basic required fields."""
     if len(user.password) < 8:
         return message_error(400, "Password must be at least 8 characters")
@@ -86,9 +89,11 @@ async def register(user: UserCreate):
 
 
 @router.post("/login")
-async def login(credentials: UserLogin):
+@limiter.limit("5/minute")
+async def login(request: Request, credentials: UserLogin):
     """Authenticate user credentials and return JWT plus profile payload."""
-    user = await users_collection.find_one({"email": credentials.email})
+    normalized_email = str(credentials.email).strip().lower()
+    user = await users_collection.find_one({"email": normalized_email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
     if user.get("status") == "inactive":
@@ -156,19 +161,28 @@ async def update_profile(
     update_fields = {k: v for k, v in update.dict().items() if v is not None}
     if not update_fields:
         return message_error(400, "No fields to update")
+    if "email" in update_fields:
+        update_fields["email"] = str(update_fields["email"]).strip().lower()
+    if "name" in update_fields and not sanitize_single_line(update_fields["name"]):
+        return message_error(400, "Name cannot be empty")
     await users_collection.update_one({"_id": current_user["_id"]}, {"$set": update_fields})
     return {"message": "Profile updated"}
 
 
 @router.put("/password")
+@limiter.limit("5/minute")
 async def change_password(
+    request: Request,
     body: PasswordChange,
     current_user: dict = Depends(get_current_user)
 ):
     """Change password after verifying the current password first."""
     if not verify_password(body.current_password, current_user["password"]):
         return message_error(400, "Current password is incorrect")
+    if len(body.new_password) < 8:
+        return message_error(400, "New password must be at least 8 characters")
+    if body.current_password == body.new_password:
+        return message_error(400, "New password must be different from current password")
     new_hashed = hash_password(body.new_password)
     await users_collection.update_one({"_id": current_user["_id"]}, {"$set": {"password": new_hashed}})
     return {"message": "Password changed successfully"}
-

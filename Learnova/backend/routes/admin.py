@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from backend.database.db import users_collection, history_collection
 from backend.middleware.auth_middleware import get_admin_user, get_system_admin_user
 from backend.models.user import AdminUpdateProfile, AdminUpdateAccount
 from backend.utils.api_errors import message_error
+from backend.utils.rate_limit import limiter
+from backend.utils.sanitization import sanitize_choice, sanitize_single_line
 from backend.utils.serializers import serialize_mongo_doc
 from datetime import datetime, timezone, timedelta
 from bson import ObjectId
@@ -92,13 +94,15 @@ async def get_user(user_id: str, current_user: dict = Depends(get_admin_user)):
 
 # ----------------------------- User Account Mutations -----------------------------
 @router.put("/users/{user_id}/tier")
+@limiter.limit("30/minute")
 async def update_user_tier(
+    request: Request,
     user_id: str,
     body: dict,
     current_user: dict = Depends(get_admin_user)
 ):
     """Update user subscription tier to free or pro."""
-    tier = body.get("tier")
+    tier = sanitize_choice(body.get("tier"), {"free", "pro"})
     if tier not in ("free", "pro"):
         return message_error(400, "Tier must be 'free' or 'pro'")
     try:
@@ -110,13 +114,15 @@ async def update_user_tier(
 
 
 @router.put("/users/{user_id}/role")
+@limiter.limit("30/minute")
 async def update_user_role(
+    request: Request,
     user_id: str,
     body: dict,
     current_user: dict = Depends(get_admin_user)
 ):
     """Update user role to user/admin/system_admin."""
-    role = body.get("role")
+    role = sanitize_choice(body.get("role"), {"user", "admin", "system_admin"})
     if role not in ("user", "admin", "system_admin"):
         return message_error(400, "Invalid role")
     try:
@@ -191,6 +197,10 @@ async def admin_update_profile(
     update_fields = {k: v for k, v in body.model_dump().items() if v is not None}
     if not update_fields:
         return message_error(400, "No fields to update")
+    if "email" in update_fields:
+        update_fields["email"] = str(update_fields["email"]).strip().lower()
+    if "name" in update_fields and not sanitize_single_line(update_fields["name"]):
+        return message_error(400, "Name cannot be empty")
 
     # If email is changing, make sure it is not taken by another user
     if "email" in update_fields:
@@ -208,7 +218,9 @@ async def admin_update_profile(
 
 
 @router.put("/user/{user_id}/account")
+@limiter.limit("30/minute")
 async def admin_update_account(
+    request: Request,
     user_id: str,
     body: AdminUpdateAccount,
     current_user: dict = Depends(get_admin_user)
@@ -244,7 +256,9 @@ async def admin_update_account(
 
 
 @router.post("/user/{user_id}/reset-password")
+@limiter.limit("10/minute")
 async def admin_reset_password(
+    request: Request,
     user_id: str,
     current_user: dict = Depends(get_admin_user)
 ):
