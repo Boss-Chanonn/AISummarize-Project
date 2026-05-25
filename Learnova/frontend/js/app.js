@@ -751,7 +751,7 @@ function renderSidebar(activePage) {
     </a>
     ${LEARNOVA_USER.role === 'admin' ? `
     <div class="sidebar-section">Admin</div>
-    <a href="admin-users.html" class="sidebar-item${activePage==='admin-users'?' active':''}" data-page="admin-users.html">
+    <a href="admin-stats.html" class="sidebar-item${activePage==='admin-stats'?' active':''}" data-page="admin-stats.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 14v-1a3 3 0 0 0-3-3H5a3 3 0 0 0-3 3v1"/><circle cx="6.5" cy="5.5" r="2.5"/><path d="M14 7h-3M14 10h-3"/></svg>
       Admin Panel
     </a>` : ''}

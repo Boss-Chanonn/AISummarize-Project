@@ -230,7 +230,7 @@ function handleDashboardRedirect() {
   if (role === 'system_admin') {
     window.location.href = 'system-admin.html';
   } else if (role === 'admin') {
-    window.location.href = 'admin-users.html';
+    window.location.href = 'admin-stats.html';
   } else {
     window.location.href = 'dashboard.html';
   }
@@ -282,7 +282,7 @@ async function loginUser() {
     if (role === 'system_admin') {
       window.location.href = 'system-admin.html';
     } else if (role === 'admin') {
-      window.location.href = 'admin-users.html';
+      window.location.href = 'admin-stats.html';
     } else {
       window.location.href = 'dashboard.html';
     }
