@@ -1478,12 +1478,15 @@ select {
 .sys-card-shell{padding:0;overflow:hidden;background:var(--surface)}
 .sys-card-header{display:flex;align-items:center;justify-content:space-between;padding:13px 18px;border-bottom:0.5px solid var(--border);gap:10px}
 .sys-card-header-center{justify-content:center;text-align:center}
+.sys-card-header-with-action{position:relative}
+.sys-card-header-with-action #sys-refresh-overview{position:absolute;right:18px}
 .sys-card-title{font-size:11px;letter-spacing:0.8px;text-transform:uppercase;color:var(--cream-25);font-weight:500}
 .sys-card-sub{font-size:11px;color:var(--cream-25)}
 .sys-card-actions{display:flex;align-items:center;gap:8px}
 .sys-th-right{text-align:right}
 
 /* -- System Overview -- */
+#section-overview.active{gap:16px}
 .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:16px 18px}
 .status-item{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--surface2);border:0.5px solid var(--border);border-radius:var(--radius-md)}
 .status-name{font-size:13px;color:var(--cream-60)}
@@ -1501,14 +1504,18 @@ select {
 .stat-row .stat-label{font-size:12px;color:var(--cream-40);margin:0;letter-spacing:0;text-transform:none}
 .stat-val{font-size:13px;color:var(--cream);font-weight:500}
 
-.api-row{display:flex;align-items:center;gap:12px;padding:10px 18px;border-bottom:0.5px solid var(--border)}
-.api-row:last-child{border-bottom:none}
+.api-method{width:54px;font-size:11px;font-family:monospace;color:var(--gold);flex-shrink:0}
 .api-endpoint{font-size:12px;color:var(--cream-40);font-family:monospace;flex:1;word-break:break-all}
-.api-time{font-size:12px;color:var(--cream-60)}
+.api-available{font-size:12px;color:var(--green)}
 .api-ok,.api-error{width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .api-ok{background:rgba(107,158,107,0.15);color:var(--green)}
 .api-error{background:rgba(200,120,80,0.18);color:var(--red-soft)}
 .api-ok svg,.api-error svg{width:9px;height:9px}
+.api-health-row{align-items:center}
+.api-health-list{overflow:visible}
+.sys-connected-detail-container{border-top:0.5px solid var(--border)}
+.sys-connected-detail,.sys-connected-detail-empty{background:var(--surface2);overflow:hidden}
+.sys-connected-detail-empty{display:flex;align-items:center;justify-content:center;min-height:160px;padding:18px}
 
 /* -- User Control -- */
 .user-filter-bar{display:flex;align-items:center;gap:10px;padding:12px 0px;border-bottom:0.5px solid var(--border);flex-wrap:wrap}
@@ -1557,8 +1564,6 @@ select {
 .expand-btn svg{width:11px;height:11px;transition:transform 0.2s}
 .expand-btn.open svg{transform:rotate(90deg)}
 
-.collection-detail{background:var(--surface2);border:0.5px solid var(--border-md);border-radius:var(--radius-md);margin-top:12px;overflow:hidden}
-.collection-detail-empty{display:flex;align-items:center;justify-content:center;min-height:380px;padding:18px}
 .collection-empty-text{font-size:12px;color:var(--cream-25);text-align:center}
 .collection-detail-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:0.5px solid var(--border);gap:10px}
 .collection-detail-title{font-size:12px;color:var(--cream-60);font-family:monospace}

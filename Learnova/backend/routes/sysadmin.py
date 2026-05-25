@@ -11,6 +11,57 @@ from bson import ObjectId
 router = APIRouter()
 
 
+_API_HEALTH_CATALOG = {
+    "user": [
+        {"method": "GET", "path": "/api/health"},
+        {"method": "GET", "path": "/api/auth/health"},
+        {"method": "POST", "path": "/api/auth/register"},
+        {"method": "POST", "path": "/api/auth/login"},
+        {"method": "POST", "path": "/api/auth/logout"},
+        {"method": "GET", "path": "/api/auth/profile"},
+        {"method": "PUT", "path": "/api/auth/profile"},
+        {"method": "PUT", "path": "/api/auth/password"},
+        {"method": "GET", "path": "/api/user/profile"},
+        {"method": "POST", "path": "/api/upload"},
+        {"method": "GET", "path": "/api/history/recent"},
+        {"method": "GET", "path": "/api/history"},
+        {"method": "GET", "path": "/api/history/{history_id}"},
+        {"method": "POST", "path": "/api/history/{history_id}/submit-quiz"},
+        {"method": "DELETE", "path": "/api/history/{history_id}"},
+        {"method": "GET", "path": "/api/results"},
+        {"method": "GET", "path": "/api/modules"},
+        {"method": "GET", "path": "/api/billing/status"},
+        {"method": "POST", "path": "/api/billing/upgrade"},
+        {"method": "POST", "path": "/api/billing/confirm"},
+        {"method": "POST", "path": "/api/billing/downgrade"},
+    ],
+    "admin": [
+        {"method": "GET", "path": "/api/admin/users"},
+        {"method": "GET", "path": "/api/admin/users/{user_id}"},
+        {"method": "PUT", "path": "/api/admin/users/{user_id}/tier"},
+        {"method": "PUT", "path": "/api/admin/users/{user_id}/role"},
+        {"method": "DELETE", "path": "/api/admin/users/{user_id}"},
+        {"method": "GET", "path": "/api/admin/history"},
+        {"method": "PUT", "path": "/api/admin/user/{user_id}/profile"},
+        {"method": "PUT", "path": "/api/admin/user/{user_id}/account"},
+        {"method": "POST", "path": "/api/admin/user/{user_id}/reset-password"},
+        {"method": "GET", "path": "/api/admin/stats"},
+        {"method": "GET", "path": "/api/admin/stats/user-growth"},
+        {"method": "GET", "path": "/api/admin/stats/upload-activity"},
+    ],
+    "system_admin": [
+        {"method": "GET", "path": "/api/admin/dashboard"},
+        {"method": "GET", "path": "/api/sysadmin/health"},
+        {"method": "GET", "path": "/api/sysadmin/api-health"},
+        {"method": "GET", "path": "/api/sysadmin/stats"},
+        {"method": "GET", "path": "/api/sysadmin/logs"},
+        {"method": "GET", "path": "/api/sysadmin/db/{collection_name}"},
+        {"method": "PUT", "path": "/api/sysadmin/users/{user_id}/status"},
+        {"method": "DELETE", "path": "/api/sysadmin/db/{collection_name}/documents"},
+    ],
+}
+
+
 # ----------------------------- System Health -----------------------------
 @router.get("/health")
 async def system_health(current_user: dict = Depends(get_system_admin_user)):
@@ -38,6 +89,20 @@ async def system_health(current_user: dict = Depends(get_system_admin_user)):
         "mongodb": "ok" if db_ok else "error",
         "ollama": "ok" if ollama_ok else "unavailable",
         "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/api-health")
+async def api_health_catalog(current_user: dict = Depends(get_system_admin_user)):
+    """List registered API endpoints by access group for system-admin display."""
+    return {
+        "groups": {
+            role: [
+                {**endpoint, "status": "available"}
+                for endpoint in endpoints
+            ]
+            for role, endpoints in _API_HEALTH_CATALOG.items()
+        }
     }
 
 

@@ -1053,6 +1053,8 @@ const SYS_STATE = {
   collectionDocs: {},
   selectedDocs: new Set(),
   dbDeleteTarget: { collection: '', ids: [] },
+  apiHealthGroups: {},
+  openApiHealthGroup: '',
   logs: [],
   filteredLogs: [],
   securityView: 'activity'
@@ -1321,10 +1323,12 @@ function showSysLoading(sectionId) {
   if (sectionId === 'section-overview') {
     const statusGrid = document.getElementById('statusGrid');
     const statsGrid = document.getElementById('statsGrid');
-    const apiHealthList = document.getElementById('apiHealthList');
+    const apiHealthMenu = document.getElementById('apiHealthMenu');
+    const apiHealthDetail = document.getElementById('apiHealthDetail');
     if (statusGrid) statusGrid.innerHTML = loadingMarkup;
     if (statsGrid) statsGrid.innerHTML = loadingMarkup;
-    if (apiHealthList) apiHealthList.innerHTML = loadingMarkup;
+    if (apiHealthMenu) apiHealthMenu.innerHTML = loadingMarkup;
+    if (apiHealthDetail) apiHealthDetail.innerHTML = getApiHealthEmptyMarkup('Loading API availability...');
   }
   if (sectionId === 'section-users') {
     const tbody = document.getElementById('userTableBody');
@@ -1334,14 +1338,14 @@ function showSysLoading(sectionId) {
     const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
     if (menu) menu.innerHTML = loadingMarkup;
-    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading collections...</span></div>';
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Loading collections...');
     scheduleSysDbDetailHeightSync();
   }
   if (sectionId === 'section-security') {
     const menu = document.getElementById('securityFunctionMenu');
     const detail = document.getElementById('securityDetail');
     if (menu) menu.innerHTML = loadingMarkup;
-    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading security data...</span></div>';
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Loading security data...');
     scheduleSysSecurityDetailHeightSync();
   }
 }
@@ -1394,22 +1398,80 @@ function renderRealtimeStats(stats) {
 }
 
 /**
- * Render API health rows with latency and status icon.
- * @param {Array<{endpoint:string,ok:boolean,ms:number}>} requestRows
+ * Render API type selector buttons using the Database Manager layout.
  */
-function renderApiHealth(requestRows) {
-  const apiHealthList = document.getElementById('apiHealthList');
-  if (!apiHealthList) return;
-  apiHealthList.innerHTML = requestRows.map(row => {
-    const icon = row.ok
-      ? '<span class="api-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
-      : '<span class="api-error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>';
-    return '<div class="api-row">'
-      + '<span class="api-endpoint">' + escapeHtml(row.endpoint) + '</span>'
-      + '<span class="api-time">' + row.ms + 'ms</span>'
-      + icon
+function renderApiHealthMenu() {
+  const menu = document.getElementById('apiHealthMenu');
+  if (!menu) return;
+  const sections = [
+    { key: 'user', label: 'User' },
+    { key: 'admin', label: 'Admin' },
+    { key: 'system_admin', label: 'System Admin' }
+  ];
+
+  menu.innerHTML = sections.map(section => {
+    const isOpen = SYS_STATE.openApiHealthGroup === section.key;
+    return '<button class="db-func-btn' + (isOpen ? ' active' : '') + '" type="button" data-expand-api-role="' + escapeHtml(section.key) + '">'
+      + '<span class="db-func-name">' + escapeHtml(section.label) + '</span>'
+      + '</button>';
+  }).join('');
+}
+
+/**
+ * Render a connected empty state inside the API Health card.
+ * @param {string} message
+ * @returns {string}
+ */
+function getApiHealthEmptyMarkup(message) {
+  return getConnectedDetailEmptyMarkup(message);
+}
+
+/**
+ * Open or collapse one API availability group.
+ * @param {string} role
+ */
+function expandApiHealthGroup(role) {
+  const detail = document.getElementById('apiHealthDetail');
+  if (!detail) return;
+
+  if (SYS_STATE.openApiHealthGroup === role) {
+    SYS_STATE.openApiHealthGroup = '';
+    renderApiHealthMenu();
+    detail.innerHTML = getApiHealthEmptyMarkup('Select an API type from the menu above to view availability.');
+    return;
+  }
+
+  SYS_STATE.openApiHealthGroup = role;
+  renderApiHealthMenu();
+  renderApiHealthDetails(role, SYS_STATE.apiHealthGroups[role] || []);
+}
+
+/**
+ * Render endpoint availability in the Database Manager detail panel style.
+ * @param {string} role
+ * @param {any[]} endpoints
+ */
+function renderApiHealthDetails(role, endpoints) {
+  const detail = document.getElementById('apiHealthDetail');
+  if (!detail) return;
+  const labels = { user: 'User', admin: 'Admin', system_admin: 'System Admin' };
+  const label = labels[role] || role;
+  const rows = endpoints.map(endpoint => {
+    return '<div class="doc-row api-health-row">'
+      + '<span class="api-method">' + escapeHtml(endpoint.method) + '</span>'
+      + '<span class="api-endpoint">' + escapeHtml(endpoint.path) + '</span>'
+      + '<span class="api-available">Available</span>'
+      + '<span class="api-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
       + '</div>';
   }).join('');
+
+  detail.innerHTML = '<div class="sys-connected-detail">'
+    + '<div class="collection-detail-header">'
+    + '<span class="collection-detail-title">' + escapeHtml(label) + ' APIs - Available</span>'
+    + '<button class="btn btn-outline btn-sm" type="button" id="api-collapse-group">Collapse</button>'
+    + '</div>'
+    + '<div class="api-health-list">' + (rows || '<div class="doc-row"><span class="doc-content">No API endpoints</span></div>') + '</div>'
+    + '</div>';
 }
 
 /**
@@ -1418,10 +1480,11 @@ function renderApiHealth(requestRows) {
  */
 async function loadSystemOverview() {
   showSysLoading('section-overview');
-  const [healthReq, statsReq, logsReq] = await Promise.all([
+  const [healthReq, statsReq, logsReq, apiHealthReq] = await Promise.all([
     sysTimedFetch('/api/sysadmin/health'),
     sysTimedFetch('/api/sysadmin/stats'),
-    sysTimedFetch('/api/sysadmin/logs?page=1&limit=20')
+    sysTimedFetch('/api/sysadmin/logs?page=1&limit=20'),
+    sysTimedFetch('/api/sysadmin/api-health')
   ]);
 
   if (healthReq.ok) renderServiceStatus(healthReq.data);
@@ -1433,9 +1496,20 @@ async function loadSystemOverview() {
     if (statsGrid) statsGrid.innerHTML = '<div class="sys-loading">Failed to load stats</div>';
   }
 
-  renderApiHealth([healthReq, statsReq, logsReq]);
+  if (apiHealthReq.ok) {
+    SYS_STATE.apiHealthGroups = apiHealthReq.data.groups || {};
+    SYS_STATE.openApiHealthGroup = '';
+    renderApiHealthMenu();
+    expandApiHealthGroup('user');
+  }
+  else {
+    const apiHealthMenu = document.getElementById('apiHealthMenu');
+    const apiHealthDetail = document.getElementById('apiHealthDetail');
+    if (apiHealthMenu) apiHealthMenu.innerHTML = '<div class="sys-loading">Failed to load API health</div>';
+    if (apiHealthDetail) apiHealthDetail.innerHTML = getApiHealthEmptyMarkup('Unable to display API availability right now.');
+  }
 
-  if (!healthReq.ok || !statsReq.ok || !logsReq.ok) {
+  if (!healthReq.ok || !statsReq.ok || !logsReq.ok || !apiHealthReq.ok) {
     showToast('Failed to load some system overview data', 3200);
   }
 }
@@ -1747,7 +1821,7 @@ function syncSysDbDetailHeight() {
   detailContainer.style.minHeight = availableHeight + 'px';
   detailContainer.style.maxHeight = availableHeight + 'px';
 
-  const detailCard = detailContainer.querySelector('.collection-detail');
+  const detailCard = detailContainer.querySelector('.sys-connected-detail');
   let cardTargetHeight = availableHeight;
   if (detailCard) {
     const cardStyle = window.getComputedStyle(detailCard);
@@ -1794,7 +1868,7 @@ function syncSysSecurityDetailHeight() {
   detailContainer.style.minHeight = availableHeight + 'px';
   detailContainer.style.maxHeight = availableHeight + 'px';
 
-  const detailCard = detailContainer.querySelector('.collection-detail');
+  const detailCard = detailContainer.querySelector('.sys-connected-detail');
   let cardTargetHeight = availableHeight;
   if (detailCard) {
     const cardStyle = window.getComputedStyle(detailCard);
@@ -1827,8 +1901,8 @@ function scheduleSysSecurityDetailHeightSync() {
  * @param {string} message
  * @returns {string}
  */
-function getCollectionDetailEmptyMarkup(message) {
-  return '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
+function getConnectedDetailEmptyMarkup(message) {
+  return '<div class="sys-connected-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
 }
 
 /**
@@ -1864,7 +1938,7 @@ async function loadDatabase() {
       const menu = document.getElementById('dbFunctionMenu');
       const detail = document.getElementById('collectionDetail');
       if (menu) menu.innerHTML = '<div class="sys-loading">No collections available</div>';
-      if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('No data to display.');
+      if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('No data to display.');
       scheduleSysDbDetailHeightSync();
       return;
     }
@@ -1903,7 +1977,7 @@ async function loadDatabase() {
     const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
     if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load collections</div>';
-    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display data right now.');
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Unable to display data right now.');
     showToast('Failed to load database', 3200);
     scheduleSysDbDetailHeightSync();
   }
@@ -1938,7 +2012,7 @@ function renderCollections(collections) {
 
   const detail = document.getElementById('collectionDetail');
   if (detail && !SYS_STATE.openCollection) {
-    detail.innerHTML = getCollectionDetailEmptyMarkup('Select a collection from the menu above to view data.');
+    detail.innerHTML = getConnectedDetailEmptyMarkup('Select a collection from the menu above to view data.');
   }
   scheduleSysDbDetailHeightSync();
 }
@@ -1960,7 +2034,7 @@ async function expandCollection(name) {
 
   SYS_STATE.openCollection = name;
   renderCollections(SYS_STATE.collections);
-  detail.innerHTML = '<div class="sys-loading">Loading collection...</div>';
+  detail.innerHTML = getConnectedDetailEmptyMarkup('Loading collection...');
   scheduleSysDbDetailHeightSync();
 
   try {
@@ -1968,7 +2042,7 @@ async function expandCollection(name) {
     SYS_STATE.collectionDocs[name] = data.items || [];
     renderCollectionDocs(name, SYS_STATE.collectionDocs[name]);
   } catch (_) {
-    detail.innerHTML = '<div class="sys-loading">Failed to load collection data</div>';
+    detail.innerHTML = getConnectedDetailEmptyMarkup('Failed to load collection data.');
     showToast('Failed to load collection', 3200);
   }
 }
@@ -2001,7 +2075,7 @@ function renderCollectionDocs(name, docs) {
     : estimateCollectionSize(docs, totalCount);
   const detailMeta = totalCount.toLocaleString() + ' total, ' + sizeText;
 
-  detail.innerHTML = '<div class="collection-detail">'
+  detail.innerHTML = '<div class="sys-connected-detail">'
     + '<div class="collection-detail-header">'
     + '<span class="collection-detail-title">' + escapeHtml(name) + ' - ' + loadedCount + ' documents loaded (' + escapeHtml(detailMeta) + ')</span>'
     + '<div style="display:flex;gap:8px;align-items:center">'
@@ -2383,7 +2457,7 @@ function renderSecurityDetail() {
   if (!detail) return;
 
   if (SYS_STATE.securityView === 'activity') {
-    detail.innerHTML = '<div class="collection-detail">'
+    detail.innerHTML = '<div class="sys-connected-detail">'
       + '<div class="collection-detail-header">'
       + '<span class="collection-detail-title">Activity Logs</span>'
       + '<div class="sys-card-actions">'
@@ -2410,7 +2484,7 @@ function renderSecurityDetail() {
   }
 
   if (SYS_STATE.securityView === 'audit') {
-    detail.innerHTML = '<div class="collection-detail">'
+    detail.innerHTML = '<div class="sys-connected-detail">'
       + '<div class="collection-detail-header">'
       + '<span class="collection-detail-title">Audit Trail - Admin Actions</span>'
       + '</div>'
@@ -2421,7 +2495,7 @@ function renderSecurityDetail() {
     return;
   }
 
-  detail.innerHTML = '<div class="collection-detail">'
+  detail.innerHTML = '<div class="sys-connected-detail">'
     + '<div class="collection-detail-header">'
     + '<span class="collection-detail-title">Failed Logins</span>'
     + '</div>'
@@ -2461,7 +2535,7 @@ async function loadSecurity() {
     const menu = document.getElementById('securityFunctionMenu');
     const detail = document.getElementById('securityDetail');
     if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load security functions</div>';
-    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display security data right now.');
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Unable to display security data right now.');
     scheduleSysSecurityDetailHeightSync();
   }
 }
@@ -2663,6 +2737,20 @@ function bindSystemAdminEvents() {
     const name = btn.getAttribute('data-expand-collection') || '';
     if (!name) return;
     expandCollection(name);
+  });
+
+  document.getElementById('apiHealthMenu')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-expand-api-role]');
+    if (!btn) return;
+    const role = btn.getAttribute('data-expand-api-role') || '';
+    if (!role) return;
+    expandApiHealthGroup(role);
+  });
+
+  document.getElementById('apiHealthDetail')?.addEventListener('click', event => {
+    if (event.target.closest('#api-collapse-group') && SYS_STATE.openApiHealthGroup) {
+      expandApiHealthGroup(SYS_STATE.openApiHealthGroup);
+    }
   });
 
   document.getElementById('collectionDetail')?.addEventListener('input', event => {
