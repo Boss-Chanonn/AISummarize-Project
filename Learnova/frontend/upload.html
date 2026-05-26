@@ -173,6 +173,12 @@ function handleFileInput(files) {
       return false;
     }
 
+    // Redirect PPTX to session page for Pro users
+    if ((extension === '.pptx' || extension === '.ppt') && isPro()) {
+      window.location.href = 'pptx-session.html';
+      return false;
+    }
+
     return true;
   });
 

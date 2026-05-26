@@ -61,9 +61,7 @@ def _assess_pdf_quality(data: bytes, extracted_text: str, page_count: int) -> tu
     import unicodedata
     garbage = sum(
         1 for ch in extracted_text
-        if (not ch.isprintable() and ch not in ("
-", "	", "
-"))
+        if (not ch.isprintable() and ch not in "\r\n\t")
         or ch == "�"   # Unicode replacement character — sign of bad encoding
         or (ord(ch) > 127 and unicodedata.category(ch) == "So")  # misc symbols
     )
