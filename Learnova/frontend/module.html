@@ -175,21 +175,6 @@
     .yt-footer-meta{font-size:11px;color:var(--cream-25)}
     .yt-open-yt{font-size:11px;color:var(--gold);text-decoration:none;display:flex;align-items:center;gap:5px}
     .yt-open-yt:hover{color:var(--cream)}
-    /* ── Podcast modal ── */
-    .pod-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:400;align-items:center;justify-content:center;padding:20px}
-    .pod-modal-backdrop.open{display:flex}
-    .pod-modal-box{width:100%;max-width:620px;animation:fadeUp 0.2s ease;background:var(--surface);border:0.5px solid rgba(150,120,200,0.25);border-radius:var(--radius-lg);padding:28px}
-    .pod-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
-    .pod-icon{width:40px;height:40px;border-radius:9px;background:rgba(150,120,200,0.14);border:0.5px solid rgba(150,120,200,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
-    .pod-title{font-family:var(--serif);font-size:18px;letter-spacing:-0.3px;line-height:1.3;margin-bottom:4px}
-    .pod-meta{font-size:11px;color:var(--cream-25)}
-    .pod-close{background:none;border:none;color:var(--cream-25);font-size:22px;cursor:pointer;padding:0;flex-shrink:0}
-    .pod-close:hover{color:var(--cream)}
-    .pod-embed{border-radius:var(--radius-md);overflow:hidden;margin-bottom:18px;border:0.5px solid var(--border)}
-    .pod-actions{display:flex;gap:10px;flex-wrap:wrap}
-    .pod-open-link{display:flex;align-items:center;gap:6px;font-size:12px;padding:9px 16px;border-radius:999px;border:0.5px solid rgba(150,120,200,0.3);color:rgba(150,120,200,0.9);background:rgba(150,120,200,0.07);text-decoration:none;transition:all 0.13s}
-    .pod-open-link:hover{border-color:rgba(150,120,200,0.5);background:rgba(150,120,200,0.12)}
-    .pod-snippet{font-size:12px;color:var(--cream-40);line-height:1.7;padding:12px 14px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:14px}
     /* ── Responsive ── */
     @media(max-width:980px){.mod-hero{grid-template-columns:1fr}.mod-title{max-width:none;font-size:30px}}
     @media(max-width:760px){.mod-meta{grid-template-columns:1fr}.res-card{grid-template-columns:1fr}.res-thumb{min-height:86px;border-right:none;border-bottom:0.5px solid var(--border)}.res-bottom{flex-direction:column;align-items:flex-start}}
@@ -314,32 +299,6 @@
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 
-<!-- Podcast modal -->
-<div class="pod-modal-backdrop" id="pod-backdrop" onclick="closePodOnBackdrop(event)">
-  <div class="pod-modal-box">
-    <div class="pod-header">
-      <div style="display:flex;align-items:flex-start;gap:12px">
-        <div class="pod-icon">
-          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="rgba(150,120,200,0.9)" stroke-width="1.2">
-            <circle cx="9" cy="7" r="3.5"/>
-            <path d="M4 7c0 2.8 2.2 5 5 5s5-2.2 5-5"/>
-            <line x1="9" y1="12" x2="9" y2="16"/>
-            <line x1="6" y1="16" x2="12" y2="16"/>
-          </svg>
-        </div>
-        <div>
-          <div class="pod-title" id="pod-title"></div>
-          <div class="pod-meta" id="pod-meta"></div>
-        </div>
-      </div>
-      <button class="pod-close" onclick="closePodModal()">✕</button>
-    </div>
-    <div class="pod-snippet" id="pod-snippet" style="display:none"></div>
-    <div class="pod-embed" id="pod-embed"></div>
-    <div class="pod-actions" id="pod-actions"></div>
-  </div>
-</div>
-
 <!-- YouTube player modal -->
 <div class="yt-modal-backdrop" id="yt-backdrop" onclick="closeYtOnBackdrop(event)">
   <div class="yt-modal-box" id="yt-modal-box">
@@ -387,7 +346,7 @@
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
 
 // ── State ────────────────────────────────────────────────────────────────────
-let activeResult = getLatestResult();
+let activeResult = null;  // loaded from backend via historyId URL param
 const moduleConfig = getModuleConfig ? getModuleConfig() : (APP_CONFIG.module || {});
 const calendars = moduleConfig.calendars || [
   { name: 'Google Calendar', color: '#4A90D9' },
@@ -453,7 +412,16 @@ function buildResourceUrl(topic, type) {
 function persistModuleResources() {
   if (!activeResult) return;
   activeResult.moduleResources = resources.map(r => ({ ...r }));
-  upsertHistoryItem(activeResult);
+  // Save to backend
+  const token = localStorage.getItem('token') || '';
+  const historyId = activeResult.id;
+  if (historyId) {
+    fetch('/api/history/' + historyId + '/module-resources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ moduleResources: activeResult.moduleResources })
+    }).catch(() => {}); // silent fail — not critical
+  }
 }
 
 // ── Resource rendering ────────────────────────────────────────────────────────
@@ -472,11 +440,6 @@ function renderResources() {
         ? `<div class="res-thumb t-video" style="cursor:pointer" onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')" title="Play video">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13.5" fill="rgba(200,184,154,0.18)" stroke="rgba(200,184,154,0.3)"/><path d="M11.5 9.5l9 4.5-9 4.5V9.5z" fill="#C8B89A"/></svg>
             <div class="thumb-label">Play video</div>
-           </div>`
-        : r.type === 'podcast'
-        ? `<div class="res-thumb t-podcast" style="cursor:pointer" onclick="openPodModal('${escapeHtml(r.url||'#').replace(/'/g,"\\'")}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${escapeHtml(r.meta||'').replace(/'/g,"\\'")}','${r.duration||''}')" title="Listen to podcast">
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(150,120,200,0.9)" stroke-width="1.2"><circle cx="11" cy="9" r="4"/><path d="M5 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="11" y1="15" x2="11" y2="19"/><line x1="8" y1="19" x2="14" y2="19"/></svg>
-            <div class="thumb-label">Listen</div>
            </div>`
         : `<a class="res-thumb ${getThumbClass(r.type)}"
              href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer"
@@ -516,12 +479,6 @@ function renderResources() {
                    onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">
                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M4.5 4l4 2-4 2V4z" fill="currentColor" stroke="none"/></svg>
                    Watch video
-                 </button>`
-              : r.type === 'podcast'
-              ? `<button class="sched-btn link-btn" type="button" style="border-color:rgba(150,120,200,0.3);color:rgba(150,120,200,0.9)"
-                   onclick="openPodModal('${escapeHtml(r.url||'#').replace(/'/g,"\\'")}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${escapeHtml(r.meta||'').replace(/'/g,"\\'")}','${r.duration||''}')">
-                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="4.5" r="2"/><path d="M2.5 4.5c0 1.9 1.6 3.5 3.5 3.5s3.5-1.6 3.5-3.5"/><line x1="6" y1="8" x2="6" y2="10.5"/></svg>
-                   Listen to podcast
                  </button>`
               : `<a class="sched-btn link-btn"
                    href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer">
@@ -997,112 +954,6 @@ async function ensureLearningModule() {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
-// ── Podcast modal ────────────────────────────────────────────────────────────
-function isPodcastUrl(url) {
-  return Boolean(url) && url !== '#';
-}
-
-function isListenNotesUrl(url) {
-  return String(url).includes('listennotes.com/e/');
-}
-
-function isApplePodcastUrl(url) {
-  return String(url).includes('podcasts.apple.com');
-}
-
-function isSpotifyEpisodeUrl(url) {
-  return String(url).includes('open.spotify.com/episode');
-}
-
-function openPodModal(url, title, topic, source, snippet, duration) {
-  const podTitle  = document.getElementById('pod-title');
-  const podMeta   = document.getElementById('pod-meta');
-  const podSnippet = document.getElementById('pod-snippet');
-  const podEmbed  = document.getElementById('pod-embed');
-  const podActions = document.getElementById('pod-actions');
-
-  podTitle.textContent  = title || 'Podcast episode';
-  podMeta.textContent   = [topic ? 'Topic: ' + topic : '', source, duration].filter(Boolean).join(' · ');
-
-  if (snippet && snippet.length > 10) {
-    podSnippet.textContent = snippet;
-    podSnippet.style.display = 'block';
-  } else {
-    podSnippet.style.display = 'none';
-  }
-
-  // Build embed based on source
-  if (isListenNotesUrl(url)) {
-    // Listen Notes has a real embed player
-    const episodeId = url.match(/\/e\/([A-Za-z0-9]+)/)?.[1];
-    if (episodeId) {
-      podEmbed.innerHTML = `
-        <iframe
-          src="https://www.listennotes.com/embedded/e/${episodeId}/"
-          width="100%" height="180" scrolling="no"
-          style="border:none;min-width:100%;height:180px"
-          loading="lazy" allowfullscreen>
-        </iframe>`;
-    } else {
-      podEmbed.innerHTML = '';
-    }
-  } else if (isSpotifyEpisodeUrl(url)) {
-    // Spotify episode embed
-    const epId = url.match(/episode\/([A-Za-z0-9]+)/)?.[1];
-    if (epId) {
-      podEmbed.innerHTML = `
-        <iframe
-          src="https://open.spotify.com/embed/episode/${epId}?utm_source=generator&theme=0"
-          width="100%" height="152" frameBorder="0"
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy" style="border-radius:8px">
-        </iframe>`;
-    } else {
-      podEmbed.innerHTML = '';
-    }
-  } else {
-    // No embed available — show a clear CTA to open externally
-    podEmbed.innerHTML = `
-      <div style="padding:28px;text-align:center;background:rgba(150,120,200,0.04);border-radius:var(--radius-md)">
-        <div style="font-size:13px;color:var(--cream-40);margin-bottom:14px;line-height:1.7">
-          This podcast is on <strong style="color:var(--cream-60)">${escapeHtml(source||'a podcast platform')}</strong>.<br>
-          Click below to open and listen.
-        </div>
-      </div>`;
-  }
-
-  // Action buttons
-  const openLabel = isListenNotesUrl(url) ? 'Open on Listen Notes'
-    : isSpotifyEpisodeUrl(url) ? 'Open on Spotify'
-    : isApplePodcastUrl(url) ? 'Open on Apple Podcasts'
-    : 'Open podcast';
-
-  const platformIcon = isSpotifyEpisodeUrl(url)
-    ? '<svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5.5" fill="#1DB954"/><path d="M3.5 8c1.5-.9 3.5-.8 5 .3" stroke="#fff" stroke-width="0.8" stroke-linecap="round"/><path d="M3 6.5c1.8-1 4.2-1 5.8.3" stroke="#fff" stroke-width="0.8" stroke-linecap="round"/><path d="M2.5 5c2.2-1.2 5-1.1 7 .3" stroke="#fff" stroke-width="0.8" stroke-linecap="round"/></svg>'
-    : '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M4.5 2h5.5v5.5"/><path d="M10 2L5 7"/><path d="M9 7.5V10H2V3h2.5"/></svg>';
-
-  podActions.innerHTML = `
-    <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="pod-open-link">
-      ${platformIcon} ${openLabel}
-    </a>
-    <button class="pod-open-link" onclick="closePodModal()" style="cursor:pointer;border:none">
-      Close
-    </button>`;
-
-  document.getElementById('pod-backdrop').classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-
-function closePodModal() {
-  document.getElementById('pod-backdrop').classList.remove('open');
-  document.getElementById('pod-embed').innerHTML = '';
-  document.body.style.overflow = '';
-}
-
-function closePodOnBackdrop(e) {
-  if (e.target === document.getElementById('pod-backdrop')) closePodModal();
-}
-
 // ── YouTube modal ─────────────────────────────────────────────────────────────
 function openYtModal(url, title, topic, source, duration) {
   const videoId = extractYouTubeId(url);
@@ -1136,16 +987,99 @@ function closeYtOnBackdrop(e) {
 
 // Close on Escape key
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeYtModal(); closePodModal(); }
+  if (e.key === 'Escape') closeYtModal();
 });
 
+// ── Load result from backend ─────────────────────────────────────────────────
+async function loadResultFromBackend(historyId) {
+  const token = localStorage.getItem('token') || '';
+  const res = await fetch('/api/results?id=' + historyId, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  if (!res.ok) throw new Error('Could not load result');
+  const data = await res.json();
+
+  // Map backend result format to what module.html expects
+  return {
+    id: historyId,
+    title: data.title || 'Document',
+    done: true,
+    summaryRaw: {
+      summary_title: data.title,
+      authors: data.authors || 'Unknown authors',
+      overview: (data.summary?.body || []).join(' '),
+      body: data.summary?.body || [],
+      takeaways: data.summary?.takeaways || [],
+      topics: data.topicTags || [],
+      chunks_used: 1,
+    },
+    topicTags: data.topicTags || [],
+    weakTopics: data.weaknesses || [],
+    weaknesses: data.weaknesses || [],
+    strengths: data.strengths || [],
+    studyNext: data.studyNext || [],
+    score: data.score,
+    questions: (data.questions || []).map(q => ({
+      q: q.q,
+      correct: q.correct,
+      your: q.your,
+      answer: q.answer,
+      explanation: q.explanation,
+      topic: q.topic || '',
+    })),
+    initialQuiz: {
+      questions: (data.quizFull || []).map(q => ({
+        question: q.q,
+        options: q.opts,
+        correct_index: q.correct,
+        explanation: q.explanation,
+        topic: q.topic || '',
+      })),
+    },
+    learningModule: data.learningModule || null,
+    moduleResources: data.moduleResources || null,
+    followUpQuiz: data.followUpQuiz || null,
+    progress: data.progress || null,
+    analysis: data.analysis || null,
+  };
+}
+
 async function initModulePage() {
-  // Show loading state while AI generates
+  // Show loading state
+  document.getElementById('res-list').innerHTML = `
+    <div class="module-loading">
+      <div class="module-loading-spinner"></div>
+      <div class="module-loading-text">Loading your study module…</div>
+    </div>`;
+
+  // Load result from backend using historyId URL param
+  const params = new URLSearchParams(window.location.search);
+  const historyId = params.get('historyId') || params.get('id') || localStorage.getItem('currentHistoryId');
+
+  if (historyId) {
+    try {
+      activeResult = await loadResultFromBackend(historyId);
+    } catch (err) {
+      document.getElementById('res-list').innerHTML = `
+        <div class="module-loading">
+          <div class="module-loading-text" style="color:rgba(200,120,80,0.8)">Could not load result. ${err.message}</div>
+        </div>`;
+      return;
+    }
+  } else {
+    document.getElementById('res-list').innerHTML = `
+      <div class="module-loading">
+        <div class="module-loading-text">No document selected. Go back and upload a document first.</div>
+      </div>`;
+    return;
+  }
+
   document.getElementById('res-list').innerHTML = `
     <div class="module-loading">
       <div class="module-loading-spinner"></div>
       <div class="module-loading-text">Building your personalised study module…</div>
     </div>`;
+
   await ensureLearningModule();
   renderModuleHeader();
   renderResources();

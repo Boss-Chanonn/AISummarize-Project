@@ -250,13 +250,17 @@ async def _generate_ai_payload(
     summary_response = None
     try:
         loop = asyncio.get_event_loop()
+        import time as _time
+        _t0 = _time.time()
         summary_response = await loop.run_in_executor(
             None,
             lambda: _ai_service.summarize(
                 SummaryRequest(title=doc_title, text=extracted_text)
             )
         )
-        print(f"[upload] Mac 1 summary done for: {doc_title}")
+        _summary_time = round(_time.time() - _t0, 1)
+        summary_model = _ai_service.client.settings.model
+        print(f"[upload] ✅ Mac 1 summary done — model={summary_model} time={_summary_time}s doc={doc_title}")
     except Exception as e:
         print(f"[upload] Mac 1 summary failed: {repr(e)} — trying legacy path")
 
@@ -265,6 +269,7 @@ async def _generate_ai_payload(
     if summary_response:
         try:
             loop = asyncio.get_event_loop()
+            _tq = _time.time()
             quiz_response = await loop.run_in_executor(
                 None,
                 lambda: _ai_service.generate_quiz(
@@ -276,6 +281,8 @@ async def _generate_ai_payload(
                     )
                 )
             )
+            _quiz_time = round(_time.time() - _tq, 1)
+            quiz_model = _ai_service.quiz_client.settings.model
             # Convert to legacy quiz format expected by frontend
             quiz_data = [
                 {
@@ -287,7 +294,7 @@ async def _generate_ai_payload(
                 }
                 for q in quiz_response.questions
             ]
-            print(f"[upload] Mac 2 quiz done for: {doc_title} — {len(quiz_data)} questions")
+            print(f"[upload] ✅ Mac 2 quiz done — model={quiz_model} time={_quiz_time}s questions={len(quiz_data)} doc={doc_title}")
         except Exception as e:
             print(f"[upload] Mac 2 quiz failed: {repr(e)}")
 
