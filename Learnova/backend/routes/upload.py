@@ -9,6 +9,11 @@ from backend.utils.api_errors import message_error
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_learning_package
+from backend.services.ai_service import AIService
+from backend.services.schemas import SummaryRequest, QuizRequest, SummaryResponse
+
+# Shared AI service instance — Mac 1 for summary, Mac 2 for quiz
+_ai_service = AIService()
 
 router = APIRouter()
 
@@ -61,7 +66,7 @@ def _assess_pdf_quality(data: bytes, extracted_text: str, page_count: int) -> tu
     import unicodedata
     garbage = sum(
         1 for ch in extracted_text
-        if (not ch.isprintable() and ch not in "\r\n\t")
+        if (not ch.isprintable() and ch not in ("\n", "\t", "\r"))
         or ch == "�"   # Unicode replacement character — sign of bad encoding
         or (ord(ch) > 127 and unicodedata.category(ch) == "So")  # misc symbols
     )
@@ -233,17 +238,90 @@ async def _generate_ai_payload(
     extracted_text: str,
     fallback_payload: dict,
 ) -> dict:
-    """Generate AI payload and gracefully fall back to local defaults when needed."""
+    """
+    Generate AI payload using dual-Mac routing:
+    - Mac 1 (gpt-oss)     → summary via AIService
+    - Mac 2 (deepseek)    → quiz via AIService quiz_client
+    Falls back to legacy single-Mac path if both fail.
+    """
+    import asyncio
+
+    # ── Step 1: Summary on Mac 1 (gpt-oss) ──────────────────────────────────
+    summary_response = None
+    try:
+        loop = asyncio.get_event_loop()
+        summary_response = await loop.run_in_executor(
+            None,
+            lambda: _ai_service.summarize(
+                SummaryRequest(title=doc_title, text=extracted_text)
+            )
+        )
+        print(f"[upload] Mac 1 summary done for: {doc_title}")
+    except Exception as e:
+        print(f"[upload] Mac 1 summary failed: {repr(e)} — trying legacy path")
+
+    # ── Step 2: Quiz on Mac 2 (deepseek) ────────────────────────────────────
+    quiz_data = None
+    if summary_response:
+        try:
+            loop = asyncio.get_event_loop()
+            quiz_response = await loop.run_in_executor(
+                None,
+                lambda: _ai_service.generate_quiz(
+                    QuizRequest(
+                        title=doc_title,
+                        summary=summary_response,
+                        question_count=8,
+                        difficulty="intermediate",
+                    )
+                )
+            )
+            # Convert to legacy quiz format expected by frontend
+            quiz_data = [
+                {
+                    "q": q.question,
+                    "opts": q.options,
+                    "correct": q.correct_index,
+                    "explanation": q.explanation,
+                    "topic": q.topic,
+                }
+                for q in quiz_response.questions
+            ]
+            print(f"[upload] Mac 2 quiz done for: {doc_title} — {len(quiz_data)} questions")
+        except Exception as e:
+            print(f"[upload] Mac 2 quiz failed: {repr(e)}")
+
+    # ── Step 3: Build payload if both succeeded ──────────────────────────────
+    if summary_response and quiz_data:
+        return {
+            "summary": {
+                "body": summary_response.body,
+                "takeaways": summary_response.takeaways,
+                "title": summary_response.summary_title,
+                "authors": summary_response.authors,
+                "topics": summary_response.topics,
+            },
+            "analysis": {
+                "strengths": [],
+                "weaknesses": [],
+                "studyNext": [],
+            },
+            "modules": [],
+            "quiz": quiz_data,
+        }
+
+    # ── Step 4: Legacy single-Mac fallback ───────────────────────────────────
+    print(f"[upload] Falling back to legacy path for: {doc_title}")
     try:
         payload = await generate_learning_package(
             title=doc_title,
             file_type=file_type,
             text_content=extracted_text,
         )
-        print(f"[upload] AI path succeeded for: {doc_title}")
+        print(f"[upload] Legacy path succeeded for: {doc_title}")
         return payload
     except Exception as error:
-        print(f"[upload] Ollama unavailable, using fallback: {repr(error)}")
+        print(f"[upload] All AI paths failed, using fallback: {repr(error)}")
         return fallback_payload
 
 
@@ -415,4 +493,3 @@ async def upload_document(
         ai_payload=ai_payload,
         processed_at=processed_at,
     )
-
