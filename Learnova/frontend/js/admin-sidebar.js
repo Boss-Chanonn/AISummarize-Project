@@ -143,6 +143,36 @@ function _adminShowToast(msg) {
 }
 
 /**
+ * Smooth internal admin-sidebar navigation so admin pages transition into
+ * user pages without a visible flash.
+ * @param {MouseEvent} event
+ * @param {string} href
+ */
+function handleAdminSidebarNavigation(event, href) {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  if (!href || href.startsWith('#') || href.startsWith('javascript')) return;
+  if (href.startsWith('http')) return;
+  if ((location.pathname.split('/').pop() || 'index.html') === href) {
+    event.preventDefault();
+    return;
+  }
+
+  event.preventDefault();
+
+  let overlay = document.getElementById('page-transition');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'page-transition';
+    document.body.appendChild(overlay);
+  }
+
+  overlay.classList.add('out');
+  setTimeout(function () {
+    window.location.href = href;
+  }, 220);
+}
+
+/**
  * Toggle the admin account popup menu.
  * @param {Event} event
  */
@@ -456,7 +486,7 @@ document.addEventListener('DOMContentLoaded', function () {
               + '</div>';
       } else {
         /* link item */
-        html += '<a href="' + item.href + '" class="sidebar-item' + (isActive ? ' active' : '') + '">'
+        html += '<a href="' + item.href + '" class="sidebar-item' + (isActive ? ' active' : '') + '" onclick="handleAdminSidebarNavigation(event, \'' + item.href + '\')">'
               + item.icon + ' ' + item.label;
         html += '</a>';
       }
