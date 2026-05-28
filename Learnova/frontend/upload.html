@@ -434,6 +434,75 @@ function setUploadCollapsed(collapsed) {
  * Send upload payload to backend and transition to summary view.
  * @returns {Promise<void>}
  */
+function showPdfReadError(data) {
+  const suggestions = (data.suggestions || [
+    'Use a text-based PDF (not a scan)',
+    'Copy and paste the text directly using the text input below',
+    'Convert the PDF to Word first, then re-export as PDF',
+    'If it is a scanned document, run OCR software on it first'
+  ]);
+
+  const suggestionsHtml = suggestions.map(s =>
+    `<div style="display:flex;align-items:flex-start;gap:9px;padding:10px 13px;border:0.5px solid rgba(240,237,232,0.08);border-radius:6px;background:rgba(240,237,232,0.03);font-size:12px;color:rgba(240,237,232,0.4);line-height:1.55;margin-bottom:6px">
+      <span style="color:#C8B89A;flex-shrink:0">→</span>${s}
+    </div>`
+  ).join('');
+
+  const rightPanel = document.getElementById('right-panel');
+  if (rightPanel) {
+    rightPanel.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;gap:16px">
+        <div style="width:52px;height:52px;border-radius:12px;background:rgba(200,100,80,0.1);border:0.5px solid rgba(200,100,80,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(200,100,80,0.8)" stroke-width="1.3">
+            <path d="M4 6h10l5 5v9H4V6z"/>
+            <path d="M14 6v5h5"/>
+            <path d="M11 10v5M11 17v.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div style="font-family:var(--serif,Georgia);font-size:20px;letter-spacing:-0.3px;line-height:1.3;color:rgba(240,237,232,0.9)">
+          This PDF can't be read
+        </div>
+        <div style="font-size:13px;color:rgba(240,237,232,0.4);line-height:1.78;max-width:44ch">
+          ${data.user_message || data.detail || 'The file appears to be a scanned or image-based PDF with no selectable text.'}
+        </div>
+        <div style="width:100%;max-width:380px;margin-top:4px">
+          <div style="font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:rgba(240,237,232,0.25);margin-bottom:10px;text-align:left">What you can do</div>
+          ${suggestionsHtml}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px">
+          <button class="btn btn-primary" onclick="resetUploadForNewFile()">Upload a different file</button>
+          <button class="btn" onclick="switchToTextInput()">Paste text instead</button>
+        </div>
+      </div>`;
+  }
+
+  // Also show a toast
+  showToast('PDF could not be read — it may be a scan or image-based file');
+}
+
+function resetUploadForNewFile() {
+  // Reset the upload area so user can pick a new file
+  const fileInput = document.getElementById('file-input') || document.querySelector('input[type="file"]');
+  if (fileInput) { fileInput.value = ''; }
+  // Reset right panel to empty state
+  const rightPanel = document.getElementById('right-panel');
+  if (rightPanel) {
+    rightPanel.innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Upload a document to get started.</div><div class="empty-sub">PDF, TXT, or DOCX</div></div>';
+  }
+  document.getElementById('btn-process').style.display = 'flex';
+  document.getElementById('btn-process').disabled = false;
+}
+
+function switchToTextInput() {
+  // Switch to the text paste tab/mode if it exists
+  const textTab = document.querySelector('[data-tab="text"]') || document.getElementById('tab-text') || document.getElementById('paste-tab');
+  if (textTab) { textTab.click(); return; }
+  // Fallback: scroll to any textarea
+  const textarea = document.querySelector('textarea');
+  if (textarea) { textarea.scrollIntoView({ behavior: 'smooth' }); textarea.focus(); }
+  showToast('Paste your document text below');
+}
+
 async function processDocument() {
   // Phase 1: Set initial loading UI state.
   showProcessingState();
@@ -454,56 +523,114 @@ async function processDocument() {
   }
 
   // Phase 3: Run animated progress and network request in parallel.
+  // Progress animation — stays at 85% max until summary actually returns
   let step = 0;
-  const progressMarks = [18, 42, 71, 100];
-  const animPromise = new Promise(function(resolve) {
-    processingTimer = setInterval(function() {
+  const progressMarks = [12, 35, 60, 85];  // never hits 100 until real response
+  processingTimer = setInterval(function() {
+    if (step < progressMarks.length - 1) {
       step++;
-      updateProcessingState(progressMarks[Math.min(step, progressMarks.length - 1)], step);
-      if (step >= progressMarks.length - 1) {
-        clearInterval(processingTimer);
-        processingTimer = null;
-        resolve();
-      }
-    }, 520);
-  });
+      updateProcessingState(progressMarks[step], step);
+    }
+    // stays at 85% until fetch completes — then we clear it
+  }, 3000);  // advance every 3s so it feels proportional to actual AI time
+
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + _token },
     body: formData
   });
 
+  // Phase 4: Wait for summary (not quiz) — show it immediately when ready
   try {
-    // Phase 4: Validate response and update app state.
-    const results = await Promise.all([animPromise, fetchPromise]);
-    const fetchRes = results[1];
+    const fetchRes = await fetchPromise;
+    clearInterval(processingTimer);
+    processingTimer = null;
+
     const data = await fetchRes.json();
+
     if (fetchRes.status === 401 || fetchRes.status === 403) {
       localStorage.removeItem('token');
       window.location.href = 'index.html';
       return;
     }
-    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
+    if (!fetchRes.ok) {
+      if (fetchRes.status === 422 && data.error === 'unreadable_pdf') {
+        document.getElementById('btn-process').disabled = false;
+        showPdfReadError(data);
+        return;
+      }
+      throw new Error(data.detail || data.message || 'Upload failed');
+    }
 
-    // Persist IDs so quiz/results pages can continue flow.
+    // Phase 5: Show summary immediately — don't wait for quiz
     if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
 
-    // Phase 5: Transition to summary and reveal next actions.
-    setTimeout(function() {
-      showSummary(data);
-      document.getElementById('btn-rescan').style.display = 'flex';
-      document.getElementById('btn-quiz').style.display = 'flex';
-      document.getElementById('btn-process').style.display = 'none';
-    }, 260);
+    showSummary(data);
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+
+    const btnQuiz = document.getElementById('btn-quiz');
+
+    // If quiz is already ready (legacy path), enable immediately
+    if (data.quizReady && data.quizData && data.quizData.length) {
+      localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Start quiz →';
+    } else if (data.quizJobId) {
+      // Quiz is generating on Mac 2 — show pending state and poll
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = true;
+      btnQuiz.textContent = 'Quiz generating…';
+      pollForUploadQuiz(data.quizJobId, data.historyId, btnQuiz);
+    } else {
+      btnQuiz.style.display = 'none';
+    }
+
   } catch (e) {
-    // Phase 6: Reset actionable UI and show fallback error state.
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
     showToast(e.message || 'Processing failed — please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
+}
+
+// ── Poll for quiz from Mac 2 ───────────────────────────────────────────────
+function pollForUploadQuiz(jobId, historyId, btnQuiz) {
+  var attempts = 0;
+  var interval = setInterval(async function() {
+    attempts++;
+    if (attempts > 80) {  // 80 × 3s = 4 min timeout
+      clearInterval(interval);
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Quiz unavailable';
+      showToast('Quiz generation timed out — try re-uploading');
+      return;
+    }
+    try {
+      var token = localStorage.getItem('token') || '';
+      var res = await fetch('/api/upload/quiz-status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      var data = await res.json();
+      if (data.status === 'done' && data.quiz && data.quiz.length) {
+        clearInterval(interval);
+        localStorage.setItem('currentQuiz', JSON.stringify(data.quiz));
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Start quiz →';
+        showToast('Quiz ready — ' + data.quiz.length + ' questions generated');
+      } else if (data.status === 'error') {
+        clearInterval(interval);
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Quiz failed — retry';
+        showToast('Quiz generation failed: ' + (data.error || 'unknown error'));
+      }
+      // still pending — keep polling
+    } catch (err) {
+      // network hiccup — keep polling
+    }
+  }, 3000);
 }
 
 /**

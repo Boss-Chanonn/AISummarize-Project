@@ -12,6 +12,59 @@ from backend.utils.sanitization import sanitize_multiline_text, sanitize_single_
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_service import generate_learning_package
+from backend.services.ai_service import AIService
+from backend.services.schemas import SummaryRequest, QuizRequest, SummaryResponse
+
+# Shared AI service instance — Mac 1 for summary, Mac 2 for quiz
+_ai_service = AIService()
+
+# ── Background quiz job store ─────────────────────────────────────────────────
+import threading as _threading
+_upload_quiz_jobs: dict = {}  # { job_id: {"status":"pending"|"done"|"error", "quiz":[], "error":str} }
+
+
+def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, history_id: str) -> None:
+    """Thread target — generates quiz on Mac 2, stores result, updates MongoDB."""
+    import time as _t, asyncio as _asyncio
+    try:
+        t0 = _t.time()
+        model = _ai_service.quiz_client.settings.model
+        print(f"[quiz] ⏳ Mac 2 generating quiz — model={model} doc={doc_title}")
+        quiz_response = _ai_service.generate_quiz(
+            QuizRequest(title=doc_title, summary=summary_response,
+                        question_count=8, difficulty="intermediate")
+        )
+        elapsed = round(_t.time() - t0, 1)
+        model = _ai_service.quiz_client.settings.model
+        quiz_data = [
+            {"q": q.question, "opts": q.options, "correct": q.correct_index,
+             "explanation": q.explanation, "topic": q.topic}
+            for q in quiz_response.questions
+        ]
+        print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
+        _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
+
+        # Persist quiz to MongoDB using a new event loop (background thread safe)
+        from bson import ObjectId
+        import asyncio as _aio2
+        loop2 = _aio2.new_event_loop()
+        try:
+            loop2.run_until_complete(
+                history_collection.update_one(
+                    {"_id": ObjectId(history_id)},
+                    {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
+                )
+            )
+            print(f"[upload] ✅ Quiz persisted to history: {history_id}")
+        finally:
+            loop2.close()
+    except Exception as exc:
+        print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
+        _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
+
+# ── In-memory quiz job store ──────────────────────────────────────────────────
+# { job_id: { "status": "pending"|"done"|"error", "quiz": [...], "error": str } }
+_upload_quiz_jobs: dict = {}
 
 router = APIRouter()
 
@@ -33,6 +86,95 @@ def _extract_text_from_pdf(data: bytes) -> str:
     except Exception as e:
         print(f"[upload] PDF extraction error: {e}")
         return ""
+
+
+# ── PDF quality checker ──────────────────────────────────────────────────────
+# Thresholds — tune these if needed
+_MIN_CHARS_PER_PAGE     = 80    # fewer than this per page = likely scanned/image PDF
+_MIN_WORD_LENGTH_AVG    = 3.0   # avg word length below this = likely OCR garbage
+_MAX_GARBAGE_RATIO      = 0.35  # more than 35% non-ASCII/non-printable = corrupted
+_MIN_READABLE_PAGES_PCT = 0.40  # at least 40% of pages must pass quality check
+
+
+def _assess_pdf_quality(data: bytes, extracted_text: str, page_count: int) -> tuple[bool, str]:
+    """
+    Returns (is_readable, reason).
+    is_readable=False means the PDF is scanned, blurry, or image-only.
+    """
+    if page_count == 0:
+        return False, "empty"
+
+    total_chars = len(extracted_text.strip())
+    chars_per_page = total_chars / max(page_count, 1)
+
+    # Check 1 — almost no text extracted at all
+    if total_chars < 50:
+        return False, "no_text"
+
+    if chars_per_page < _MIN_CHARS_PER_PAGE:
+        return False, "too_sparse"
+
+    # Check 2 — garbage character ratio (non-printable, replacement chars)
+    import unicodedata
+    garbage = sum(
+        1 for ch in extracted_text
+        if (not ch.isprintable() and ch not in ("\n", "\t", "\r"))
+        or ch == "�"   # Unicode replacement character — sign of bad encoding
+        or (ord(ch) > 127 and unicodedata.category(ch) == "So")  # misc symbols
+    )
+    garbage_ratio = garbage / max(total_chars, 1)
+    if garbage_ratio > _MAX_GARBAGE_RATIO:
+        return False, "garbage_text"
+
+    # Check 3 — word length average (real text has avg ~4-7 chars per word)
+    words = [w for w in extracted_text.split() if w.isalpha()]
+    if words:
+        avg_len = sum(len(w) for w in words) / len(words)
+        if avg_len < _MIN_WORD_LENGTH_AVG and len(words) > 20:
+            return False, "garbled_words"
+
+    # Check 4 — per-page extraction (need at least 40% of pages to have real text)
+    try:
+        import PyPDF2
+        reader = PyPDF2.PdfReader(io.BytesIO(data))
+        readable_pages = sum(
+            1 for page in reader.pages
+            if len((page.extract_text() or "").strip()) >= _MIN_CHARS_PER_PAGE
+        )
+        readable_pct = readable_pages / max(len(reader.pages), 1)
+        if readable_pct < _MIN_READABLE_PAGES_PCT:
+            return False, "mostly_images"
+    except Exception:
+        pass  # If PyPDF2 fails here, we already have text so it's probably OK
+
+    return True, "ok"
+
+
+def _build_blur_error(reason: str) -> dict:
+    """Return a structured error payload the frontend can display."""
+    messages = {
+        "no_text":       "No readable text found in this PDF.",
+        "too_sparse":    "This PDF appears to be a scanned document — very little text could be extracted.",
+        "garbage_text":  "This PDF contains mostly unreadable characters, likely from a bad scan or image conversion.",
+        "garbled_words": "The text extracted from this PDF appears garbled — it may be a low-quality scan.",
+        "mostly_images": "Most pages in this PDF are images with no selectable text.",
+        "empty":         "This PDF appears to be empty.",
+    }
+    detail = messages.get(reason, "This PDF could not be read properly.")
+    return {
+        "error": "unreadable_pdf",
+        "detail": detail,
+        "user_message": (
+            f"{detail} "
+            "Please upload a clearer version, a text-based PDF, or paste the text directly using the text input."
+        ),
+        "suggestions": [
+            "Use a text-based PDF (not a scan)",
+            "Copy and paste the text directly",
+            "Try converting the PDF to a Word document first",
+            "If it is a scanned document, run OCR software on it first",
+        ],
+    }
 
 
 def _extract_text_from_docx(data: bytes) -> str:
@@ -188,17 +330,97 @@ async def _generate_ai_payload(
     extracted_text: str,
     fallback_payload: dict,
 ) -> dict:
-    """Generate AI payload and gracefully fall back to local defaults when needed."""
+    """
+    Generate AI payload using dual-Mac routing:
+    - Mac 1 (gpt-oss)     → summary via AIService
+    - Mac 2 (deepseek)    → quiz via AIService quiz_client
+    Falls back to legacy single-Mac path if both fail.
+    """
+    import asyncio
+
+    # ── Step 1: Summary on Mac 1 (gpt-oss) ──────────────────────────────────
+    summary_response = None
+    try:
+        loop = asyncio.get_event_loop()
+        import time as _time
+        _t0 = _time.time()
+        summary_response = await loop.run_in_executor(
+            None,
+            lambda: _ai_service.summarize(
+                SummaryRequest(title=doc_title, text=extracted_text)
+            )
+        )
+        _summary_time = round(_time.time() - _t0, 1)
+        summary_model = _ai_service.client.settings.model
+        print(f"[upload] ✅ Mac 1 summary done — model={summary_model} time={_summary_time}s doc={doc_title}")
+    except Exception as e:
+        print(f"[upload] Mac 1 summary failed: {repr(e)} — trying legacy path")
+
+    # ── Step 2: Quiz on Mac 2 (deepseek) ────────────────────────────────────
+    quiz_data = None
+    if summary_response:
+        try:
+            loop = asyncio.get_event_loop()
+            _tq = _time.time()
+            quiz_response = await loop.run_in_executor(
+                None,
+                lambda: _ai_service.generate_quiz(
+                    QuizRequest(
+                        title=doc_title,
+                        summary=summary_response,
+                        question_count=8,
+                        difficulty="intermediate",
+                    )
+                )
+            )
+            _quiz_time = round(_time.time() - _tq, 1)
+            quiz_model = _ai_service.quiz_client.settings.model
+            # Convert to legacy quiz format expected by frontend
+            quiz_data = [
+                {
+                    "q": q.question,
+                    "opts": q.options,
+                    "correct": q.correct_index,
+                    "explanation": q.explanation,
+                    "topic": q.topic,
+                }
+                for q in quiz_response.questions
+            ]
+            print(f"[upload] ✅ Mac 2 quiz done — model={quiz_model} time={_quiz_time}s questions={len(quiz_data)} doc={doc_title}")
+        except Exception as e:
+            print(f"[upload] Mac 2 quiz failed: {repr(e)}")
+
+    # ── Step 3: Build payload if both succeeded ──────────────────────────────
+    if summary_response and quiz_data:
+        return {
+            "summary": {
+                "body": summary_response.body,
+                "takeaways": summary_response.takeaways,
+                "title": summary_response.summary_title,
+                "authors": summary_response.authors,
+                "topics": summary_response.topics,
+            },
+            "analysis": {
+                "strengths": [],
+                "weaknesses": [],
+                "studyNext": [],
+            },
+            "modules": [],
+            "quiz": quiz_data,
+        }
+
+    # ── Step 4: Legacy single-Mac fallback ───────────────────────────────────
+    print(f"[upload] Falling back to legacy path for: {doc_title}")
     try:
         payload = await generate_learning_package(
             title=doc_title,
             file_type=file_type,
             text_content=extracted_text,
         )
-        print(f"[upload] AI path succeeded for: {doc_title}")
+        print(f"[upload] Legacy path succeeded for: {doc_title}")
         return payload
     except Exception as error:
-        print(f"[upload] Ollama unavailable, using fallback: {repr(error)}")
+        print(f"[upload] All AI paths failed, using fallback: {repr(error)}")
         return fallback_payload
 
 
@@ -281,6 +503,16 @@ def _build_upload_response(
     }
 
 
+# ----------------------------- Quiz Status Endpoint -----------------------------
+@router.get("/upload/quiz-status/{job_id}")
+async def upload_quiz_status(job_id: str):
+    """Frontend polls this after upload until quiz is ready."""
+    job = _upload_quiz_jobs.get(job_id)
+    if not job:
+        return {"job_id": job_id, "status": "pending", "quiz": [], "error": None}
+    return {"job_id": job_id, "status": job["status"], "quiz": job.get("quiz", []), "error": job.get("error")}
+
+
 # ----------------------------- Upload Endpoint -----------------------------
 @router.post("/upload")
 @limiter.limit("10/hour")
@@ -319,6 +551,15 @@ async def upload_document(
         doc_title = sanitize_single_line(raw_title, max_length=160) or "Uploaded document"
         extracted_text, file_type, page_count = _extract_text(file.filename, data)
 
+        # ── PDF quality gate ────────────────────────────────────────────────
+        if ext == "pdf":
+            is_readable, reason = _assess_pdf_quality(data, extracted_text, page_count)
+            if not is_readable:
+                from fastapi.responses import JSONResponse
+                error_payload = _build_blur_error(reason)
+                return JSONResponse(status_code=422, content=error_payload)
+        # ────────────────────────────────────────────────────────────────────
+
     elif text_content and text_content.strip():
         extracted_text = sanitize_multiline_text(text_content)
         file_type = "TXT"
@@ -331,40 +572,76 @@ async def upload_document(
 
     word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
 
-    # Phase 2: build AI payload (fallback first, AI if available).
+    # Phase 2a: summary only on Mac 1 — returns quickly
+    import time as _t, uuid as _uuid
     fallback_payload = _build_fallback_payload(doc_title, page_count)
-    ai_payload = await _generate_ai_payload(
-        doc_title=doc_title,
-        file_type=file_type,
-        extracted_text=extracted_text,
-        fallback_payload=fallback_payload,
-    )
 
-    # Phase 3: save final history record to MongoDB.
+    summary_response = None
+    try:
+        t0 = _t.time()
+        import asyncio
+        loop = asyncio.get_event_loop()
+        summary_response = await loop.run_in_executor(
+            None,
+            lambda: _ai_service.summarize(
+                SummaryRequest(title=doc_title, text=extracted_text)
+            )
+        )
+        elapsed = round(_t.time() - t0, 1)
+        model = _ai_service.client.settings.model
+        print(f"[upload] ✅ Mac 1 summary done — model={model} time={elapsed}s doc={doc_title}")
+        ai_payload = {
+            "summary": {
+                "body": summary_response.body,
+                "takeaways": summary_response.takeaways,
+                "title": summary_response.summary_title,
+                "authors": summary_response.authors,
+                "topics": summary_response.topics,
+            },
+            "analysis": {"strengths": [], "weaknesses": [], "studyNext": []},
+            "modules": [],
+            "quiz": [],   # quiz comes later via background task
+        }
+    except Exception as e:
+        print(f"[upload] Mac 1 summary failed: {repr(e)} — using legacy path")
+        ai_payload = await _generate_ai_payload(
+            doc_title=doc_title, file_type=file_type,
+            extracted_text=extracted_text, fallback_payload=fallback_payload,
+        )
+        summary_response = None
+
+    # Phase 2b: save history immediately with summary (quiz will be added by background task)
     now = datetime.now(timezone.utc)
     seq_id = await _get_next_seq_id(user_id)
     history_doc = _build_history_doc(
-        user_id=user_id,
-        seq_id=seq_id,
-        doc_title=doc_title,
-        file_type=file_type,
-        page_count=page_count,
-        word_estimate=word_estimate,
-        ai_payload=ai_payload,
-        now=now,
+        user_id=user_id, seq_id=seq_id, doc_title=doc_title,
+        file_type=file_type, page_count=page_count,
+        word_estimate=word_estimate, ai_payload=ai_payload, now=now,
     )
     result = await history_collection.insert_one(history_doc)
     history_id = str(result.inserted_id)
 
-    # Phase 4: return frontend payload.
+    # Phase 2c: fire quiz generation on Mac 2 in background thread
+    quiz_job_id = None
+    if summary_response:
+        quiz_job_id = str(_uuid.uuid4())
+        _upload_quiz_jobs[quiz_job_id] = {"status": "pending", "quiz": [], "error": None}
+        t = _threading.Thread(
+            target=_run_quiz_in_background,
+            args=(quiz_job_id, doc_title, summary_response, history_id),
+            daemon=True,
+        )
+        t.start()
+        print(f"[upload] Mac 2 quiz queued — job_id={quiz_job_id}")
+
+    # Phase 3: return summary immediately — frontend polls for quiz
     processed_at = _format_processed_time(now)
-    return _build_upload_response(
-        history_id=history_id,
-        seq_id=seq_id,
-        doc_title=doc_title,
-        file_type=file_type,
-        page_count=page_count,
-        word_estimate=word_estimate,
-        ai_payload=ai_payload,
+    response = _build_upload_response(
+        history_id=history_id, seq_id=seq_id, doc_title=doc_title,
+        file_type=file_type, page_count=page_count,
+        word_estimate=word_estimate, ai_payload=ai_payload,
         processed_at=processed_at,
     )
+    response["quizJobId"] = quiz_job_id   # frontend polls /api/upload/quiz-status/{quizJobId}
+    response["quizReady"] = quiz_job_id is None  # True only if we used legacy path (quiz already in payload)
+    return response
