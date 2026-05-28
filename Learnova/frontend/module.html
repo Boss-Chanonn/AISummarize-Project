@@ -347,7 +347,8 @@ document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
 
 // ── State ────────────────────────────────────────────────────────────────────
 let activeResult = null;  // loaded from backend via historyId URL param
-const moduleConfig = getModuleConfig ? getModuleConfig() : (APP_CONFIG.module || {});
+const _cfg = window.LEARNOVA_CONFIG || window.APP_CONFIG || {};
+const moduleConfig = (typeof getModuleConfig === 'function') ? getModuleConfig() : (_cfg.module || {});
 const calendars = moduleConfig.calendars || [
   { name: 'Google Calendar', color: '#4A90D9' },
   { name: 'Apple Calendar',  color: '#888888' },
