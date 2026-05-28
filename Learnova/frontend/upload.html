@@ -173,12 +173,6 @@ function handleFileInput(files) {
       return false;
     }
 
-    // Redirect PPTX to session page for Pro users
-    if ((extension === '.pptx' || extension === '.ppt') && isPro()) {
-      window.location.href = 'pptx-session.html';
-      return false;
-    }
-
     return true;
   });
 
@@ -529,40 +523,38 @@ async function processDocument() {
   }
 
   // Phase 3: Run animated progress and network request in parallel.
+  // Progress animation — stays at 85% max until summary actually returns
   let step = 0;
-  const progressMarks = [18, 42, 71, 100];
-  const animPromise = new Promise(function(resolve) {
-    processingTimer = setInterval(function() {
+  const progressMarks = [12, 35, 60, 85];  // never hits 100 until real response
+  processingTimer = setInterval(function() {
+    if (step < progressMarks.length - 1) {
       step++;
-      updateProcessingState(progressMarks[Math.min(step, progressMarks.length - 1)], step);
-      if (step >= progressMarks.length - 1) {
-        clearInterval(processingTimer);
-        processingTimer = null;
-        resolve();
-      }
-    }, 520);
-  });
+      updateProcessingState(progressMarks[step], step);
+    }
+    // stays at 85% until fetch completes — then we clear it
+  }, 3000);  // advance every 3s so it feels proportional to actual AI time
+
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + _token },
     body: formData
   });
 
+  // Phase 4: Wait for summary (not quiz) — show it immediately when ready
   try {
-    // Phase 4: Validate response and update app state.
-    const results = await Promise.all([animPromise, fetchPromise]);
-    const fetchRes = results[1];
+    const fetchRes = await fetchPromise;
+    clearInterval(processingTimer);
+    processingTimer = null;
+
     const data = await fetchRes.json();
+
     if (fetchRes.status === 401 || fetchRes.status === 403) {
       localStorage.removeItem('token');
       window.location.href = 'index.html';
       return;
     }
     if (!fetchRes.ok) {
-      // Special handling for blurry/unreadable PDF
       if (fetchRes.status === 422 && data.error === 'unreadable_pdf') {
-        clearInterval(processingTimer);
-        processingTimer = null;
         document.getElementById('btn-process').disabled = false;
         showPdfReadError(data);
         return;
@@ -570,25 +562,75 @@ async function processDocument() {
       throw new Error(data.detail || data.message || 'Upload failed');
     }
 
-    // Persist IDs so quiz/results pages can continue flow.
+    // Phase 5: Show summary immediately — don't wait for quiz
     if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
 
-    // Phase 5: Transition to summary and reveal next actions.
-    setTimeout(function() {
-      showSummary(data);
-      document.getElementById('btn-rescan').style.display = 'flex';
-      document.getElementById('btn-quiz').style.display = 'flex';
-      document.getElementById('btn-process').style.display = 'none';
-    }, 260);
+    showSummary(data);
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+
+    const btnQuiz = document.getElementById('btn-quiz');
+
+    // If quiz is already ready (legacy path), enable immediately
+    if (data.quizReady && data.quizData && data.quizData.length) {
+      localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Start quiz →';
+    } else if (data.quizJobId) {
+      // Quiz is generating on Mac 2 — show pending state and poll
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = true;
+      btnQuiz.textContent = 'Quiz generating…';
+      pollForUploadQuiz(data.quizJobId, data.historyId, btnQuiz);
+    } else {
+      btnQuiz.style.display = 'none';
+    }
+
   } catch (e) {
-    // Phase 6: Reset actionable UI and show fallback error state.
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
     showToast(e.message || 'Processing failed — please try again');
     document.getElementById('right-panel').innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Processing failed.</div><div class="empty-sub">Please try again.</div></div>';
   }
+}
+
+// ── Poll for quiz from Mac 2 ───────────────────────────────────────────────
+function pollForUploadQuiz(jobId, historyId, btnQuiz) {
+  var attempts = 0;
+  var interval = setInterval(async function() {
+    attempts++;
+    if (attempts > 80) {  // 80 × 3s = 4 min timeout
+      clearInterval(interval);
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Quiz unavailable';
+      showToast('Quiz generation timed out — try re-uploading');
+      return;
+    }
+    try {
+      var token = localStorage.getItem('token') || '';
+      var res = await fetch('/api/upload/quiz-status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      var data = await res.json();
+      if (data.status === 'done' && data.quiz && data.quiz.length) {
+        clearInterval(interval);
+        localStorage.setItem('currentQuiz', JSON.stringify(data.quiz));
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Start quiz →';
+        showToast('Quiz ready — ' + data.quiz.length + ' questions generated');
+      } else if (data.status === 'error') {
+        clearInterval(interval);
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Quiz failed — retry';
+        showToast('Quiz generation failed: ' + (data.error || 'unknown error'));
+      }
+      // still pending — keep polling
+    } catch (err) {
+      // network hiccup — keep polling
+    }
+  }, 3000);
 }
 
 /**

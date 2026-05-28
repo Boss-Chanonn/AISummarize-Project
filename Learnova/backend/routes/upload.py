@@ -15,6 +15,47 @@ from backend.services.schemas import SummaryRequest, QuizRequest, SummaryRespons
 # Shared AI service instance — Mac 1 for summary, Mac 2 for quiz
 _ai_service = AIService()
 
+# ── Background quiz job store ─────────────────────────────────────────────────
+import threading as _threading
+_upload_quiz_jobs: dict = {}  # { job_id: {"status":"pending"|"done"|"error", "quiz":[], "error":str} }
+
+
+def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, history_id: str) -> None:
+    """Thread target — generates quiz on Mac 2, stores result, updates MongoDB."""
+    import time as _t, asyncio as _asyncio
+    try:
+        t0 = _t.time()
+        quiz_response = _ai_service.generate_quiz(
+            QuizRequest(title=doc_title, summary=summary_response,
+                        question_count=8, difficulty="intermediate")
+        )
+        elapsed = round(_t.time() - t0, 1)
+        model = _ai_service.quiz_client.settings.model
+        quiz_data = [
+            {"q": q.question, "opts": q.options, "correct": q.correct_index,
+             "explanation": q.explanation, "topic": q.topic}
+            for q in quiz_response.questions
+        ]
+        print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
+        _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
+
+        # Persist quiz to MongoDB so submit-quiz and results page work
+        async def _save():
+            from bson import ObjectId
+            await history_collection.update_one(
+                {"_id": ObjectId(history_id)},
+                {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
+            )
+        _asyncio.run(_save())
+        print(f"[upload] ✅ Quiz persisted to history: {history_id}")
+    except Exception as exc:
+        print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
+        _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
+
+# ── In-memory quiz job store ──────────────────────────────────────────────────
+# { job_id: { "status": "pending"|"done"|"error", "quiz": [...], "error": str } }
+_upload_quiz_jobs: dict = {}
+
 router = APIRouter()
 
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
@@ -411,6 +452,16 @@ def _build_upload_response(
     }
 
 
+# ----------------------------- Quiz Status Endpoint -----------------------------
+@router.get("/upload/quiz-status/{job_id}")
+async def upload_quiz_status(job_id: str):
+    """Frontend polls this after upload until quiz is ready."""
+    job = _upload_quiz_jobs.get(job_id)
+    if not job:
+        return {"job_id": job_id, "status": "pending", "quiz": [], "error": None}
+    return {"job_id": job_id, "status": job["status"], "quiz": job.get("quiz", []), "error": job.get("error")}
+
+
 # ----------------------------- Upload Endpoint -----------------------------
 @router.post("/upload")
 async def upload_document(
@@ -463,40 +514,76 @@ async def upload_document(
 
     word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
 
-    # Phase 2: build AI payload (fallback first, AI if available).
+    # Phase 2a: summary only on Mac 1 — returns quickly
+    import time as _t, uuid as _uuid
     fallback_payload = _build_fallback_payload(doc_title, page_count)
-    ai_payload = await _generate_ai_payload(
-        doc_title=doc_title,
-        file_type=file_type,
-        extracted_text=extracted_text,
-        fallback_payload=fallback_payload,
-    )
 
-    # Phase 3: save final history record to MongoDB.
+    summary_response = None
+    try:
+        t0 = _t.time()
+        import asyncio
+        loop = asyncio.get_event_loop()
+        summary_response = await loop.run_in_executor(
+            None,
+            lambda: _ai_service.summarize(
+                SummaryRequest(title=doc_title, text=extracted_text)
+            )
+        )
+        elapsed = round(_t.time() - t0, 1)
+        model = _ai_service.client.settings.model
+        print(f"[upload] ✅ Mac 1 summary done — model={model} time={elapsed}s doc={doc_title}")
+        ai_payload = {
+            "summary": {
+                "body": summary_response.body,
+                "takeaways": summary_response.takeaways,
+                "title": summary_response.summary_title,
+                "authors": summary_response.authors,
+                "topics": summary_response.topics,
+            },
+            "analysis": {"strengths": [], "weaknesses": [], "studyNext": []},
+            "modules": [],
+            "quiz": [],   # quiz comes later via background task
+        }
+    except Exception as e:
+        print(f"[upload] Mac 1 summary failed: {repr(e)} — using legacy path")
+        ai_payload = await _generate_ai_payload(
+            doc_title=doc_title, file_type=file_type,
+            extracted_text=extracted_text, fallback_payload=fallback_payload,
+        )
+        summary_response = None
+
+    # Phase 2b: save history immediately with summary (quiz will be added by background task)
     now = datetime.now(timezone.utc)
     seq_id = await _get_next_seq_id(user_id)
     history_doc = _build_history_doc(
-        user_id=user_id,
-        seq_id=seq_id,
-        doc_title=doc_title,
-        file_type=file_type,
-        page_count=page_count,
-        word_estimate=word_estimate,
-        ai_payload=ai_payload,
-        now=now,
+        user_id=user_id, seq_id=seq_id, doc_title=doc_title,
+        file_type=file_type, page_count=page_count,
+        word_estimate=word_estimate, ai_payload=ai_payload, now=now,
     )
     result = await history_collection.insert_one(history_doc)
     history_id = str(result.inserted_id)
 
-    # Phase 4: return frontend payload.
+    # Phase 2c: fire quiz generation on Mac 2 in background thread
+    quiz_job_id = None
+    if summary_response:
+        quiz_job_id = str(_uuid.uuid4())
+        _upload_quiz_jobs[quiz_job_id] = {"status": "pending", "quiz": [], "error": None}
+        t = _threading.Thread(
+            target=_run_quiz_in_background,
+            args=(quiz_job_id, doc_title, summary_response, history_id),
+            daemon=True,
+        )
+        t.start()
+        print(f"[upload] Mac 2 quiz queued — job_id={quiz_job_id}")
+
+    # Phase 3: return summary immediately — frontend polls for quiz
     processed_at = _format_processed_time(now)
-    return _build_upload_response(
-        history_id=history_id,
-        seq_id=seq_id,
-        doc_title=doc_title,
-        file_type=file_type,
-        page_count=page_count,
-        word_estimate=word_estimate,
-        ai_payload=ai_payload,
+    response = _build_upload_response(
+        history_id=history_id, seq_id=seq_id, doc_title=doc_title,
+        file_type=file_type, page_count=page_count,
+        word_estimate=word_estimate, ai_payload=ai_payload,
         processed_at=processed_at,
     )
+    response["quizJobId"] = quiz_job_id   # frontend polls /api/upload/quiz-status/{quizJobId}
+    response["quizReady"] = quiz_job_id is None  # True only if we used legacy path (quiz already in payload)
+    return response
