@@ -46,8 +46,8 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
             from bson import ObjectId
             import os
             from pymongo import MongoClient
-            mongo_url = os.getenv("MONGODB_URL", "mongodb://localhost:27017")
-            db_name   = os.getenv("MONGODB_DB_NAME", "learnova")
+            mongo_url = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+            db_name   = os.getenv("DATABASE_NAME") or os.getenv("MONGODB_DB_NAME", "learnova")
             sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000)
             sync_db = sync_client[db_name]
             sync_db["history"].update_one(
