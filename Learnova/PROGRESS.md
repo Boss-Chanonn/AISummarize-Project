@@ -124,6 +124,7 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
 | 2026-04-29 | Added Payment & Billing feature | Pro upgrade flow |
 | 2026-05-14 | Simplified SETUP.md for Mac/Windows | Faster onboarding with minimal essential steps |
 | 2026-05-14 | Added Ollama service to docker-compose | app + ollama start together and use gpt-oss:120b-cloud |
+| 2026-05-26 | Added FEATURES_AND_FUNCTIONALITIES.md | Assignment-ready summary of user roles, tiers, and system functions |
 
 ---
 
