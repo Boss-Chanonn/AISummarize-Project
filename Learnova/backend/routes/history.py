@@ -110,6 +110,76 @@ async def submit_quiz(
     return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt"})
 
 
+@router.post("/{history_id}/module-resources")
+async def save_module_resources(
+    history_id: str,
+    body: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save learning-module resource progress for the current user's history item."""
+    user_id = str(current_user["_id"])
+    try:
+        oid = ObjectId(history_id)
+    except Exception:
+        return message_error(400, "Invalid history ID")
+
+    module_resources = body.get("moduleResources")
+    if not isinstance(module_resources, list):
+        return message_error(400, "moduleResources must be a list")
+
+    result = await history_collection.update_one(
+        {"_id": oid, "userId": user_id},
+        {"$set": {
+            "moduleResources": module_resources,
+            "moduleUpdatedAt": datetime.now(timezone.utc),
+        }}
+    )
+    if result.matched_count == 0:
+        return message_error(404, "History item not found")
+
+    updated = await history_collection.find_one({"_id": oid, "userId": user_id})
+    return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt", "moduleUpdatedAt"})
+
+
+@router.post("/{history_id}/module-state")
+async def save_module_state(
+    history_id: str,
+    body: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Save generated module, resource progress, follow-up quiz, and progress comparison."""
+    user_id = str(current_user["_id"])
+    try:
+        oid = ObjectId(history_id)
+    except Exception:
+        return message_error(400, "Invalid history ID")
+
+    allowed_fields = {
+        "learningModule",
+        "moduleResources",
+        "followUpQuiz",
+        "progress",
+    }
+    update_fields = {
+        key: body[key]
+        for key in allowed_fields
+        if key in body
+    }
+    if not update_fields:
+        return message_error(400, "No module state fields to update")
+
+    update_fields["moduleUpdatedAt"] = datetime.now(timezone.utc)
+    result = await history_collection.update_one(
+        {"_id": oid, "userId": user_id},
+        {"$set": update_fields}
+    )
+    if result.matched_count == 0:
+        return message_error(404, "History item not found")
+
+    updated = await history_collection.find_one({"_id": oid, "userId": user_id})
+    return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt", "moduleUpdatedAt"})
+
+
 @router.delete("/{history_id}")
 async def delete_history_item(
     history_id: str,

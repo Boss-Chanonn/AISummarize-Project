@@ -425,6 +425,21 @@ function persistModuleResources() {
   }
 }
 
+function upsertHistoryItem(item) {
+  if (!item || !item.id) return;
+  const token = localStorage.getItem('token') || '';
+  fetch('/api/history/' + item.id + '/module-state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({
+      learningModule: item.learningModule || null,
+      moduleResources: item.moduleResources || null,
+      followUpQuiz: item.followUpQuiz || null,
+      progress: item.progress || null
+    })
+  }).catch(() => {}); // module state should not block the learning flow
+}
+
 // ── Resource rendering ────────────────────────────────────────────────────────
 function renderResources() {
   if (!resources.length) {
@@ -792,7 +807,7 @@ async function startFollowUpQuiz(forceRefresh = false) {
         weak_topics: activeResult.weakTopics || activeResult.weaknesses || [],
         learning_module: activeResult.learningModule,
         previous_questions: (activeResult.initialQuiz?.questions || []).map(q => q.question),
-        question_count: APP_CONFIG.api?.followUpQuestionCount || 6
+        question_count: _cfg.api?.followUpQuestionCount || 6
       });
       followUpQuestions = quiz.questions || [];
       activeResult.followUpQuiz = {

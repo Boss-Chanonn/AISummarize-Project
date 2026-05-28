@@ -42,8 +42,15 @@ async def get_results(
         "userAnswers": doc.get("userAnswers", []),
         "quizFull": doc.get("quizFull", []),
         "analysis": doc.get("analysis", {}),
+        "strengths": doc.get("analysis", {}).get("strengths", []),
+        "weaknesses": doc.get("analysis", {}).get("weaknesses", []),
+        "studyNext": doc.get("analysis", {}).get("studyNext", []),
         "summary": doc.get("summary", {}),
         "modules": doc.get("modules", []),
+        "learningModule": doc.get("learningModule"),
+        "moduleResources": doc.get("moduleResources"),
+        "followUpQuiz": doc.get("followUpQuiz"),
+        "progress": doc.get("progress"),
         "uploadedAt": doc.get("uploadedAt"),
         "completedAt": doc.get("completedAt"),
     }
@@ -79,4 +86,3 @@ async def get_modules(
         "modules": doc.get("modules", []),
         "studyNext": doc.get("analysis", {}).get("studyNext", []),
     }
-
