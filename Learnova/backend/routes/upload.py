@@ -44,20 +44,23 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
         _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
 
-        # Persist quiz to MongoDB using a new event loop (background thread safe)
-        from bson import ObjectId
-        import asyncio as _aio2
-        loop2 = _aio2.new_event_loop()
+        # Persist quiz to MongoDB using pymongo sync client (thread safe)
         try:
-            loop2.run_until_complete(
-                history_collection.update_one(
-                    {"_id": ObjectId(history_id)},
-                    {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
-                )
+            from bson import ObjectId
+            import os
+            from pymongo import MongoClient
+            mongo_url = os.getenv("MONGO_URL") or os.getenv("MONGODB_URL", "mongodb://localhost:27017")
+            db_name   = os.getenv("DATABASE_NAME") or os.getenv("MONGODB_DB_NAME", "learnova")
+            sync_client = MongoClient(mongo_url, serverSelectionTimeoutMS=10000)
+            sync_db = sync_client[db_name]
+            sync_db["history"].update_one(
+                {"_id": ObjectId(history_id)},
+                {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
             )
+            sync_client.close()
             print(f"[upload] ✅ Quiz persisted to history: {history_id}")
-        finally:
-            loop2.close()
+        except Exception as save_err:
+            print(f"[upload] ⚠️  Quiz generated but MongoDB save failed: {save_err}")
     except Exception as exc:
         print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
         _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
@@ -581,6 +584,7 @@ async def upload_document(
         t0 = _t.time()
         import asyncio
         loop = asyncio.get_event_loop()
+        print(f"[summary] ⏳ Mac 1 summarising — model={_ai_service.client.settings.model} doc={doc_title}")
         summary_response = await loop.run_in_executor(
             None,
             lambda: _ai_service.summarize(
