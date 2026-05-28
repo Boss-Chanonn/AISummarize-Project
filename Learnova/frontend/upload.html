@@ -523,16 +523,17 @@ async function processDocument() {
   }
 
   // Phase 3: Run animated progress and network request in parallel.
-  // Progress animation — stays at 85% max until summary actually returns
+  // Progress animation — honest pacing, stays at 85% until summary returns
   let step = 0;
-  const progressMarks = [12, 35, 60, 85];  // never hits 100 until real response
+  const progressMarks = [12, 35, 60, 85];
+  updateProcessingState(progressMarks[0], 0);  // show 12% immediately
   processingTimer = setInterval(function() {
     if (step < progressMarks.length - 1) {
       step++;
       updateProcessingState(progressMarks[step], step);
     }
-    // stays at 85% until fetch completes — then we clear it
-  }, 3000);  // advance every 3s so it feels proportional to actual AI time
+    // stays at 85% — never hits 100 until fetch actually completes
+  }, 25000);  // advance every 25s — realistic for a 90s summary
 
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
