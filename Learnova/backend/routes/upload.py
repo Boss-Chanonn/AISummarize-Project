@@ -25,6 +25,8 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
     import time as _t, asyncio as _asyncio
     try:
         t0 = _t.time()
+        model = _ai_service.quiz_client.settings.model
+        print(f"[quiz] ⏳ Mac 2 generating quiz — model={model} doc={doc_title}")
         quiz_response = _ai_service.generate_quiz(
             QuizRequest(title=doc_title, summary=summary_response,
                         question_count=8, difficulty="intermediate")
@@ -39,15 +41,20 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
         _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
 
-        # Persist quiz to MongoDB so submit-quiz and results page work
-        async def _save():
-            from bson import ObjectId
-            await history_collection.update_one(
-                {"_id": ObjectId(history_id)},
-                {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
+        # Persist quiz to MongoDB using a new event loop (background thread safe)
+        from bson import ObjectId
+        import asyncio as _aio2
+        loop2 = _aio2.new_event_loop()
+        try:
+            loop2.run_until_complete(
+                history_collection.update_one(
+                    {"_id": ObjectId(history_id)},
+                    {"$set": {"quizFull": quiz_data, "quizData": quiz_data, "total": len(quiz_data)}}
+                )
             )
-        _asyncio.run(_save())
-        print(f"[upload] ✅ Quiz persisted to history: {history_id}")
+            print(f"[upload] ✅ Quiz persisted to history: {history_id}")
+        finally:
+            loop2.close()
     except Exception as exc:
         print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
         _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
