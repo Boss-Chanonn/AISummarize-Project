@@ -19,7 +19,7 @@
       </div>
       <div class="score-wrap">
         <svg width="110" height="110" viewBox="0 0 110 110">
-          <circle cx="55" cy="55" r="40" fill="none" stroke="rgba(240,237,232,0.06)" stroke-width="7"/>
+          <circle cx="55" cy="55" r="40" fill="none" stroke="var(--border, rgba(28,25,23,0.12))" stroke-width="7"/>
           <circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7"
             stroke-linecap="round"
             stroke-dasharray="251.2"
@@ -27,9 +27,9 @@
             transform="rotate(-90 55 55)"
             id="score-ring-circle" style="stroke-dashoffset:251.2"/>
           <text x="55" y="55" text-anchor="middle" dominant-baseline="central"
-            font-family="DM Serif Display,serif" font-size="24" fill="#F0EDE8" id="score-ring-text">—</text>
+            font-family="DM Serif Display,serif" font-size="24" fill="var(--cream, #1C1917)" font-weight="600" id="score-ring-text">—</text>
         </svg>
-        <div class="ring-label" id="score-ring-label">— of — correct</div>
+        <div class="ring-label" id="score-ring-label" style="color:var(--cream-60,rgba(28,25,23,0.76))">— of — correct</div>
       </div>
     </div>
 

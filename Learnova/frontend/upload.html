@@ -865,9 +865,9 @@ async function showQuizResults() {
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--gold)" stroke-width="7" stroke-linecap="round"
           stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>
-        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="var(--gold)" font-weight="600">${pct}%</text>
+        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="var(--cream, #1C1917)" font-weight="600">${pct}%</text>
       </svg>
-      <div style="font-size:12px;color:var(--cream-60);margin-top:4px;font-weight:500">${correctCount} of ${quizData.length} correct</div>
+      <div style="font-size:12px;color:var(--cream-60, rgba(28,25,23,0.76));margin-top:4px;font-weight:500">${correctCount} of ${quizData.length} correct</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px" class="result-step">
       ${quizData.map((q,i) => {

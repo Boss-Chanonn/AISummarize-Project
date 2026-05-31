@@ -197,17 +197,18 @@ class AIService:
         resources: list[ResourceRecommendation] = []
 
         for topic in target_topics:
-            try:
-                article = self._search_article_resource(payload.title, topic)
-                if article:
-                    resources.append(article)
-            except Exception:
-                pass
-
+            # Only add what's actually found — no forced article+video+podcast per topic
             try:
                 video = self._search_video_resource(payload.title, topic)
                 if video:
                     resources.append(video)
+            except Exception:
+                pass
+
+            try:
+                article = self._search_article_resource(payload.title, topic)
+                if article:
+                    resources.append(article)
             except Exception:
                 pass
 
@@ -218,16 +219,11 @@ class AIService:
             except Exception:
                 pass
 
-            if not any(r.topic == topic and r.resource_type == "article" for r in resources):
-                resources.append(self._build_article_fallback(topic))
+            # Stop once we have 4 resources
+            if len(resources) >= 4:
+                break
 
-        # Always guarantee at least 2 resources via fallbacks
-        while len(resources) < 2:
-            resources.append(self._build_article_fallback(
-                target_topics[len(resources) % len(target_topics)]
-            ))
-
-        # Deduplicate by URL
+        # Deduplicate by URL, cap at 4
         deduped: list[ResourceRecommendation] = []
         seen_urls: set[str] = set()
         for resource in resources:
@@ -235,7 +231,7 @@ class AIService:
                 continue
             deduped.append(resource)
             seen_urls.add(resource.url)
-            if len(deduped) == 6:
+            if len(deduped) == 4:
                 break
 
         return ResourceRecommendationResponse(resources=deduped)
@@ -871,18 +867,18 @@ Missed questions (what the student got wrong):
         return None
 
     def _search_article_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
-        wiki = self._search_wikipedia_article(topic)
-        if wiki:
-            return wiki
+        # No Wikipedia — search real educational sources directly
         return self._search_resource_variants(
             topic=topic,
             resource_type="article",
             queries=[
-                f"{title} {topic} explainer article",
-                f"{topic} site:openstax.org",
                 f"{topic} site:khanacademy.org",
+                f"{topic} site:britannica.com",
+                f"{topic} site:sciencedaily.com",
+                f"{title} {topic} explained site:.edu",
+                f"{topic} overview site:openstax.org",
             ],
-            preferred_domains=["wikipedia.org", ".edu", ".org", "openstax.org", "khanacademy.org"],
+            preferred_domains=["khanacademy.org", "britannica.com", "sciencedaily.com", ".edu", "openstax.org"],
         )
 
     def _search_video_resource(self, title: str, topic: str) -> ResourceRecommendation | None:

@@ -153,11 +153,19 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         )
         elapsed = round(_t.time() - t0, 1)
         model = _ai_service.quiz_client.settings.model
-        quiz_data = [
-            {"q": q.question, "opts": q.options, "correct": q.correct_index,
-             "explanation": q.explanation, "topic": q.topic}
-            for q in quiz_response.questions
-        ]
+        quiz_data = []
+        for q in quiz_response.questions:
+            try:
+                quiz_data.append({
+                    "q": q.question if hasattr(q, "question") else str(q),
+                    "opts": q.options if hasattr(q, "options") else [],
+                    "correct": q.correct_index if hasattr(q, "correct_index") else 0,
+                    "explanation": q.explanation if hasattr(q, "explanation") else "",
+                    "topic": q.topic if hasattr(q, "topic") else "General",
+                })
+            except Exception as _qe:
+                print(f"[quiz] skipping malformed question: {_qe}")
+                continue
         print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
         _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
 

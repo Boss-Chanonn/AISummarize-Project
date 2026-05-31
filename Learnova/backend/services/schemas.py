@@ -26,11 +26,11 @@ class SummaryResponse(BaseModel):
 
 
 class QuizQuestion(BaseModel):
-    question: str = Field(..., min_length=12)
-    options: list[str] = Field(..., min_length=4, max_length=4)
-    correct_index: int = Field(..., ge=0, le=3)
-    explanation: str = Field(..., min_length=20)
-    topic: str = Field(..., min_length=2, max_length=80)
+    question: str = Field(..., min_length=1)
+    options: list[str] = Field(default_factory=list, max_length=4)
+    correct_index: int = Field(default=0, ge=0, le=3)
+    explanation: str = Field(default="")
+    topic: str = Field(default="General", max_length=80)
 
 
 class QuizRequest(BaseModel):
@@ -49,7 +49,7 @@ class QuizRequest(BaseModel):
 class QuizResponse(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     question_count: int = Field(..., ge=6, le=8)
-    questions: list[QuizQuestion] = Field(..., min_length=6, max_length=8)
+    questions: list[QuizQuestion] = Field(default_factory=list, max_length=8)
 
 
 class QuizAnswer(BaseModel):
@@ -58,12 +58,12 @@ class QuizAnswer(BaseModel):
 
 
 class ReviewedQuestion(BaseModel):
-    question: str = Field(..., min_length=12)
-    topic: str = Field(..., min_length=2, max_length=80)
-    user_answer: str = Field(..., min_length=1)
-    correct_answer: str = Field(..., min_length=1)
-    is_correct: bool
-    explanation: str = Field(..., min_length=20)
+    question: str = Field(..., min_length=1)
+    topic: str = Field(default="General", max_length=80)
+    user_answer: str = Field(default="Skipped")
+    correct_answer: str = Field(default="")
+    is_correct: bool = False
+    explanation: str = Field(default="")
 
 
 class AnalyzeResultsRequest(BaseModel):
