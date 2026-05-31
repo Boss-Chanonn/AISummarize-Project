@@ -191,41 +191,46 @@ def quiz(payload: QuizRequest) -> QuizResponse:
         _handle(exc)
 
 
-@router.post("/analyze-results", response_model=AnalyzeResultsResponse)
-def analyze_results(payload: AnalyzeResultsRequest) -> AnalyzeResultsResponse:
+@router.post("/analyze-results")
+def analyze_results(payload: AnalyzeResultsRequest):
     try:
-        return _service.analyze_results(payload)
+        result = _service.analyze_results(payload)
+        return result.model_dump()
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/learning-module", response_model=LearningModuleResponse)
-def learning_module(payload: LearningModuleRequest) -> LearningModuleResponse:
+@router.post("/learning-module")
+def learning_module(payload: LearningModuleRequest):
     try:
-        return _service.generate_learning_module(payload)
+        result = _service.generate_learning_module(payload)
+        return result.model_dump()
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/recommend-resources", response_model=ResourceRecommendationResponse)
-def recommend_resources(payload: ResourceRecommendationRequest) -> ResourceRecommendationResponse:
+@router.post("/recommend-resources")
+def recommend_resources(payload: ResourceRecommendationRequest):
     try:
-        return _service.recommend_resources(payload)
+        result = _service.recommend_resources(payload)
+        return result.model_dump()
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/follow-up-quiz", response_model=FollowUpQuizResponse)
-def follow_up_quiz(payload: FollowUpQuizRequest) -> FollowUpQuizResponse:
+@router.post("/follow-up-quiz")
+def follow_up_quiz(payload: FollowUpQuizRequest):
     try:
-        return _service.generate_follow_up_quiz(payload)
+        result = _service.generate_follow_up_quiz(payload)
+        return result.model_dump()
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/compare-progress", response_model=CompareProgressResponse)
-def compare_progress(payload: CompareProgressRequest) -> CompareProgressResponse:
+@router.post("/compare-progress")
+def compare_progress(payload: CompareProgressRequest):
     try:
-        return _service.compare_progress(payload)
+        result = _service.compare_progress(payload)
+        return result.model_dump()
     except Exception as exc:
         _handle(exc)
