@@ -519,11 +519,30 @@ function switchToTextInput() {
 }
 
 async function processDocument() {
-  // Phase 1: Set initial loading UI state.
+  // Phase 1: Show doc info on left immediately, then start loading state
   localStorage.removeItem('currentQuiz');
+  const file = uploadedFiles[0];
+  if (file) {
+    const ext = file.name.split('.').pop().toUpperCase();
+    const docTitle = file.name.replace(/[._-]/g, ' ').replace(/[A-Z]+$/i, '').trim() || file.name;
+    const sizeLabel = file.size > 1048576
+      ? (file.size/1048576).toFixed(1)+' MB'
+      : Math.round(file.size/1024)+' KB';
+    currentDoc = {
+      title: docTitle,
+      fileType: ext,
+      meta: ext + ' · ' + sizeLabel,
+      infoRows: [
+        ['File type', ext],
+        ['File size', sizeLabel],
+        ['Status', 'Processing…'],
+      ],
+    };
+    setSummaryMode(true);
+    renderDocumentInfo();
+  }
   showProcessingState();
   document.getElementById('btn-process').disabled = true;
-  const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
   const _token = localStorage.getItem('token') || '';
 
@@ -704,12 +723,24 @@ function updateProcessingState(progress, activeIndex) {
  * Render generated summary and prepare quiz entrypoint controls.
  * @param {object} data
  */
+function setCurtain(on) {
+  const layout = document.querySelector('.upload-layout');
+  if (!layout) return;
+  if (on) {
+    layout.classList.add('curtain-right');
+  } else {
+    layout.classList.remove('curtain-right');
+  }
+}
+
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
   setQuizData(data.quizData || data.quizFull || []);
   setSummaryMode(true);
   renderDocumentInfo();
   const quizReady = quizData.length > 0;
+  // Slide curtain: collapse left panel, summary takes full width
+  setCurtain(true);
   const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
     ctaLabel: quizReady ? 'Take quiz →' : 'Quiz generating…',
     ctaHandler: quizReady ? 'startQuiz()' : "showToast('Quiz is still generating — this will update automatically')",
@@ -834,9 +865,9 @@ async function showQuizResults() {
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--gold)" stroke-width="7" stroke-linecap="round"
           stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>
-        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor">${pct}%</text>
+        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="var(--gold)" font-weight="600">${pct}%</text>
       </svg>
-      <div style="font-size:12px;color:var(--cream-25);margin-top:4px">${correctCount} of ${quizData.length} correct</div>
+      <div style="font-size:12px;color:var(--cream-60);margin-top:4px;font-weight:500">${correctCount} of ${quizData.length} correct</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px" class="result-step">
       ${quizData.map((q,i) => {
@@ -915,6 +946,7 @@ async function showQuizResults() {
  * Reset upload workspace and clear transient quiz/processing state.
  */
 function resetUpload() {
+  setCurtain(false);
   if (processingTimer) {
     clearInterval(processingTimer);
     processingTimer = null;

@@ -54,6 +54,9 @@ _quiz_jobs: dict[str, dict[str, Any]] = {}
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _handle(exc: Exception) -> None:
+    import traceback
+    print(f"[ai_route] ERROR type={type(exc).__name__} msg={exc}", flush=True)
+    traceback.print_exc()
     if isinstance(exc, OllamaError):
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     if isinstance(exc, ValueError):
@@ -188,38 +191,34 @@ def quiz(payload: QuizRequest) -> QuizResponse:
         _handle(exc)
 
 
-@router.post("/analyze-results")
-def analyze_results(payload: AnalyzeResultsRequest):
+@router.post("/analyze-results", response_model=AnalyzeResultsResponse)
+def analyze_results(payload: AnalyzeResultsRequest) -> AnalyzeResultsResponse:
     try:
-        result = _service.analyze_results(payload)
-        return result.model_dump()
+        return _service.analyze_results(payload)
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/learning-module")
-def learning_module(payload: LearningModuleRequest):
+@router.post("/learning-module", response_model=LearningModuleResponse)
+def learning_module(payload: LearningModuleRequest) -> LearningModuleResponse:
     try:
-        result = _service.generate_learning_module(payload)
-        return result.model_dump()
+        return _service.generate_learning_module(payload)
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/recommend-resources")
-def recommend_resources(payload: ResourceRecommendationRequest):
+@router.post("/recommend-resources", response_model=ResourceRecommendationResponse)
+def recommend_resources(payload: ResourceRecommendationRequest) -> ResourceRecommendationResponse:
     try:
-        result = _service.recommend_resources(payload)
-        return result.model_dump()
+        return _service.recommend_resources(payload)
     except Exception as exc:
         _handle(exc)
 
 
-@router.post("/follow-up-quiz")
-def follow_up_quiz(payload: FollowUpQuizRequest):
+@router.post("/follow-up-quiz", response_model=FollowUpQuizResponse)
+def follow_up_quiz(payload: FollowUpQuizRequest) -> FollowUpQuizResponse:
     try:
-        result = _service.generate_follow_up_quiz(payload)
-        return result.model_dump()
+        return _service.generate_follow_up_quiz(payload)
     except Exception as exc:
         _handle(exc)
 
