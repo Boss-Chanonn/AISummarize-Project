@@ -89,6 +89,6 @@ function showSuccessNotification() {
   }
 
   setTimeout(function() {
-    window.location.href = 'dashboard.html';
+    window.location.href = 'pro.html';
   }, 1800);
 }

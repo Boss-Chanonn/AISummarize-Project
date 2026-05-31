@@ -11,6 +11,10 @@ from datetime import datetime, timezone
 from jose import jwt as _jwt
 import json
 import os
+from urllib import error as url_error
+from urllib import request as url_request
+
+from backend.services.ollama_client import QuizOllamaSettings, SummaryOllamaSettings
 
 load_dotenv()
 
@@ -146,6 +150,30 @@ async def health():
     return {"status": "ok", "app": "Learnova"}
 
 
+def _check_ollama_endpoint(label: str, base_url: str, model: str) -> None:
+    """Log whether one Ollama endpoint is reachable during startup."""
+    timeout = float(os.getenv("OLLAMA_HEALTH_TIMEOUT_SECONDS", "5"))
+    url = f"{base_url.rstrip('/')}/api/version"
+    print(f"[startup] Checking {label} Ollama — url={base_url} model={model}")
+
+    try:
+        req = url_request.Request(url, headers={"Content-Type": "application/json"}, method="GET")
+        with url_request.urlopen(req, timeout=timeout) as response:
+            body = json.loads(response.read().decode("utf-8"))
+        version = body.get("version", "unknown")
+        print(f"✅ {label} Ollama reachable — url={base_url} version={version}")
+    except (url_error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        print(f"❌ {label} Ollama unreachable — url={base_url} model={model} error={exc}")
+
+
+def _check_ai_connections() -> None:
+    """Check configured summary and quiz Ollama endpoints before serving work."""
+    summary_settings = SummaryOllamaSettings()
+    quiz_settings = QuizOllamaSettings()
+    _check_ollama_endpoint("Mac 1 summary", summary_settings.base_url, summary_settings.model)
+    _check_ollama_endpoint("Mac 2 quiz", quiz_settings.base_url, quiz_settings.model)
+
+
 @app.on_event("startup")
 async def startup_event():
     """Verify critical backend services and prepare DB indexes on app startup."""
@@ -154,6 +182,7 @@ async def startup_event():
         print("✅ MongoDB connected")
         await token_blocklist_collection.create_index("expireAt", expireAfterSeconds=0)
         print("✅ Token blocklist TTL index ready")
+        _check_ai_connections()
         print("✅ Learnova backend started")
     except Exception as e:
         print(f"❌ MongoDB connection failed: {e}")
@@ -162,4 +191,3 @@ async def startup_event():
 # ----------------------------- Frontend Hosting -----------------------------
 # Serve frontend last so API routes are matched before static file fallback.
 app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
-

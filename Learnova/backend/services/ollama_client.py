@@ -17,6 +17,7 @@ class OllamaSettings:
     model: str = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+    num_predict: int = int(os.getenv("OLLAMA_NUM_PREDICT", "1200"))
 
 
 @dataclass(slots=True)
@@ -26,6 +27,7 @@ class SummaryOllamaSettings:
     model: str = os.getenv("SUMMARY_MODEL", "gpt-oss:120b-cloud")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+    num_predict: int = int(os.getenv("SUMMARY_NUM_PREDICT", os.getenv("OLLAMA_NUM_PREDICT", "900")))
 
 
 @dataclass(slots=True)
@@ -35,6 +37,7 @@ class QuizOllamaSettings:
     model: str = os.getenv("QUIZ_MODEL", "deepseek-r1:8b")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
+    num_predict: int = int(os.getenv("QUIZ_NUM_PREDICT", os.getenv("OLLAMA_NUM_PREDICT", "1400")))
 
 
 class OllamaClient:
@@ -47,8 +50,11 @@ class OllamaClient:
             "prompt": prompt,
             "stream": False,
             "format": "json",
+            "think": False,
             "options": {
                 "temperature": self.settings.temperature,
+                "num_predict": 4096,
+                "num_ctx": 8192,
             },
         }
         raw = self._post("/api/generate", payload)

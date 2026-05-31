@@ -109,6 +109,40 @@ async def submit_quiz(
     return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt"})
 
 
+@router.post("/{history_id}/module-resources")
+async def save_module_resources(
+    history_id: str,
+    body: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Persist generated learning module/resources and follow-up progress."""
+    user_id = str(current_user["_id"])
+    try:
+        oid = ObjectId(history_id)
+    except Exception:
+        return message_error(400, "Invalid history ID")
+
+    allowed_fields = {
+        "learningModule",
+        "moduleResources",
+        "followUpQuiz",
+        "progress",
+    }
+    update_fields = {key: body[key] for key in allowed_fields if key in body}
+    if not update_fields:
+        return message_error(400, "No module data provided")
+
+    result = await history_collection.update_one(
+        {"_id": oid, "userId": user_id},
+        {"$set": update_fields}
+    )
+    if result.matched_count == 0:
+        return message_error(404, "History item not found")
+
+    updated = await history_collection.find_one({"_id": oid})
+    return serialize_mongo_doc(updated, datetime_fields={"uploadedAt", "completedAt"})
+
+
 @router.delete("/{history_id}")
 async def delete_history_item(
     history_id: str,
@@ -124,4 +158,3 @@ async def delete_history_item(
     if result.deleted_count == 0:
         return message_error(404, "History item not found")
     return {"message": "Deleted successfully"}
-

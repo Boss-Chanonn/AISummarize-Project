@@ -389,7 +389,12 @@ function hasInvalidUrl(url) {
   const v = String(url || '').trim();
   if (!v || v === '#' || v === 'http://' || v === 'https://') return true;
   // Only block bare homepages — search URLs and watch URLs are valid fallbacks
-  return /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|open\.spotify\.com)\/?\$/.test(v);
+  return /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|open\.spotify\.com)\/?$/.test(v);
+}
+function hasStaleResourceUrl(resource) {
+  const url = String(resource?.url || '');
+  return hasInvalidUrl(url)
+    || (resource?.type === 'article' && /wikipedia\.org\/wiki\//.test(url) && resource?.source !== 'wikipedia.org');
 }
 function extractYouTubeId(url) {
   if (!url) return null;
@@ -405,10 +410,11 @@ function buildResourceTitle(topic, type) {
   return `${topic}: article and key-point review`;
 }
 function buildResourceUrl(topic, type) {
-  const slug = String(topic || 'Study_topic').trim().replace(/\s+/g, '_');
-  if (type === 'video') return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(topic + ' explainer');
-  if (type === 'podcast') return 'https://open.spotify.com/search/' + encodeURIComponent(topic);
-  return `https://en.wikipedia.org/wiki/${encodeURIComponent(slug)}`;
+  const query = String(topic || 'study topic').trim();
+  if (type === 'video') return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query + ' explained');
+  if (type === 'podcast') return 'https://www.listennotes.com/search/?q=' + encodeURIComponent(query) + '&type=episode';
+  // Wikipedia Special:Search redirects to the article directly if exact match exists
+  return 'https://en.wikipedia.org/wiki/Special:Search?search=' + encodeURIComponent(query) + '&ns0=1&go=Go';
 }
 function persistModuleResources() {
   if (!activeResult) return;
@@ -420,7 +426,12 @@ function persistModuleResources() {
     fetch('/api/history/' + historyId + '/module-resources', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ moduleResources: activeResult.moduleResources })
+      body: JSON.stringify({
+        learningModule: activeResult.learningModule,
+        moduleResources: activeResult.moduleResources,
+        followUpQuiz: activeResult.followUpQuiz,
+        progress: activeResult.progress
+      })
     }).catch(() => {}); // silent fail — not critical
   }
 }
@@ -788,11 +799,11 @@ async function startFollowUpQuiz(forceRefresh = false) {
     try {
       const quiz = await LEARNOVA_API.generateFollowUpQuiz({
         title: activeResult.title,
-        summary: activeResult.summaryRaw,
-        weak_topics: activeResult.weakTopics || activeResult.weaknesses || [],
+        summary: normalizeSummaryForApi(activeResult.summaryRaw),
+        weak_topics: normalizeWeakTopics(),
         learning_module: activeResult.learningModule,
         previous_questions: (activeResult.initialQuiz?.questions || []).map(q => q.question),
-        question_count: APP_CONFIG.api?.followUpQuestionCount || 6
+        question_count: (window.LEARNOVA_CONFIG || window.APP_CONFIG || {})?.api?.followUpQuestionCount || 6
       });
       followUpQuestions = quiz.questions || [];
       activeResult.followUpQuiz = {
@@ -800,7 +811,7 @@ async function startFollowUpQuiz(forceRefresh = false) {
         questions: quiz.questions || [],
         targetTopics: quiz.target_topics || []
       };
-      upsertHistoryItem(activeResult);
+      persistModuleResources();
     } catch (err) {
       showToast(err.message || 'Could not build follow-up quiz');
       return;
@@ -816,7 +827,7 @@ async function finishFollowUpQuiz() {
   try {
     const analysis = await LEARNOVA_API.analyzeQuizResults({
       title: activeResult.title,
-      summary: activeResult.summaryRaw,
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
       questions: followUpQuestions,
       answers: followUpAnswers
     });
@@ -826,7 +837,7 @@ async function finishFollowUpQuiz() {
     });
     activeResult.followUpQuiz = { ...(activeResult.followUpQuiz || {}), questions: followUpQuestions, analysis };
     activeResult.progress = comparison;
-    upsertHistoryItem(activeResult);
+    persistModuleResources();
     renderFollowUpShell();
     showToast('Follow-up quiz complete');
   } catch (err) {
@@ -881,27 +892,86 @@ function mergeRecommended(base, recs) {
 
 function buildFallbackModule() {
   const areas = (activeResult?.weakTopics || activeResult?.weaknesses || activeResult?.topicTags || []).slice(0, 4);
-  const fallback = areas.length ? areas : ['Core concepts', 'Method and findings'];
+  const fallback = [...new Set([...(areas.length ? areas : []), 'Core concepts', 'Method and findings'])].slice(0, 4);
   return {
     title: `Targeted review for ${activeResult?.title || 'your latest document'}`,
-    description: 'Fallback learning module built from your quiz analysis.',
+    description: 'Fallback learning module built from your quiz analysis. It focuses on the weakest topics from the first quiz and turns them into short review tasks before the follow-up quiz.',
     focus_areas: fallback,
     sections: fallback.slice(0, 3).map(t => ({
       topic: t,
-      explanation: `Revisit the summary sections connected to ${t}.`,
-      why_it_matters: `${t} appeared in missed questions or is central to the document's argument.`,
-      practice_tip: `Summarise ${t} in your own words, then use the follow-up quiz to test recall.`
+      explanation: `Revisit the summary sections connected to ${t}. Write down the claim, the evidence used for it, and how it supports the document's argument.`,
+      why_it_matters: `${t} appeared in missed questions or is central to the document's argument, so improving it should lift follow-up quiz performance.`,
+      practice_tip: `Summarise ${t} in your own words with one example from the document, then test recall in the follow-up quiz.`
     }))
   };
+}
+
+function normalizeSummaryForApi(summary) {
+  const raw = summary || {};
+  const body = Array.isArray(raw.body) && raw.body.length
+    ? raw.body.map(String).filter(Boolean)
+    : [String(raw.overview || activeResult?.title || 'Document summary')];
+  while (body.length < 2) body.push(body[0] || 'Review the main ideas from this document.');
+
+  const takeaways = Array.isArray(raw.takeaways) && raw.takeaways.length
+    ? raw.takeaways.map(String).filter(Boolean)
+    : ['Review the document summary.', 'Focus on missed quiz topics.', 'Practice retrieval before retesting.'];
+  while (takeaways.length < 3) takeaways.push('Connect each concept to the document argument.');
+
+  const topicPool = [
+    ...(Array.isArray(raw.topics) ? raw.topics : []),
+    ...(activeResult?.weakTopics || []),
+    ...(activeResult?.weaknesses || []),
+    ...(activeResult?.topicTags || []),
+    'Core argument',
+    'Evidence and examples',
+    'Main conclusion'
+  ].map(String).filter(Boolean);
+  const topics = [...new Set(topicPool)].slice(0, 6);
+  while (topics.length < 3) topics.push('Document concept ' + (topics.length + 1));
+
+  const overview = String(raw.overview || body.join(' '));
+  return {
+    summary_title: String(raw.summary_title || activeResult?.title || 'Document summary').slice(0, 200),
+    authors: String(raw.authors || 'Uploaded document').slice(0, 200),
+    overview: overview.length >= 80 ? overview : (overview + ' Review the summary and quiz feedback to reinforce the document-specific concepts.'),
+    body: body.slice(0, 4),
+    takeaways: takeaways.slice(0, 5),
+    topics,
+    chunks_used: raw.chunks_used || 1
+  };
+}
+
+function normalizeWeakTopics() {
+  const topics = [
+    ...(activeResult?.weakTopics || []),
+    ...(activeResult?.weaknesses || []),
+    ...(activeResult?.topicTags || [])
+  ].map(String).filter(Boolean);
+  const unique = [...new Set(topics)].slice(0, 4);
+  return unique.length ? unique : ['Core argument'];
+}
+
+function normalizeMissedQuestions() {
+  return (activeResult.questions || [])
+    .filter(q => !q.correct)
+    .map(q => ({
+      question: String(q.q || 'Review the missed quiz question.'),
+      topic: String(q.topic || 'General comprehension').slice(0, 80),
+      user_answer: String(q.your || 'Skipped'),
+      correct_answer: String(q.answer || 'Review the correct answer in the quiz results.'),
+      explanation: String(q.explanation || 'Use the source summary to understand why this answer is correct.')
+    }))
+    .slice(0, 8);
 }
 
 async function hydrateResources(topics) {
   try {
     const recs = await LEARNOVA_API.recommendResources({
       title: activeResult.title,
-      summary: activeResult.summaryRaw,
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
       learning_module: activeResult.learningModule,
-      weak_topics: topics
+      weak_topics: topics && topics.length ? topics : normalizeWeakTopics()
     });
     resources = mergeRecommended(resources, recs);
     persistModuleResources();
@@ -914,7 +984,7 @@ async function ensureLearningModule() {
   // Use cached resources if available
   if (Array.isArray(activeResult.moduleResources) && activeResult.moduleResources.length) {
     resources = activeResult.moduleResources.map(r => ({ ...r }));
-    if (resources.some(r => hasInvalidUrl(r.url))) {
+    if (resources.some(hasStaleResourceUrl)) {
       await hydrateResources(activeResult.weakTopics?.length ? activeResult.weakTopics : (activeResult.topicTags || []).slice(0, 3));
     }
     return;
@@ -935,11 +1005,9 @@ async function ensureLearningModule() {
   try {
     const lm = await LEARNOVA_API.generateLearningModule({
       title: activeResult.title,
-      summary: activeResult.summaryRaw,
-      weak_topics: topics,
-      missed_questions: (activeResult.questions || [])
-        .filter(q => !q.correct)
-        .map(q => ({ question: q.q, topic: q.topic || 'General comprehension', user_answer: q.your, correct_answer: q.answer || '', explanation: q.explanation || '' }))
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
+      weak_topics: topics && topics.length ? topics.slice(0, 4) : normalizeWeakTopics(),
+      missed_questions: normalizeMissedQuestions()
     });
     activeResult.learningModule = lm;
     resources = mapModuleSections(lm);

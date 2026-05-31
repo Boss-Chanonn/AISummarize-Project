@@ -15,6 +15,126 @@ from backend.services.schemas import SummaryRequest, QuizRequest, SummaryRespons
 # Shared AI service instance — Mac 1 for summary, Mac 2 for quiz
 _ai_service = AIService()
 
+
+async def _async_summarize(doc_title: str, extracted_text: str):
+    """
+    Call Mac 1 (gpt-oss) for summary using httpx async — avoids run_in_executor
+    threading conflicts with Ollama's OLLAMA_NUM_PARALLEL=1 queue.
+    Returns a SummaryResponse or raises on failure.
+    """
+    import httpx
+    import asyncio
+    import json as _json
+    import os
+    from backend.services.schemas import SummaryResponse
+    from backend.services.ollama_client import SummaryOllamaSettings
+
+    settings = SummaryOllamaSettings()
+    # Use more text for PPTX (slide text is dense and short per slide)
+    # 8000 chars covers ~20 slides; regular docs get 4000 chars
+    max_chars = 8000 if "pptx" in doc_title.lower() or len(extracted_text) > 6000 else 4000
+    text = extracted_text[:max_chars].strip()
+
+    prompt = f"""OUTPUT ONLY VALID JSON. Start with {{ immediately.
+
+{{"summary_title":"<title max 80 chars>","authors":"<names or Unknown authors>","overview":"<2-3 sentences on purpose and main argument>","body":["<paragraph 1: background 60-100 words>","<paragraph 2: methods/findings 60-100 words>","<paragraph 3: implications 60-100 words>"],"takeaways":["<specific claim 1>","<specific claim 2>","<specific claim 3>","<specific claim 4>","<specific claim 5>"],"topics":["topic1","topic2","topic3","topic4"],"chunks_used":1}}
+
+Fill in all fields based on this document.
+Title: {doc_title}
+Content: {text}"""
+
+    payload = {
+        "model": settings.model,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "think": False,
+        "options": {
+            "temperature": 0.2,
+            "num_predict": 4096,  # gpt-oss ignores think:False, needs room for thinking + response
+            "num_ctx": 8192,      # ensure enough context window
+        },
+    }
+
+    last_error = None
+    for attempt in range(4):
+        try:
+            wait = [0, 3, 6, 10][attempt]
+            if wait:
+                await asyncio.sleep(wait)
+            async with httpx.AsyncClient(timeout=max(settings.timeout_seconds, 120)) as client:
+                resp = await client.post(f"{settings.base_url}/api/generate", json=payload)
+                resp.raise_for_status()
+                raw = resp.json()
+            # Check for Ollama-level error
+            if raw.get("error"):
+                last_error = ValueError(f"Ollama error: {raw['error']}")
+                print(f"[summary] attempt {attempt+1} ollama error: {raw['error']} — retrying")
+                continue
+            response_text = raw.get("response", "").strip()
+            print(f"[summary] attempt {attempt+1} raw keys={list(raw.keys())} response_len={len(response_text)} done={raw.get('done')} done_reason={raw.get('done_reason')}")
+            if response_text:
+                break
+            print(f"[summary] attempt {attempt+1} empty — retrying")
+            last_error = ValueError("Mac 1 returned empty response")
+        except Exception as e:
+            print(f"[summary] attempt {attempt+1} error: {repr(e)} — retrying")
+            last_error = e
+    else:
+        raise last_error or ValueError("Mac 1 failed after 4 attempts")
+
+    # Clean markdown fences
+    import re as _re
+    cleaned = response_text
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = _re.sub(r"\n?```\s*$", "", cleaned).strip()
+
+    # Extract JSON object
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1:
+        cleaned = cleaned[start:end + 1]
+
+    # Repair truncated JSON
+    try:
+        data = _json.loads(cleaned)
+    except _json.JSONDecodeError:
+        import re as _re2
+        s = cleaned.rstrip()
+        in_string = False
+        i = 0
+        while i < len(s):
+            c = s[i]
+            if c == '\\' and in_string:
+                i += 2
+                continue
+            if c == '"':
+                in_string = not in_string
+            i += 1
+        if in_string:
+            s += '"'
+        s = _re2.sub(r',\s*$', '', s.rstrip())
+        s += ']' * max(s.count('[') - s.count(']'), 0)
+        s += '}' * max(s.count('{') - s.count('}'), 0)
+        data = _json.loads(s)
+        data = _json.loads(cleaned)
+
+    # Normalize authors to string
+    if isinstance(data.get("authors"), list):
+        data["authors"] = ", ".join(str(a) for a in data["authors"]) or "Unknown authors"
+
+    # Ensure required fields have safe defaults
+    data.setdefault("summary_title", doc_title)
+    data.setdefault("authors", "Unknown authors")
+    data.setdefault("overview", "")
+    data.setdefault("body", [])
+    data.setdefault("takeaways", [])
+    data.setdefault("topics", [])
+    data.setdefault("chunks_used", 1)
+
+    return SummaryResponse.model_validate(data)
+
 # ── Background quiz job store ─────────────────────────────────────────────────
 import threading as _threading
 _upload_quiz_jobs: dict = {}  # { job_id: {"status":"pending"|"done"|"error", "quiz":[], "error":str} }
@@ -224,7 +344,14 @@ def _extract_text(filename: str, data: bytes) -> tuple[str, str, int]:
 
     elif ext in ("ppt", "pptx"):
         text = _extract_text_from_pptx(data)
-        pages = max(1, len(text) // 500)
+        # Count actual slides for accurate page count
+        try:
+            from pptx import Presentation
+            import io as _io
+            prs = Presentation(_io.BytesIO(data))
+            pages = max(1, len(prs.slides))
+        except Exception:
+            pages = max(1, len(text) // 500)
         return text, "PPTX", pages
 
     else:
@@ -401,6 +528,7 @@ def _build_history_doc(
         "fileType": file_type,
         "pageCount": page_count,
         "wordEstimate": word_estimate,
+        "authors": ai_payload["summary"].get("authors", "Unknown authors"),
         "summary": ai_payload["summary"],
         "analysis": ai_payload["analysis"],
         "modules": ai_payload["modules"],
@@ -524,25 +652,23 @@ async def upload_document(
 
     word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
 
-    # Phase 2a: summary only on Mac 1 — returns quickly
     import time as _t, uuid as _uuid
     fallback_payload = _build_fallback_payload(doc_title, page_count)
 
+    # ── Phase 1: Summary on Mac 1 (gpt-oss) ─────────────────────────────────
     summary_response = None
     try:
         t0 = _t.time()
-        import asyncio
-        loop = asyncio.get_event_loop()
-        print(f"[summary] ⏳ Mac 1 summarising — model={_ai_service.client.settings.model} doc={doc_title}")
-        summary_response = await loop.run_in_executor(
-            None,
-            lambda: _ai_service.summarize(
-                SummaryRequest(title=doc_title, text=extracted_text)
-            )
-        )
-        elapsed = round(_t.time() - t0, 1)
         model = _ai_service.client.settings.model
+        print(f"[summary] ⏳ Mac 1 summarising — model={model} doc={doc_title}")
+        summary_response = await _async_summarize(doc_title, extracted_text)
+        elapsed = round(_t.time() - t0, 1)
         print(f"[upload] ✅ Mac 1 summary done — model={model} time={elapsed}s doc={doc_title}")
+    except Exception as e:
+        print(f"[upload] Mac 1 summary failed: {repr(e)} — falling back to legacy")
+
+    # ── Phase 2: Build ai_payload from summary ───────────────────────────────
+    if summary_response:
         ai_payload = {
             "summary": {
                 "body": summary_response.body,
@@ -553,17 +679,16 @@ async def upload_document(
             },
             "analysis": {"strengths": [], "weaknesses": [], "studyNext": []},
             "modules": [],
-            "quiz": [],   # quiz comes later via background task
+            "quiz": [],
         }
-    except Exception as e:
-        print(f"[upload] Mac 1 summary failed: {repr(e)} — using legacy path")
+    else:
+        # Legacy fallback — gets summary AND quiz in one shot
         ai_payload = await _generate_ai_payload(
             doc_title=doc_title, file_type=file_type,
             extracted_text=extracted_text, fallback_payload=fallback_payload,
         )
-        summary_response = None
 
-    # Phase 2b: save history immediately with summary (quiz will be added by background task)
+    # ── Phase 3: Save history immediately ───────────────────────────────────
     now = datetime.now(timezone.utc)
     seq_id = await _get_next_seq_id(user_id)
     history_doc = _build_history_doc(
@@ -574,7 +699,7 @@ async def upload_document(
     result = await history_collection.insert_one(history_doc)
     history_id = str(result.inserted_id)
 
-    # Phase 2c: fire quiz generation on Mac 2 in background thread
+    # ── Phase 4: Fire quiz on Mac 2 (deepseek) in background ────────────────
     quiz_job_id = None
     if summary_response:
         quiz_job_id = str(_uuid.uuid4())
@@ -587,7 +712,7 @@ async def upload_document(
         t.start()
         print(f"[upload] Mac 2 quiz queued — job_id={quiz_job_id}")
 
-    # Phase 3: return summary immediately — frontend polls for quiz
+    # ── Phase 5: Return immediately ──────────────────────────────────────────
     processed_at = _format_processed_time(now)
     response = _build_upload_response(
         history_id=history_id, seq_id=seq_id, doc_title=doc_title,
@@ -595,6 +720,6 @@ async def upload_document(
         word_estimate=word_estimate, ai_payload=ai_payload,
         processed_at=processed_at,
     )
-    response["quizJobId"] = quiz_job_id   # frontend polls /api/upload/quiz-status/{quizJobId}
-    response["quizReady"] = quiz_job_id is None  # True only if we used legacy path (quiz already in payload)
+    response["quizJobId"] = quiz_job_id
+    response["quizReady"] = quiz_job_id is None
     return response

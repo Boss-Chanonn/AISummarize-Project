@@ -207,6 +207,7 @@ let activeSession = null;     // { session_id, job_id, summaries }
 let quizQuestions = [];
 let quizAnswers = {};
 let quizSubmitted = false;
+let summaryVisible = false;   // show summary before quiz
 let cancelPoll = null;
 let prevDocs = [];
 
@@ -493,6 +494,50 @@ function renderSessionList() {
   `).join('');
 }
 
+// ── Summary section ──────────────────────────────────────────────────────────
+function renderSummarySection(resp) {
+  const area = document.getElementById('quiz-area');
+  if (!area) return;
+
+  const summaries = resp.slide_summaries || [];
+  const slideCount = summaries.length;
+
+  const slidesHtml = summaries.map(s => `
+    <div style="padding:16px 0;border-bottom:0.5px solid var(--border)">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:6px">Slide ${s.slide_number}</div>
+      <div style="font-family:var(--serif);font-size:16px;margin-bottom:8px;color:var(--cream)">${escapeHtml(s.summary_title || '')}</div>
+      <div style="font-size:13px;color:var(--cream-60);line-height:1.7;margin-bottom:10px">${escapeHtml(s.overview || '')}</div>
+      ${s.takeaways && s.takeaways.length ? `
+        <div style="display:flex;flex-direction:column;gap:5px">
+          ${s.takeaways.map(t => `<div style="display:flex;gap:8px;font-size:12px;color:var(--cream-40);line-height:1.6"><span style="color:var(--gold);flex-shrink:0">→</span>${escapeHtml(t)}</div>`).join('')}
+        </div>` : ''}
+    </div>
+  `).join('');
+
+  area.innerHTML = `
+    <div class="section-label" style="margin:24px 0 12px">Summary — ${escapeHtml(activeSession?.label || '')}</div>
+    <div style="border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;margin-bottom:24px">
+      <div style="padding:18px 24px;border-bottom:0.5px solid var(--border);background:rgba(200,184,154,0.03);display:flex;align-items:center;justify-content:space-between">
+        <div>
+          <div style="font-size:13px;font-weight:500;color:var(--cream-60)">Slides ${activeSession?.slideStart}–${activeSession?.slideEnd} · ${slideCount} slide${slideCount!==1?'s':''}</div>
+          <div style="font-size:11px;color:var(--cream-25);margin-top:2px">Read through each slide summary before taking the quiz</div>
+        </div>
+        <div id="quiz-ready-btn">
+          <div style="font-size:12px;color:var(--cream-25);font-style:italic">Quiz generating…</div>
+        </div>
+      </div>
+      <div style="padding:0 24px 8px">${slidesHtml}</div>
+    </div>
+  `;
+}
+
+function showQuizReadyButton() {
+  const btn = document.getElementById('quiz-ready-btn');
+  if (btn) {
+    btn.innerHTML = `<button class="btn btn-primary" onclick="summaryVisible=false;renderQuizArea()">Take quiz →</button>`;
+  }
+}
+
 // ── Quiz area ─────────────────────────────────────────────────────────────────
 function renderQuizArea() {
   const area = document.getElementById('quiz-area');
@@ -667,6 +712,7 @@ async function startSession() {
   quizQuestions = [];
   quizAnswers = {};
   quizSubmitted = false;
+  summaryVisible = false;
 
   try {
     const sessionNum = (activeDoc.sessions?.length || 0) + 1;
@@ -708,9 +754,12 @@ async function startSession() {
 
     if (resp.module_unlocked) activeDoc.module_unlocked = true;
 
+    // Show summary first — quiz loads in background while user reads
+    summaryVisible = true;
     renderActiveDoc();
+    renderSummarySection(resp);
 
-    // Poll for quiz
+    // Poll for quiz in background
     cancelPoll = pollForQuizPptx(resp.job_id, {
       onDone: (quiz) => {
         quizQuestions = (quiz.questions || []).map(q => ({
@@ -721,8 +770,14 @@ async function startSession() {
           topic: q.topic,
         }));
         activeSession.quizStatus = 'done';
-        renderQuizArea();
-        showToast(`Quiz ready — ${quizQuestions.length} questions for slides ${rangeStart}–${rangeEnd}`);
+        if (summaryVisible) {
+          // User is still reading summary — show a button to proceed to quiz
+          showQuizReadyButton();
+          showToast(`Quiz ready — click "Take quiz" when you're done reading`);
+        } else {
+          renderQuizArea();
+          showToast(`Quiz ready — ${quizQuestions.length} questions for slides ${rangeStart}–${rangeEnd}`);
+        }
       },
       onError: (msg) => {
         activeSession.quizStatus = 'error';
@@ -786,6 +841,10 @@ async function uploadPptx(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (!['ppt', 'pptx'].includes(ext)) { showToast('Only .pptx and .ppt files are supported'); return; }
   if (file.size > 10 * 1024 * 1024) { showToast('File exceeds 10 MB limit'); return; }
+  if (!isPro) {
+    renderProLock();
+    return;
+  }
 
   const titleGuess = file.name.replace(/\.(pptx?|PPTx?)$/, '');
   renderProcessing(titleGuess, '?', 5);
@@ -873,15 +932,20 @@ function countCoveredSlides(sessions) {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
-  if (!isPro) { renderProLock(); return; }
+  // Pro check: non-pro users see upload zone (same as free upload page)
+  // but session features (slide picker, quiz) are locked
   try {
-    prevDocs = await apiGet('/api/pptx/my-documents');
+    if (isPro) prevDocs = await apiGet('/api/pptx/my-documents');
   } catch (_) { prevDocs = []; }
 
   // Check if coming from a specific doc
   const params = new URLSearchParams(window.location.search);
   const docId = params.get('doc');
-  if (docId) { await loadDoc(docId); return; }
+  if (docId) {
+    if (!isPro) { renderProLock(); return; }
+    await loadDoc(docId);
+    return;
+  }
 
   renderUploadZone();
 }

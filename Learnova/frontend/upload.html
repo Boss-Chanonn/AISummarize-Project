@@ -94,6 +94,21 @@ let quizData = []; // populated from POST /api/upload
 
 let quizMode = false, currentQ = 0, answers = [], answered = false;
 
+/**
+ * Normalize and store quiz questions from upload/history responses.
+ * @param {object[] | undefined | null} questions
+ * @returns {object[]}
+ */
+function setQuizData(questions) {
+  quizData = Array.isArray(questions) ? questions : [];
+  if (currentDoc) {
+    currentDoc.quizData = quizData;
+    currentDoc.quizFull = quizData;
+    currentDoc.total = quizData.length || currentDoc.total || 8;
+  }
+  return quizData;
+}
+
 /* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
 /**
  * Check whether the current user has Pro tier enabled.
@@ -505,6 +520,7 @@ function switchToTextInput() {
 
 async function processDocument() {
   // Phase 1: Set initial loading UI state.
+  localStorage.removeItem('currentQuiz');
   showProcessingState();
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
@@ -617,9 +633,11 @@ function pollForUploadQuiz(jobId, historyId, btnQuiz) {
       var data = await res.json();
       if (data.status === 'done' && data.quiz && data.quiz.length) {
         clearInterval(interval);
-        localStorage.setItem('currentQuiz', JSON.stringify(data.quiz));
+        setQuizData(data.quiz);
+        localStorage.setItem('currentQuiz', JSON.stringify(quizData));
         btnQuiz.disabled = false;
         btnQuiz.textContent = 'Start quiz →';
+        if (!quizMode && currentDoc && currentDoc.summary) showSummary(currentDoc);
         showToast('Quiz ready — ' + data.quiz.length + ' questions generated');
       } else if (data.status === 'error') {
         clearInterval(interval);
@@ -688,10 +706,15 @@ function updateProcessingState(progress, activeIndex) {
  */
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
-  quizData = data.quizData || data.quizFull || [];
+  setQuizData(data.quizData || data.quizFull || []);
   setSummaryMode(true);
   renderDocumentInfo();
-  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, { ctaLabel: 'Take quiz →', ctaHandler: 'startQuiz()', ctaHint: quizData.length + ' questions ready' })}</div>`;
+  const quizReady = quizData.length > 0;
+  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
+    ctaLabel: quizReady ? 'Take quiz →' : 'Quiz generating…',
+    ctaHandler: quizReady ? 'startQuiz()' : "showToast('Quiz is still generating — this will update automatically')",
+    ctaHint: quizReady ? quizData.length + ' questions ready' : 'Quiz still generating'
+  })}</div>`;
   if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), summaryHTML, 'backward');
   else document.getElementById('right-panel').innerHTML = summaryHTML;
   syncCompactFile();
@@ -702,6 +725,17 @@ function showSummary(data) {
  * Start quiz mode and render first question.
  */
 function startQuiz() {
+  if (!quizData.length) {
+    try {
+      setQuizData(JSON.parse(localStorage.getItem('currentQuiz') || '[]'));
+    } catch (_) {
+      setQuizData([]);
+    }
+  }
+  if (!quizData.length) {
+    showToast('Quiz is still generating — please wait a moment');
+    return;
+  }
   quizMode = true; currentQ = 0; answers = []; answered = false;
   document.getElementById('btn-quiz').style.display = 'none';
   setUploadCollapsed(true);
@@ -715,6 +749,12 @@ function startQuiz() {
 function renderQuestion(direction='forward') {
   answered = false;
   const q = quizData[currentQ];
+  if (!q) {
+    quizMode = false;
+    showToast('Quiz is not ready yet');
+    showSummary(currentDoc);
+    return;
+  }
   const pct = Math.round((currentQ/quizData.length)*100);
   const html = `
     <div class="quiz-container">
@@ -886,6 +926,7 @@ function resetUpload() {
   document.getElementById('btn-process').style.display = 'none'; document.getElementById('btn-process').disabled = false;
   quizMode = false;
   resumedSession = false;
+  localStorage.removeItem('currentQuiz');
   currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
   quizData = [];
   setSummaryMode(false);
@@ -928,10 +969,11 @@ async function loadResumedQuizFlow() {
 
     // Store IDs so showQuizResults can submit the quiz
     localStorage.setItem('currentHistoryId', resumeId);
-    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
+    const resumedQuiz = item.quizFull || item.quizData || [];
+    if (resumedQuiz.length) localStorage.setItem('currentQuiz', JSON.stringify(resumedQuiz));
 
     resumedSession = true;
-    const qLen = (item.quizFull || []).length;
+    const qLen = resumedQuiz.length;
     currentDoc = {
       ...item,
       id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
@@ -940,7 +982,7 @@ async function loadResumedQuizFlow() {
       correct: null,
       total: qLen || item.total || 8
     };
-    quizData = item.quizFull || [];
+    setQuizData(resumedQuiz);
 
     if (!quizData.length) {
       console.error('[quiz] No quiz data found for history item:', resumeId);

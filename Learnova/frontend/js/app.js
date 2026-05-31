@@ -138,7 +138,7 @@ function applyFontSize(s) {
  * Load persisted theme/font-size preferences and apply to the page.
  */
 function loadPrefs() {
-  const t = localStorage.getItem('ln_theme') || 'dark';
+  const t = localStorage.getItem('ln_theme') || 'light';
   const s = localStorage.getItem('ln_fontsize') || 'default';
   applyTheme(t);
   applyFontSize(s);
@@ -405,7 +405,7 @@ function handleSidebarAccountAction(action) {
  */
 function openSettings(tab='general') {
   const currentTab = tab === 'plan' ? 'plan' : 'accessibility';
-  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const saved_theme = localStorage.getItem('ln_theme') || 'light';
 
   const themeSwatchItems = [
     { id:'dark',          label:'Dark',           dots:['#0A0A0A','#C8B89A','#6B9E6B'] },
@@ -749,6 +749,21 @@ function renderSidebar(activePage) {
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v4l2.5 1.5"/></svg>
       History
     </a>
+    ${isPro ? `
+    <div class="sidebar-section">Pro</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      Pro Features ✦
+    </a>
+    <a href="pptx-session.html" class="sidebar-item${activePage==='pptx'?' active':''}" data-page="pptx-session.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="2" width="14" height="11" rx="1.5"/><path d="M5 6h4M5 9h6"/><circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
+      PPTX Sessions
+    </a>` : `
+    <div class="sidebar-section">Upgrade</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html" style="color:var(--gold)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      Learnova Pro
+    </a>`}
     ${LEARNOVA_USER.role === 'admin' ? `
     <div class="sidebar-section">Admin</div>
     <a href="admin-users.html" class="sidebar-item${activePage==='admin-users'?' active':''}" data-page="admin-users.html">

@@ -18,10 +18,10 @@ class SummaryRequest(BaseModel):
 class SummaryResponse(BaseModel):
     summary_title: str = Field(..., min_length=1, max_length=200)
     authors: str = Field(default="Unknown authors", max_length=200)
-    overview: str = Field(..., min_length=80)
-    body: list[str] = Field(..., min_length=2, max_length=4)
-    takeaways: list[str] = Field(..., min_length=3, max_length=5)
-    topics: list[str] = Field(..., min_length=3, max_length=6)
+    overview: str = Field(default="", max_length=2000)
+    body: list[str] = Field(default_factory=list, max_length=4)
+    takeaways: list[str] = Field(default_factory=list, max_length=5)
+    topics: list[str] = Field(default_factory=list, max_length=6)
     chunks_used: int = Field(default=1, ge=1)
 
 
@@ -70,7 +70,7 @@ class AnalyzeResultsRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     summary: SummaryResponse
     questions: list[QuizQuestion] = Field(..., min_length=6, max_length=8)
-    answers: list[QuizAnswer] = Field(..., min_length=6, max_length=8)
+    answers: list[QuizAnswer] = Field(default_factory=list, max_length=8)
 
 
 class AnalyzeResultsResponse(BaseModel):
@@ -85,33 +85,33 @@ class AnalyzeResultsResponse(BaseModel):
 
 
 class MissedQuestion(BaseModel):
-    question: str = Field(..., min_length=12)
-    topic: str = Field(..., min_length=2, max_length=80)
-    user_answer: str = Field(..., min_length=1)
-    correct_answer: str = Field(..., min_length=1)
-    explanation: str = Field(..., min_length=20)
+    question: str = Field(..., min_length=1)
+    topic: str = Field(default="General", max_length=80)
+    user_answer: str = Field(default="Skipped")
+    correct_answer: str = Field(default="")
+    explanation: str = Field(default="")
 
 
 class LearningModuleRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     summary: SummaryResponse
-    weak_topics: list[str] = Field(..., min_length=1, max_length=4)
+    weak_topics: list[str] = Field(default_factory=list, max_length=4)
     missed_questions: list[MissedQuestion] = Field(default_factory=list, max_length=8)
 
 
 class LearningModuleSection(BaseModel):
-    topic: str = Field(..., min_length=2, max_length=80)
-    explanation: str = Field(..., min_length=50)
-    why_it_matters: str = Field(..., min_length=25)
-    practice_tip: str = Field(..., min_length=20)
+    topic: str = Field(..., min_length=1, max_length=80)
+    explanation: str = Field(default="", max_length=1000)
+    why_it_matters: str = Field(default="", max_length=500)
+    practice_tip: str = Field(default="", max_length=500)
 
 
 class LearningModuleResponse(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
-    description: str = Field(..., min_length=60)
-    focus_areas: list[str] = Field(..., min_length=2, max_length=4)
-    sections: list[LearningModuleSection] = Field(..., min_length=2, max_length=4)
-    study_plan: list[str] = Field(..., min_length=3, max_length=5)
+    description: str = Field(default="", max_length=2000)
+    focus_areas: list[str] = Field(default_factory=list, max_length=4)
+    sections: list[LearningModuleSection] = Field(default_factory=list, max_length=4)
+    study_plan: list[str] = Field(default_factory=list, max_length=5)
 
 
 class ResourceRecommendation(BaseModel):
@@ -126,7 +126,7 @@ class ResourceRecommendation(BaseModel):
 class ResourceRecommendationRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     summary: SummaryResponse
-    learning_module: LearningModuleResponse
+    learning_module: LearningModuleResponse | None = None
     weak_topics: list[str] = Field(default_factory=list, max_length=4)
 
 
@@ -137,8 +137,8 @@ class ResourceRecommendationResponse(BaseModel):
 class FollowUpQuizRequest(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     summary: SummaryResponse
-    weak_topics: list[str] = Field(..., min_length=1, max_length=4)
-    learning_module: LearningModuleResponse
+    weak_topics: list[str] = Field(default_factory=list, max_length=4)
+    learning_module: LearningModuleResponse | None = None
     previous_questions: list[str] = Field(default_factory=list)
     question_count: int = Field(default=6)
 

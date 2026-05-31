@@ -14,6 +14,7 @@ Key improvements over v1:
 from __future__ import annotations
 
 import json
+import os
 import re
 from collections import Counter
 from html import unescape
@@ -175,9 +176,10 @@ class AIService:
     def recommend_resources(
         self, payload: ResourceRecommendationRequest
     ) -> ResourceRecommendationResponse:
+        lm_focus = payload.learning_module.focus_areas[:3] if payload.learning_module else []
         target_topics = (
             payload.weak_topics[:3]
-            or payload.learning_module.focus_areas[:3]
+            or lm_focus
             or payload.summary.topics[:3]
         )
         resources: list[ResourceRecommendation] = []
@@ -361,44 +363,29 @@ Follow-up strengths: {followup.strengths}
     # ── Prompts ───────────────────────────────────────────────────────────────
 
     def _summary_prompt(self, title: str, text: str) -> str:
-        return f"""You are generating a learner-friendly academic summary for a study platform.
-Return strict JSON only with these exact keys:
-summary_title, authors, overview, body, takeaways, topics, chunks_used
+        return f"""Return JSON only. No markdown. No preamble. Keys: summary_title, authors, overview, body, takeaways, topics, chunks_used
 
-Field rules:
-- summary_title: concise title (max 100 chars). If the document has a clear title, use it.
-- authors: real names if found in the text, otherwise "Unknown authors".
-- overview: 2-3 sentences capturing the document's central argument or purpose. Be specific.
-- body: array of 2-4 paragraphs. Each paragraph must cover a distinct section of the document
-  (e.g. background, method, findings, implications). Do not repeat the overview.
-  Each paragraph must be 40-100 words.
-- takeaways: array of 3-5 strings. Each must be a specific, falsifiable claim from the document.
-  Good example: "The study found a 23% reduction in error rate when using method X."
-  Bad example: "The document covers important findings."
-- topics: array of 3-6 specific study topics a student should know after reading. Use noun phrases.
+- summary_title: document title, max 80 chars
+- authors: names from text, else "Unknown authors"
+- overview: 1-2 sentences, max 60 words
+- body: array of 2 strings, each max 50 words (background; findings)
+- takeaways: array of 3 strings, each max 20 words
+- topics: array of 3-4 short noun phrases
 - chunks_used: 1
 
-Document title: {title}
-Document text (full):
-\"\"\"{text[:5500]}\"\"\"
+Title: {title}
+Text: {text[:2500]}
 """
 
     def _chunk_summary_prompt(self, title: str, index: int, total: int, text: str) -> str:
-        return f"""You are summarizing chunk {index} of {total} from an academic document.
-Return strict JSON only with these exact keys:
-summary_title, authors, overview, body, takeaways, topics, chunks_used
-
-Rules:
-- Focus only on what this chunk covers — do not invent content from other parts.
-- body: exactly 2 paragraphs, each 40-80 words.
-- takeaways: exactly 3 specific claims from this chunk.
-- topics: 2-4 study topics found in this chunk.
-- authors: extract if visible, otherwise "Unknown authors".
+        return f"""Return JSON only. Keys: summary_title, authors, overview, body, takeaways, topics, chunks_used
+- body: 2 strings, each max 50 words
+- takeaways: 3 strings, each max 20 words
+- topics: 2-3 short noun phrases
 - chunks_used: 1
 
-Document title: {title}
-Chunk {index} of {total}:
-\"\"\"{text[:5500]}\"\"\"
+Title: {title} (chunk {index}/{total})
+Text: {text[:2500]}
 """
 
     def _merge_summary_prompt(self, title: str, chunk_summaries: list[SummaryResponse]) -> str:
@@ -443,9 +430,12 @@ Chunk summaries:
 
         module_context = ""
         if module and follow_up:
-            module_context = f"""
-Learning module focus areas: {', '.join(module.focus_areas)}
-Study plan: {'; '.join(module.study_plan[:3])}
+            focus = getattr(module, "focus_areas", []) or []
+            plan = getattr(module, "study_plan", []) or []
+            if focus:
+                module_context = f"""
+Learning module focus areas: {', '.join(focus)}
+Study plan: {'; '.join(plan[:3])}
 """
 
         return f"""You are writing a multiple-choice quiz for a study platform.
@@ -460,8 +450,7 @@ Question rules:
 - DIFFICULTY: {difficulty_desc}
 - Each question must have exactly 4 options (A, B, C, D).
 - correct_index is 0-3 (0=A, 1=B, 2=C, 3=D).
-- explanation must say WHY the correct answer is right AND why the most tempting wrong answer is wrong.
-  Minimum 25 words. Be specific to this document.
+- explanation: 15-25 words. Say why the correct answer is right; briefly note the main wrong option.
 - topic must be a specific noun phrase (2-6 words) from the document's subject matter.
   Bad: "general", "document", "content". Good: "experimental methodology", "carbon cycle feedback".
 - Questions must cover a spread of topics — no more than 2 questions on the same topic.
@@ -556,6 +545,8 @@ Missed questions (what the student got wrong):
 
         if model_type.__name__ == "SummaryResponse":
             normalized["chunks_used"] = int(normalized.get("chunks_used") or 1)
+        if model_type.__name__ == "LearningModuleResponse":
+            normalized = self._normalize_learning_module(normalized)
 
         return normalized
 
@@ -586,7 +577,56 @@ Missed questions (what the student got wrong):
         return normalized
 
     def _normalize_section(self, item: dict) -> dict:
-        return dict(item)
+        normalized = dict(item)
+        topic = str(normalized.get("topic") or "Core concept").strip()
+        normalized["topic"] = topic[:80]
+        normalized["explanation"] = self._pad_min_text(
+            normalized.get("explanation"),
+            f"Review how {topic} is described in the document and connect it to the main argument.",
+            50,
+        )
+        normalized["why_it_matters"] = self._pad_min_text(
+            normalized.get("why_it_matters"),
+            f"{topic} matters because it shapes how the document's evidence should be interpreted.",
+            25,
+        )
+        normalized["practice_tip"] = self._pad_min_text(
+            normalized.get("practice_tip"),
+            f"Summarise {topic} in your own words and write one example from the document.",
+            20,
+        )
+        return normalized
+
+    def _normalize_learning_module(self, normalized: dict) -> dict:
+        focus = normalized.get("focus_areas") or []
+        while len(focus) < 2:
+            focus.append("Core argument" if not focus else "Evidence and examples")
+        normalized["focus_areas"] = focus[:4]
+
+        sections = normalized.get("sections") or []
+        while len(sections) < 2:
+            topic = normalized["focus_areas"][len(sections) % len(normalized["focus_areas"])]
+            sections.append(self._normalize_section({"topic": topic}))
+        normalized["sections"] = sections[:4]
+
+        study_plan = normalized.get("study_plan") or []
+        while len(study_plan) < 3:
+            study_plan.append("Review one missed question, explain the correct answer, and connect it to the summary.")
+        normalized["study_plan"] = study_plan[:5]
+        normalized["description"] = self._pad_min_text(
+            normalized.get("description"),
+            "This targeted module turns your quiz feedback into focused revision tasks before the follow-up quiz.",
+            60,
+        )
+        return normalized
+
+    def _pad_min_text(self, value: object, fallback: str, min_length: int) -> str:
+        text = re.sub(r"\s+", " ", str(value or "").strip())
+        if not text:
+            text = fallback
+        while len(text) < min_length:
+            text = f"{text} {fallback}"
+        return text
 
     def _ensure_string_list(self, value: object, *, max_items: int) -> list[str]:
         if isinstance(value, list):
@@ -627,9 +667,14 @@ Missed questions (what the student got wrong):
     # ── Text helpers ──────────────────────────────────────────────────────────
 
     def _clean_text(self, text: str) -> str:
-        return re.sub(r"\s+", " ", text).strip()
+        cleaned = re.sub(r"\s+", " ", text).strip()
+        max_chars = int(os.getenv("AI_SUMMARY_MAX_CHARS", "7000"))
+        if max_chars > 0 and len(cleaned) > max_chars:
+            return cleaned[:max_chars].rsplit(" ", 1)[0]
+        return cleaned
 
-    def _chunk_text(self, text: str, chunk_size: int = 6000) -> list[str]:
+    def _chunk_text(self, text: str, chunk_size: int = 4000) -> list[str]:
+        chunk_size = int(os.getenv("AI_SUMMARY_CHUNK_SIZE", str(chunk_size)))
         if len(text) <= chunk_size:
             return [text]
         sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -794,32 +839,51 @@ Missed questions (what the student got wrong):
         return None
 
     def _search_article_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
+        # Try Wikipedia API first — returns a real article URL
         wiki = self._search_wikipedia_article(topic)
         if wiki:
             return wiki
-        return self._search_resource_variants(
+        # Try DuckDuckGo for .edu/.org articles
+        result = self._search_resource_variants(
             topic=topic,
             resource_type="article",
             queries=[
-                f"{title} {topic} explainer article",
-                f"{topic} site:openstax.org",
-                f"{topic} site:khanacademy.org",
+                f"{topic} overview site:khanacademy.org",
+                f"{topic} explained site:britannica.com",
+                f"{title} {topic} overview",
             ],
-            preferred_domains=["wikipedia.org", ".edu", ".org", "openstax.org", "khanacademy.org"],
+            preferred_domains=["khanacademy.org", "britannica.com", ".edu", ".org"],
         )
+        if result:
+            return result
+        # Fallback: Wikipedia search (always returns the search results page at minimum)
+        return self._build_article_fallback(topic)
 
     def _search_video_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
+        # Try direct YouTube scrape first (returns watch?v= URLs)
         youtube = self._search_youtube_video(f"{title} {topic} explainer", topic)
         if youtube:
             return youtube
-        return self._search_resource_variants(
+        # Fallback: DuckDuckGo for youtube.com/watch URLs
+        result = self._search_resource_variants(
             topic=topic,
             resource_type="video",
             queries=[
-                f"{title} {topic} site:youtube.com/watch",
-                f"{topic} explainer site:youtube.com/watch",
+                f"{topic} {title} site:youtube.com",
+                f"{topic} explainer tutorial site:youtube.com",
             ],
-            preferred_domains=["youtube.com", "youtu.be", "ted.com", "khanacademy.org"],
+            preferred_domains=["youtube.com", "youtu.be"],
+        )
+        if result and result.url and "watch?v=" in result.url:
+            return result
+        # Last resort: YouTube search page (at least this opens YouTube with results)
+        return ResourceRecommendation(
+            topic=topic,
+            title=f"{topic} — video explainer",
+            url=f"https://www.youtube.com/results?search_query={quote_plus(topic + ' ' + title + ' explained')}",
+            source="youtube.com",
+            snippet=f"YouTube search results for {topic} explainers.",
+            resource_type="video",
         )
 
     def _search_podcast_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
@@ -837,14 +901,14 @@ Missed questions (what the student got wrong):
         )
         if ddg_result:
             return ddg_result
-        from urllib.parse import quote_plus
-        search_url = f"https://podcasts.apple.com/search?term={quote_plus(topic + ' ' + title)}"
+        # Always-valid fallback: ListenNotes search page returns real episodes
+        search_url = f"https://www.listennotes.com/search/?q={quote_plus(topic + ' ' + title)}&type=episode"
         return ResourceRecommendation(
             topic=topic,
-            title=f"{topic}: educational podcast episodes",
+            title=f"{topic} — podcast episodes",
             url=search_url,
-            source="podcasts.apple.com",
-            snippet=f"Search Apple Podcasts for episodes covering {topic}.",
+            source="listennotes.com",
+            snippet=f"Educational podcast episodes covering {topic}.",
             resource_type="podcast",
         )
 
@@ -940,7 +1004,8 @@ Missed questions (what the student got wrong):
                     "User-Agent": (
                         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
                         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
-                    )
+                    ),
+                    "Accept-Language": "en-US,en;q=0.9",
                 },
             )
             with urlopen(req, timeout=18) as response:
@@ -948,21 +1013,62 @@ Missed questions (what the student got wrong):
         except (URLError, OSError):
             return None
 
-        candidates = re.findall(
-            r'"videoId":"(?P<video_id>[A-Za-z0-9_-]{11})".{0,400}?"title":\{"runs":\[\{"text":"(?P<title>[^"]+)"',
-            html, flags=re.S,
-        )
+        # Extract ytInitialData JSON blob — most reliable source of video IDs + titles
+        yt_data_match = re.search(r"var ytInitialData\s*=\s*(\{.+?\});\s*</script>", html, re.S)
+        candidates: list[tuple[str, str]] = []
+
+        if yt_data_match:
+            try:
+                yt_json = json.loads(yt_data_match.group(1))
+                # Walk the nested contents to find videoRenderer items
+                contents = (
+                    yt_json.get("contents", {})
+                    .get("twoColumnSearchResultsRenderer", {})
+                    .get("primaryContents", {})
+                    .get("sectionListRenderer", {})
+                    .get("contents", [])
+                )
+                for section in contents:
+                    items = (
+                        section.get("itemSectionRenderer", {})
+                        .get("contents", [])
+                    )
+                    for item in items:
+                        vr = item.get("videoRenderer", {})
+                        vid = vr.get("videoId", "")
+                        title_runs = vr.get("title", {}).get("runs", [])
+                        title_text = title_runs[0].get("text", "") if title_runs else ""
+                        if vid and title_text:
+                            candidates.append((vid, title_text))
+            except (json.JSONDecodeError, KeyError, IndexError):
+                pass
+
+        # Fallback regex patterns if JSON parse failed
+        if not candidates:
+            candidates = re.findall(
+                r'"videoId":"([A-Za-z0-9_-]{11})".{0,300}?"text":"([^"]{10,120})"',
+                html, flags=re.S,
+            )
+        if not candidates:
+            video_ids = re.findall(r'"videoId":"([A-Za-z0-9_-]{11})"', html)
+            titles = re.findall(r'"title":\{"runs":\[\{"text":"([^"]{10,120})"', html)
+            if video_ids and titles:
+                candidates = list(zip(video_ids, titles))
+
         if not candidates:
             return None
 
+        # Score candidates — lower threshold (1) since ytInitialData gives clean titles
         best: tuple[int, str, str] | None = None
-        for video_id, title_text in candidates[:12]:
+        for video_id, title_text in candidates[:15]:
             score = self._score_video_title_match(topic, title_text)
             if best is None or score > best[0]:
                 best = (score, video_id, title_text)
 
-        if best is None or best[0] < 2:
-            return None
+        if best is None or best[0] < 1:
+            # Just return the first result if nothing scores well
+            video_id, title_text = candidates[0]
+            best = (0, video_id, title_text)
 
         _, video_id, title_text = best
         return ResourceRecommendation(
@@ -970,7 +1076,7 @@ Missed questions (what the student got wrong):
             title=title_text,
             url=f"https://www.youtube.com/watch?v={video_id}",
             source="youtube.com",
-            snippet=f"Video matched to topic: {topic}.",
+            snippet=f"YouTube video covering {topic}.",
             resource_type="video",
         )
 
@@ -1003,13 +1109,29 @@ Missed questions (what the student got wrong):
         return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", unescape(value))).strip()
 
     def _build_article_fallback(self, topic: str) -> ResourceRecommendation:
-        slug = re.sub(r"\s+", "_", topic.strip())
+        # Try to get a real Wikipedia article URL via opensearch (not search page)
+        try:
+            wiki = self._search_wikipedia_article(topic)
+            if wiki:
+                return wiki
+        except Exception:
+            pass
+        # Try shortened topic (first 3 words) which matches more Wikipedia articles
+        short_topic = " ".join(topic.split()[:3])
+        try:
+            wiki = self._search_wikipedia_article(short_topic)
+            if wiki:
+                return wiki
+        except Exception:
+            pass
+        # Final fallback: Britannica search (better than Wikipedia search results page)
+        search_url = f"https://www.britannica.com/search?query={quote_plus(topic.strip())}"
         return ResourceRecommendation(
             topic=topic,
-            title=f"{topic} — overview",
-            url=f"https://en.wikipedia.org/wiki/{slug}",
-            source="wikipedia.org",
-            snippet=f"Reference page for {topic}.",
+            title=f"{topic} — reference article",
+            url=search_url,
+            source="britannica.com",
+            snippet=f"Reference article covering {topic}.",
             resource_type="article",
         )
 

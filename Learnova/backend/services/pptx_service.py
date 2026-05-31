@@ -21,6 +21,48 @@ from backend.services.ollama_client import OllamaClient, OllamaError, SummaryOll
 from backend.services.schemas import SummaryResponse
 
 
+def _generate_slide_json(client: OllamaClient, prompt: str) -> dict:
+    """
+    Call Ollama with think:False so reasoning models don't waste tokens
+    on chain-of-thought before writing the slide summary JSON.
+    """
+    import json as _json
+    from backend.services.ollama_client import OllamaError, _repair_truncated_json
+    import re as _re
+
+    payload = {
+        "model": client.settings.model,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "think": False,
+        "options": {
+            "temperature": 0.1,
+            "num_predict": 400,   # slide summaries are short — 400 tokens is plenty
+        },
+    }
+    raw_response = client._post("/api/generate", payload)
+    response_text = raw_response.get("response", "").strip()
+    if not response_text:
+        raise OllamaError("Empty response from Ollama for slide summary")
+
+    # Clean markdown fences
+    cleaned = response_text
+    if cleaned.startswith("```"):
+        cleaned = _re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
+        cleaned = _re.sub(r"\n?```\s*$", "", cleaned).strip()
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start != -1 and end != -1:
+        cleaned = cleaned[start:end + 1]
+
+    try:
+        return _json.loads(cleaned)
+    except _json.JSONDecodeError:
+        cleaned = _repair_truncated_json(cleaned)
+        return _json.loads(cleaned)
+
+
 # ── Per-slide data structures ─────────────────────────────────────────────────
 
 @dataclass
@@ -135,10 +177,12 @@ def _summarise_slide(
         slide_text=slide.full_text[:2000],   # cap to avoid token overflow
     )
 
+    # Temporarily patch think:False onto the client call
+    # by prepending a thin wrapper — ollama_client.generate_json reads its own payload
     errors: list[str] = []
     for _ in range(retries + 1):
         try:
-            raw = client.generate_json(prompt)
+            raw = _generate_slide_json(client, prompt)
             return SlideSummary(
                 slide_number=slide.slide_number,
                 summary_title=str(raw.get("summary_title", slide.title))[:80],

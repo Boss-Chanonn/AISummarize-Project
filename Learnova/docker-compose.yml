@@ -1,29 +1,12 @@
 services:
-  # Ollama service — runs local model server in Docker network
-  ollama:
-    image: ollama/ollama:latest
-    ports:
-      - "11434:11434"
-    volumes:
-      - ${HOME}/.ollama:/root/.ollama
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-
-  # Application service — runs the FastAPI backend
   app:
-    build: .                          # Build image from current directory (uses Dockerfile)
+    build: .
     ports:
-      - "8000:8000"                   # Map host port 8000 to container port 8000
+      - "8000:8000"
     env_file:
-      - .env                          # Load environment variables from .env file
+      - .env
     environment:
-      - PYTHONUNBUFFERED=1            # Flush Python print() output immediately
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - PYTHONUNBUFFERED=1
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
-      - .:/app                        # Mount current directory for hot reload during development
-    depends_on:
-      ollama:
-        condition: service_healthy
+      - .:/app
