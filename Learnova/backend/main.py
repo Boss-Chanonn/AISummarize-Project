@@ -189,11 +189,12 @@ async def startup_event():
         _check_ai_connections()
         print("✅ Learnova backend started")
 
-        # Start weekly email scheduler
+        # Start weekly email scheduler (Monday 08:00 NZST = UTC+12/13)
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
             from backend.database.db import users_collection as _uc, history_collection as _hc
-            _sched = AsyncIOScheduler()
+
+            _sched = AsyncIOScheduler(timezone="Pacific/Auckland")
             _sched.add_job(
                 send_weekly_reports_to_all,
                 "cron",
@@ -204,7 +205,22 @@ async def startup_event():
             )
             _sched.start()
             app.state.scheduler = _sched
-            print("[email] ✅ Weekly scheduler started — runs every Monday 08:00 UTC")
+            print("[email] ✅ Weekly scheduler started — runs every Monday 08:00 NZST")
+
+            # Catch-up: if we missed Monday 8am NZST this week, run now
+            try:
+                from zoneinfo import ZoneInfo
+                _nz_tz = ZoneInfo("Pacific/Auckland")
+                _nz_now = datetime.now(_nz_tz)
+                _nz_monday_8am = _nz_now.replace(hour=8, minute=0, second=0, microsecond=0)
+                _is_monday = _nz_now.weekday() == 0
+                _past_8am = _nz_now.hour >= 8
+                if (not _is_monday) or (_is_monday and _past_8am):
+                    print("[email] Monday 8am NZST already passed — running catch-up")
+                    import asyncio
+                    asyncio.ensure_future(send_weekly_reports_to_all(_uc, _hc))
+            except Exception:
+                print("[email] Could not check catch-up (zoneinfo may be unavailable)")
         except Exception as _se:
             print(f"[email] ⚠️  Scheduler failed: {_se}")
 
