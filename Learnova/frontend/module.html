@@ -1288,7 +1288,12 @@ async function initModulePage() {
       <div class="module-loading-text">Building your personalised study module…</div>
     </div>`;
 
-  await ensureLearningModule();
+  try {
+    await ensureLearningModule();
+  } catch (err) {
+    console.error('ensureLearningModule failed:', err);
+  }
+
   renderModuleHeader();
   renderResources();
   scheduledCount = resources.filter(r => r.scheduled).length;
