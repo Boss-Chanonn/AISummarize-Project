@@ -86,6 +86,9 @@
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 
 let uploadedFiles = [];
+let _multiQueue = [];       // files waiting to be processed
+let _multiResults = [];     // completed results [{title, historyId, success}]
+let _multiCurrent = 0;      // index of file currently processing
 let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
 let resumedSession = false;
 let processingTimer = null;
@@ -518,31 +521,136 @@ function switchToTextInput() {
   showToast('Paste your document text below');
 }
 
-async function processDocument() {
-  // Phase 1: Show doc info on left immediately, then start loading state
-  localStorage.removeItem('currentQuiz');
-  const file = uploadedFiles[0];
-  if (file) {
-    const ext = file.name.split('.').pop().toUpperCase();
-    const docTitle = file.name.replace(/[._-]/g, ' ').replace(/[A-Z]+$/i, '').trim() || file.name;
-    const sizeLabel = file.size > 1048576
-      ? (file.size/1048576).toFixed(1)+' MB'
-      : Math.round(file.size/1024)+' KB';
-    currentDoc = {
-      title: docTitle,
-      fileType: ext,
-      meta: ext + ' · ' + sizeLabel,
-      infoRows: [
-        ['File type', ext],
-        ['File size', sizeLabel],
-        ['Status', 'Processing…'],
-      ],
-    };
-    setSummaryMode(true);
-    renderDocumentInfo();
+async function processMultiQueue() {
+  _multiQueue = [...uploadedFiles];
+  _multiResults = [];
+  _multiCurrent = 0;
+  document.getElementById('btn-process').disabled = true;
+  setCurtain(true);
+
+  for (let i = 0; i < _multiQueue.length; i++) {
+    _multiCurrent = i;
+    const file = _multiQueue[i];
+    showMultiProgress(i, _multiQueue.length, file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+      const token = localStorage.getItem('token') || '';
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+      // Poll for quiz if needed
+      if (data.quizJobId && !data.quizReady) {
+        await pollQuizReady(data.quizJobId);
+      }
+
+      _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: data.historyId, success: true });
+    } catch (err) {
+      _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: null, success: false, error: err.message });
+    }
   }
+
+  showMultiComplete();
+}
+
+function showMultiProgress(current, total, filename) {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div style="padding:40px;max-width:600px;margin:0 auto">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">
+        Processing ${current + 1} of ${total}
+      </div>
+      <div style="font-family:var(--serif);font-size:28px;color:var(--cream);margin-bottom:8px">
+        ${escapeHtml(filename)}
+      </div>
+      <div style="font-size:13px;color:var(--cream-40);margin-bottom:32px">Generating summary and quiz…</div>
+      <div style="background:var(--border);border-radius:4px;height:3px;overflow:hidden">
+        <div style="height:100%;background:var(--gold);border-radius:4px;width:${Math.round(((current) / total) * 100)}%;transition:width 0.5s ease"></div>
+      </div>
+      <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px">
+        ${_multiResults.map(r => `
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--cream-60)">
+            <span style="color:${r.success ? 'var(--green)' : 'var(--red)'}">
+              ${r.success ? '✓' : '✗'}
+            </span>
+            ${escapeHtml(r.title)}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function showMultiComplete() {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  const succeeded = _multiResults.filter(r => r.success).length;
+  panel.innerHTML = `
+    <div style="padding:40px;max-width:600px;margin:0 auto">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">
+        All done
+      </div>
+      <div style="font-family:var(--serif);font-size:32px;color:var(--cream);margin-bottom:8px">
+        ${succeeded} of ${_multiResults.length} processed.
+      </div>
+      <div style="font-size:13px;color:var(--cream-40);margin-bottom:32px">
+        Your documents are saved to history. Take a quiz on any of them.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px">
+        ${_multiResults.map(r => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:0.5px solid var(--border);border-radius:var(--radius)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:16px">${r.success ? '✓' : '✗'}</span>
+              <span style="font-size:13px;color:var(--cream-60)">${escapeHtml(r.title)}</span>
+            </div>
+            ${r.success && r.historyId ? `
+              <a href="/results.html?id=${r.historyId}" style="font-size:12px;color:var(--gold);text-decoration:none">
+                Take quiz →
+              </a>
+            ` : `<span style="font-size:12px;color:var(--red)">Failed</span>`}
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>
+      <a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>
+    </div>
+  `;
+}
+
+async function pollQuizReady(jobId) {
+  const token = localStorage.getItem('token') || '';
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const res = await fetch('/api/upload/quiz-status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const d = await res.json();
+      if (d.status === 'done' || d.status === 'error') return;
+    } catch (_) {}
+  }
+}
+
+async function processDocument() {
+  // Multi-file: if Pro and more than 1 file, queue them all
+  if (isPro() && uploadedFiles.length > 1) {
+    await processMultiQueue();
+    return;
+  }
+  // Phase 1: Set initial loading UI state.
+  localStorage.removeItem('currentQuiz');
   showProcessingState();
   document.getElementById('btn-process').disabled = true;
+  const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
   const _token = localStorage.getItem('token') || '';
 
@@ -723,24 +831,12 @@ function updateProcessingState(progress, activeIndex) {
  * Render generated summary and prepare quiz entrypoint controls.
  * @param {object} data
  */
-function setCurtain(on) {
-  const layout = document.querySelector('.upload-layout');
-  if (!layout) return;
-  if (on) {
-    layout.classList.add('curtain-right');
-  } else {
-    layout.classList.remove('curtain-right');
-  }
-}
-
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
   setQuizData(data.quizData || data.quizFull || []);
   setSummaryMode(true);
   renderDocumentInfo();
   const quizReady = quizData.length > 0;
-  // Slide curtain: collapse left panel, summary takes full width
-  setCurtain(true);
   const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
     ctaLabel: quizReady ? 'Take quiz →' : 'Quiz generating…',
     ctaHandler: quizReady ? 'startQuiz()' : "showToast('Quiz is still generating — this will update automatically')",
@@ -865,9 +961,9 @@ async function showQuizResults() {
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>
         <circle cx="55" cy="55" r="40" fill="none" stroke="var(--gold)" stroke-width="7" stroke-linecap="round"
           stroke-dasharray="${circ}" stroke-dashoffset="${offset}" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>
-        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="var(--cream, #1C1917)" font-weight="600">${pct}%</text>
+        <text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor">${pct}%</text>
       </svg>
-      <div style="font-size:12px;color:var(--cream-60, rgba(28,25,23,0.76));margin-top:4px;font-weight:500">${correctCount} of ${quizData.length} correct</div>
+      <div style="font-size:12px;color:var(--cream-25);margin-top:4px">${correctCount} of ${quizData.length} correct</div>
     </div>
     <div style="display:flex;flex-direction:column;gap:6px;margin-bottom:20px" class="result-step">
       ${quizData.map((q,i) => {
@@ -946,7 +1042,6 @@ async function showQuizResults() {
  * Reset upload workspace and clear transient quiz/processing state.
  */
 function resetUpload() {
-  setCurtain(false);
   if (processingTimer) {
     clearInterval(processingTimer);
     processingTimer = null;

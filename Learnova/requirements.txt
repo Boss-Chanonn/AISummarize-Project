@@ -14,3 +14,5 @@ python-pptx
 httpx
 boto3
 slowapi
+apscheduler
+resend

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -15,6 +15,8 @@ from urllib import error as url_error
 from urllib import request as url_request
 
 from backend.services.ollama_client import QuizOllamaSettings, SummaryOllamaSettings
+from backend.services.email_service import send_weekly_reports_to_all
+from backend.middleware.auth_middleware import get_current_user
 
 load_dotenv()
 
@@ -184,8 +186,53 @@ async def startup_event():
         print("✅ Token blocklist TTL index ready")
         _check_ai_connections()
         print("✅ Learnova backend started")
+
+        # Start weekly email scheduler
+        try:
+            from apscheduler.schedulers.asyncio import AsyncIOScheduler
+            from backend.database.db import users_collection as _uc, history_collection as _hc
+            _sched = AsyncIOScheduler()
+            _sched.add_job(
+                send_weekly_reports_to_all,
+                "cron",
+                day_of_week="mon",
+                hour=8,
+                minute=0,
+                args=[_uc, _hc],
+            )
+            _sched.start()
+            app.state.scheduler = _sched
+            print("[email] ✅ Weekly scheduler started — runs every Monday 08:00 UTC")
+        except Exception as _se:
+            print(f"[email] ⚠️  Scheduler failed: {_se}")
+
     except Exception as e:
         print(f"❌ MongoDB connection failed: {e}")
+
+
+# ----------------------------- Email Endpoints -----------------------------
+@app.post("/api/email/send-weekly", tags=["email"])
+async def trigger_weekly_email(current_user: dict = Depends(get_current_user)):
+    from backend.services.email_service import gather_user_stats, send_weekly_report
+    from backend.database.db import history_collection
+    user_id = str(current_user["_id"])
+    email = current_user.get("email", "")
+    name = current_user.get("name", current_user.get("username", "Learner"))
+    stats = await gather_user_stats(user_id, history_collection)
+    ok = await send_weekly_report(email, name, stats)
+    return {"sent": ok, "email": email, "stats": stats}
+
+
+@app.get("/api/email/preview", tags=["email"])
+async def preview_weekly_email(current_user: dict = Depends(get_current_user)):
+    from backend.services.email_service import gather_user_stats, _build_email_html
+    from backend.database.db import history_collection
+    from fastapi.responses import HTMLResponse
+    user_id = str(current_user["_id"])
+    name = current_user.get("name", current_user.get("username", "Learner"))
+    stats = await gather_user_stats(user_id, history_collection)
+    html = _build_email_html(name, stats)
+    return HTMLResponse(content=html)
 
 
 # ----------------------------- Frontend Hosting -----------------------------
