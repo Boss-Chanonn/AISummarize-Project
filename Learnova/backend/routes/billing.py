@@ -88,6 +88,16 @@ async def confirm_payment(
         }}
     )
 
+    # Send Pro welcome email in background
+    try:
+        from backend.services.email_service import send_pro_welcome_email
+        import asyncio
+        email = current_user.get("email", "")
+        name = current_user.get("name", current_user.get("username", "Learner"))
+        asyncio.ensure_future(send_pro_welcome_email(email, name, payment.plan_type))
+    except Exception:
+        pass
+
     return {
         "success": True,
         "message": "Payment successful",

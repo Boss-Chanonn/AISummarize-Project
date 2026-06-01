@@ -191,6 +191,68 @@ async def send_welcome_email(user_email: str, user_name: str) -> bool:
     return await _send_email(user_email, subject, html)
 
 
+async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str) -> bool:
+    """Send a welcome email when a user upgrades to Pro."""
+    html = _build_pro_welcome_email_html(user_name, plan_type)
+    label = "Monthly" if plan_type == "monthly" else "Yearly"
+    subject = f"You're now a Learnova Pro, {user_name}! 🚀"
+    return await _send_email(user_email, subject, html)
+
+
+def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
+    label = "Monthly" if plan_type == "monthly" else "Yearly"
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body {{ font-family: Georgia, serif; background: #F7F5F2; margin: 0; padding: 0; color: #1C1917; }}
+  .wrap {{ max-width: 580px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; }}
+  .header {{ background: linear-gradient(135deg,#1C1917,#2D2A27); padding: 40px; text-align: center; }}
+  .header h1 {{ color: #C8B89A; font-size: 28px; margin: 0; }}
+  .header .badge {{ display: inline-block; background: #C8B89A; color: #1C1917; font-size: 11px;
+          letter-spacing: 2px; text-transform: uppercase; padding: 4px 12px; border-radius: 12px; margin-top: 12px; }}
+  .body {{ padding: 36px 40px; }}
+  .greeting {{ font-size: 20px; margin-bottom: 16px; }}
+  .perks {{ list-style: none; padding: 0; margin: 24px 0; }}
+  .perks li {{ padding: 10px 0; border-bottom: 1px solid #E5E0D8; font-size: 14px; color: #1C1917; }}
+  .perks li::before {{ content: "✓ "; color: #6E512B; font-weight: bold; }}
+  .cta {{ display: block; background: #1C1917; color: #C8B89A !important; text-decoration: none;
+          text-align: center; padding: 14px; border-radius: 8px; font-size: 15px; margin-top: 32px; }}
+  .footer {{ padding: 20px 40px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Learnova ✦</h1>
+    <div class="badge">Pro · {label}</div>
+  </div>
+  <div class="body">
+    <div class="greeting">You're a Pro now, {name}!</div>
+    <p style="font-size:14px;color:#6B7280;line-height:1.6">
+      Thanks for upgrading. Here's what you've unlocked:
+    </p>
+    <ul class="perks">
+      <li>Upload PPTX files for summarisation</li>
+      <li>Upload up to 3 files at once</li>
+      <li>Priority processing on both AI models</li>
+      <li>Full study history and analytics</li>
+      <li>Calendar integration with Apple & Google</li>
+    </ul>
+    <a href="http://localhost:8000/upload.html" class="cta">Upload your first PPTX →</a>
+  </div>
+  <div class="footer">
+    Learnova · AI-Powered Learning Platform<br>
+    {label} plan · cancel anytime
+  </div>
+</div>
+</body>
+</html>"""
+
+
 def _build_welcome_email_html(name: str) -> str:
     return f"""
 <!DOCTYPE html>
