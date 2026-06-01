@@ -677,7 +677,7 @@ async function confirmSchedule() {
       return;
     }
     if (data.ics_url) {
-      var token = localStorage.getItem('token') || '';
+      token = localStorage.getItem('token') || '';
       fetch(data.ics_url, { headers: { 'Authorization': 'Bearer ' + token } })
         .then(function(r){ return r.blob(); })
         .then(function(blob){
