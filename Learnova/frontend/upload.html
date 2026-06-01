@@ -659,14 +659,14 @@ async function showMultiFinalResults() {
     if (!rd) {
       var s = JSON.parse(localStorage.getItem('_multiSaved_' + idx) || '{}');
       return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
-        '<div class="results-header" style="padding:0;margin-bottom:20px">' +
+        '<div class="results-header" style="padding:0;margin-bottom:20px;gap:24px">' +
           '<div><div class="rh-tag" style="margin-bottom:4px">File ' + (idx + 1) + '</div>' +
           '<div class="rh-title" style="font-size:16px">' + escapeHtml(fileName) + '</div></div>' +
-          '<div class="score-wrap" style="transform:scale(0.6);transform-origin:right center">' +
-            '<svg width="110" height="110" viewBox="0 0 110 110">' +
+          '<div class="score-wrap" style="flex-shrink:0">' +
+            '<svg width="90" height="90" viewBox="0 0 110 110">' +
               '<circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>' +
               '<circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="0" transform="rotate(-90 55 55)"/>' +
-              '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="24" fill="currentColor" font-weight="600">' + (s.score || 0) + '%</text>' +
+              '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor" font-weight="600">' + (s.score || 0) + '%</text>' +
             '</svg>' +
             '<div class="ring-label" style="font-size:11px">' + (s.correct || 0) + ' of ' + (s.total || 8) + ' correct</div>' +
           '</div></div>' +
@@ -706,17 +706,17 @@ async function showMultiFinalResults() {
 
     var ringOffset = 251.2 - (pct / 100) * 251.2;
     return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
-      '<div class="results-header" style="padding:0;margin-bottom:20px">' +
+      '<div class="results-header" style="padding:0;margin-bottom:20px;gap:24px">' +
         '<div><div class="rh-tag" style="margin-bottom:4px">File ' + (idx + 1) + '</div>' +
         '<div class="rh-title" style="font-size:16px">' + escapeHtml(fileName) + '</div>' +
         '<div class="rh-doc" style="margin-top:2px">' + escapeHtml(rd.title || '') + ' · ' + total + ' questions</div></div>' +
-        '<div class="score-wrap" style="transform:scale(0.6);transform-origin:right center">' +
-          '<svg width="110" height="110" viewBox="0 0 110 110">' +
+        '<div class="score-wrap" style="flex-shrink:0">' +
+          '<svg width="90" height="90" viewBox="0 0 110 110">' +
             '<circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>' +
             '<circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="' + ringOffset + '" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>' +
-            '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="24" fill="currentColor" font-weight="600">' + pct + '%</text>' +
+            '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor" font-weight="600">' + pct + '%</text>' +
           '</svg>' +
-          '<div class="ring-label" style="font-size:11px">' + correct + ' of ' + total + ' correct</div>' +
+          '<div class="ring-label">' + correct + ' of ' + total + ' correct</div>' +
         '</div></div>' +
       '<div class="feedback-panels" style="margin-bottom:24px">' + fbPanels + '</div>' +
       '<div class="section-label">Question breakdown</div>' +

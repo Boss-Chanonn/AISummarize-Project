@@ -481,7 +481,7 @@ function sendSummaryEmail() {
     if (data.sent) showToast('Summary sent to your email');
     else showToast('Could not send email');
   })
-  .catch(function(){ showToast('Could not send email'); });
+  .catch(function(e){ console.error('sendSummaryEmail error:', e); showToast('Could not send email'); });
 }
         </div>
       </div>
