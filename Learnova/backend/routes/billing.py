@@ -1,3 +1,14 @@
+"""
+routes/billing.py — Subscription & Billing Management
+======================================================
+Handles Pro plan upgrades, payment confirmation (mock), and downgrades.
+Tier information is stored on the user document in MongoDB.
+The payment flow is a simulation — no real payment gateway integration.
+
+Cross-reference: User tier gates appear in routes/upload.py (file type allowances),
+                 routes/pptx.py (Pro-only uploads), and the auth middleware.
+"""
+
 from fastapi import APIRouter, Depends, HTTPException
 from backend.models.user import UpgradeRequest, PaymentConfirm
 from backend.database.db import users_collection
@@ -9,12 +20,12 @@ router = APIRouter()
 
 # ----------------------------- Billing Helpers -----------------------------
 def _bad_request(detail: str) -> None:
-    """Raise a standardized 400 HTTPException with unchanged detail schema."""
+    """Raise a standardized 400 HTTPException (avoids importing message_error everywhere)."""
     raise HTTPException(status_code=400, detail=detail)
 
 
 def _resolve_plan_details(plan_type: str) -> tuple[float, int]:
-    """Return (amount, expiration_days) for a plan type or raise 400 error."""
+    """Return (amount_in_usd, expiration_days) for a plan type, or raise 400."""
     if plan_type == "monthly":
         return 12.99, 30
     if plan_type == "yearly":
@@ -23,11 +34,13 @@ def _resolve_plan_details(plan_type: str) -> tuple[float, int]:
 
 
 # ----------------------------- Billing Endpoints -----------------------------
+
+# GET /status — check current plan details
 @router.get("/status")
 async def get_billing_status(
     current_user: dict = Depends(get_current_user)
 ):
-    """Return current user tier and plan information."""
+    """GET /status — return current user tier and plan information from their profile."""
     return {
         "tier": current_user.get("tier", "free"),
         "plan_type": current_user.get("plan_type", ""),
@@ -36,12 +49,17 @@ async def get_billing_status(
     }
 
 
+# POST /upgrade — preview upgrade cost before confirming
 @router.post("/upgrade")
 async def initiate_upgrade(
     request: UpgradeRequest,
     current_user: dict = Depends(get_current_user)
 ):
-    """Return payment summary before final confirmation step."""
+    """
+    POST /upgrade — return a payment summary before the user confirms.
+    Does NOT change the user's tier — that happens at /confirm.
+    Rejects if the user is already on Pro.
+    """
     if current_user.get("tier") == "pro":
         _bad_request("Already on Pro plan")
 
@@ -60,23 +78,28 @@ async def initiate_upgrade(
     }
 
 
+# POST /confirm — mock payment confirmation, upgrade to Pro
 @router.post("/confirm")
 async def confirm_payment(
     payment: PaymentConfirm,
     current_user: dict = Depends(get_current_user)
 ):
     """
-    MOCK payment confirmation.
-    In production this would verify with a payment gateway.
-    For now: always succeeds and upgrades user to Pro.
-    NEVER stores full card number — only last 4 digits.
+    POST /confirm — MOCK payment confirmation.
+
+    In production this would verify with Stripe or a similar payment gateway.
+    For the capstone: always succeeds. Sets tier="pro", stores plan type,
+    start/expiry dates, and the last 4 digits of the card.
+
+    SECURITY NOTE: Only the last 4 digits of the card number are stored;
+    full card numbers are never persisted.
     """
     amount, expires_days = _resolve_plan_details(payment.plan_type)
 
     now = datetime.utcnow()
     expires = now + timedelta(days=expires_days)
 
-    # Update user in MongoDB — only last 4 digits of card are stored
+    # ── Upgrade user in MongoDB ──
     await users_collection.update_one(
         {"_id": current_user["_id"]},
         {"$set": {
@@ -88,7 +111,7 @@ async def confirm_payment(
         }}
     )
 
-    # Send Pro welcome email in background
+    # ── Fire-and-forget Pro welcome email (best-effort) ──
     try:
         from backend.services.email_service import send_pro_welcome_email
         import asyncio
@@ -109,11 +132,12 @@ async def confirm_payment(
     }
 
 
+# POST /downgrade — revert from Pro back to Free
 @router.post("/downgrade")
 async def downgrade_to_free(
     current_user: dict = Depends(get_current_user)
 ):
-    """Downgrade current user from Pro back to Free tier."""
+    """POST /downgrade — revert the current user from Pro back to Free tier."""
     await users_collection.update_one(
         {"_id": current_user["_id"]},
         {"$set": {

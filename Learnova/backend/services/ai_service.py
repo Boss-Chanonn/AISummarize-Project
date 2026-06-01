@@ -45,7 +45,7 @@ from .schemas import (
     SummaryResponse,
 )
 
-ModelT = TypeVar("ModelT", bound=BaseModel)
+ModelT = TypeVar("ModelT", bound=BaseModel)  # Generic bound for structured output parsing
 
 # ── Difficulty descriptors ────────────────────────────────────────────────────
 _DIFFICULTY_DESCRIPTORS: dict[str, str] = {
@@ -75,17 +75,53 @@ _DEFAULT_DIFFICULTY = "intermediate"
 
 
 class AIService:
+    """Central AI orchestration layer for Learnova.
+
+    Manages two OllamaClient instances:
+      - client (Mac 1 / gpt-oss) for summarisation, analysis, and learning modules
+      - quiz_client (Mac 2 / deepseek-r1:8b) for quiz generation
+
+    Every public method accepts a Pydantic request model and returns a Pydantic
+    response model, ensuring type safety and validation throughout the pipeline.
+
+    Cross-references:
+      - Most methods delegate prompt construction to private _*_prompt() methods.
+      - Response normalisation is handled by _normalize_model_payload().
+      - Resource search uses DuckDuckGo HTML scraping and YouTube search.
+    """
+
     def __init__(
         self,
         client: OllamaClient | None = None,
         quiz_client: OllamaClient | None = None,
     ) -> None:
+        """Initialise with two optional Ollama clients.
+
+        If not provided, defaults are created:
+          - client:      SummaryOllamaSettings() → gpt-oss on Mac 1
+          - quiz_client: QuizOllamaSettings()    → deepseek-r1:8b on Mac 2
+        """
         self.client      = client      or OllamaClient(SummaryOllamaSettings())  # Mac 1 — gpt-oss
         self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek
 
     # ── Public API ────────────────────────────────────────────────────────────
 
     def summarize(self, payload: SummaryRequest) -> SummaryResponse:
+        """Generate an AI summary of the given document.
+
+        For long documents (> 4000 chars), the text is split into chunks,
+        each chunk is summarised independently, and the chunk summaries are
+        merged into a single cohesive summary.
+
+        Args:
+            payload: SummaryRequest with text (min 200 chars) and optional title.
+
+        Returns:
+            SummaryResponse with overview, body, takeaways, topics, etc.
+
+        Raises:
+            ValueError: If the cleaned text is shorter than 200 characters.
+        """
         text = self._clean_text(payload.text)
         if len(text) < 200:
             raise ValueError("Document text is too short. Provide at least 200 characters.")
@@ -112,6 +148,14 @@ class AIService:
         return merged.model_copy(update={"chunks_used": len(chunks)})
 
     def generate_quiz(self, payload: QuizRequest) -> QuizResponse:
+        """Generate a multiple-choice quiz based on a document summary.
+
+        Args:
+            payload: QuizRequest with summary, difficulty, question count, etc.
+
+        Returns:
+            QuizResponse with generated questions, each having 4 options.
+        """
         question_count = max(6, min(8, payload.question_count))
         prompt = self._quiz_prompt(
             title=payload.title,
@@ -126,6 +170,18 @@ class AIService:
         return response.model_copy(update={"question_count": question_count})
 
     def analyze_results(self, payload: AnalyzeResultsRequest) -> AnalyzeResultsResponse:
+        """Score the user's quiz answers and derive AI-powered strengths/weaknesses.
+
+        Delegates to the AI for rich analysis (v2 improvement over simple topic counting)
+        but falls back to Python logic (_derive_strengths, _derive_weak_topics) if the
+        AI call fails.
+
+        Args:
+            payload: AnalyzeResultsRequest with questions and user answers.
+
+        Returns:
+            AnalyzeResultsResponse with score, strengths, weaknesses, and review.
+        """
         review = self._build_reviewed_questions(payload)
         correct_count = sum(1 for item in review if item.is_correct)
         total_questions = len(review)
@@ -151,10 +207,32 @@ class AIService:
         )
 
     def generate_learning_module(self, payload: LearningModuleRequest) -> LearningModuleResponse:
+        """Generate a targeted revision module for the student's weak areas.
+
+        The AI creates focus areas, explanation sections, and a study plan
+        grounded in the specific questions the student got wrong.
+
+        Args:
+            payload: LearningModuleRequest with missed questions and weak topics.
+
+        Returns:
+            LearningModuleResponse with sections and study plan.
+        """
         prompt = self._learning_module_prompt(payload)
         return self._generate_structured(prompt, LearningModuleResponse)
 
     def generate_follow_up_quiz(self, payload: FollowUpQuizRequest) -> FollowUpQuizResponse:
+        """Generate a follow-up quiz targeting the student's previously weak topics.
+
+        Uses "targeted remediation" difficulty — every question directly addresses
+        a topic the student got wrong before, from a different angle.
+
+        Args:
+            payload: FollowUpQuizRequest with weak topics and previous questions.
+
+        Returns:
+            FollowUpQuizResponse with questions + target_topics field.
+        """
         question_count = max(6, min(8, payload.question_count))
         prompt = self._quiz_prompt(
             title=payload.title,
@@ -176,6 +254,17 @@ class AIService:
     def recommend_resources(
         self, payload: ResourceRecommendationRequest
     ) -> ResourceRecommendationResponse:
+        """Search for external learning resources (articles, videos, podcasts).
+
+        Searches DuckDuckGo HTML results, YouTube, ListenNotes, and Wikipedia
+        for each relevant topic. Deduplicates by URL and caps at 4 resources.
+
+        Args:
+            payload: ResourceRecommendationRequest with weak topics / module.
+
+        Returns:
+            ResourceRecommendationResponse with up to 4 deduplicated resources.
+        """
         # Safe topic extraction — learning_module may be None
         lm_focus = []
         if payload.learning_module and hasattr(payload.learning_module, "focus_areas"):
@@ -237,6 +326,18 @@ class AIService:
         return ResourceRecommendationResponse(resources=deduped)
 
     def compare_progress(self, payload: CompareProgressRequest) -> CompareProgressResponse:
+        """Compare the student's initial and follow-up quiz results.
+
+        First attempts AI-powered analysis (_ai_compare_progress) for a rich
+        narrative. Falls back to set-based Python logic (topic subtraction +
+        score delta) if the AI call fails.
+
+        Args:
+            payload: CompareProgressRequest with initial and follow-up results.
+
+        Returns:
+            CompareProgressResponse with score_delta, improved/remaining topics, etc.
+        """
         # Use AI for meaningful progress insight instead of pure set subtraction
         analysis = self._ai_compare_progress(payload)
         if analysis:
@@ -266,6 +367,24 @@ class AIService:
         retries: int = 2,
         use_quiz_client: bool = False,
     ) -> ModelT:
+        """Send a prompt to Ollama and parse the response into a Pydantic model.
+
+        Retries up to `retries` times (default 2) on OllamaError or ValidationError.
+        Uses the quiz_client (Mac 2 / deepseek) when use_quiz_client is True,
+        otherwise uses the default client (Mac 1 / gpt-oss).
+
+        Args:
+            prompt:      The full prompt string for the AI model.
+            model_type:  The Pydantic model class to validate against.
+            retries:     Number of additional retries on failure.
+            use_quiz_client: If True, uses quiz_client instead of the default client.
+
+        Returns:
+            An instance of model_type with validated data.
+
+        Raises:
+            ValueError: If all retries are exhausted without valid output.
+        """
         errors: list[str] = []
         for _ in range(retries + 1):
             try:
@@ -695,6 +814,17 @@ Missed questions (what the student got wrong):
     # ── Text helpers ──────────────────────────────────────────────────────────
 
     def _clean_text(self, text: str) -> str:
+        """Normalise whitespace and truncate to the configured max character limit.
+
+        Reads AI_SUMMARY_MAX_CHARS from env (default 12000). Truncation
+        happens at the last space before the limit to avoid word-splitting.
+
+        Args:
+            text: Raw input text from the user.
+
+        Returns:
+            Cleaned and truncated text string.
+        """
         cleaned = re.sub(r"\s+", " ", text).strip()
         max_chars = int(os.getenv("AI_SUMMARY_MAX_CHARS", "12000"))
         if max_chars > 0 and len(cleaned) > max_chars:
@@ -702,6 +832,18 @@ Missed questions (what the student got wrong):
         return cleaned
 
     def _chunk_text(self, text: str, chunk_size: int = 4000) -> list[str]:
+        """Split long text into sentence-aware chunks for batch processing.
+
+        Reads AI_SUMMARY_CHUNK_SIZE from env (default 4000). Splits on
+        sentence boundaries to keep paragraphs intact where possible.
+
+        Args:
+            text:       The cleaned document text.
+            chunk_size: Target size per chunk in characters.
+
+        Returns:
+            List of text chunks, each ≤ chunk_size characters.
+        """
         chunk_size = int(os.getenv("AI_SUMMARY_CHUNK_SIZE", str(chunk_size)))
         if len(text) <= chunk_size:
             return [text]
@@ -721,6 +863,17 @@ Missed questions (what the student got wrong):
     # ── Analysis helpers ──────────────────────────────────────────────────────
 
     def _build_reviewed_questions(self, payload: AnalyzeResultsRequest) -> list[ReviewedQuestion]:
+        """Pair each quiz question with the user's answer and mark correctness.
+
+        Matches answers to questions by index. Unanswered questions are marked
+        as "Skipped" with chosen_index = -1.
+
+        Args:
+            payload: AnalyzeResultsRequest containing questions and user answers.
+
+        Returns:
+            List of ReviewedQuestion objects.
+        """
         reviewed: list[ReviewedQuestion] = []
         answers_by_index = {item.question_index: item for item in payload.answers}
         for index, question in enumerate(payload.questions):
@@ -741,6 +894,17 @@ Missed questions (what the student got wrong):
     def _derive_strengths(
         self, reviewed_questions: list[ReviewedQuestion], fallback_topics: list[str]
     ) -> list[str]:
+        """Identify the student's strongest topics by counting correct answers.
+
+        Falls back to the first 2 summary topics if no questions were correct.
+
+        Args:
+            reviewed_questions: List of ReviewedQuestion with is_correct flags.
+            fallback_topics:    Topics from the document summary to use as fallback.
+
+        Returns:
+            Up to 4 topic names the student performed well on.
+        """
         correct_topics = [item.topic for item in reviewed_questions if item.is_correct]
         ranked = [topic for topic, _ in Counter(correct_topics).most_common(4)]
         return ranked or fallback_topics[:2]
@@ -748,6 +912,19 @@ Missed questions (what the student got wrong):
     def _derive_weak_topics(
         self, reviewed_questions: list[ReviewedQuestion], fallback_topics: list[str]
     ) -> list[str]:
+        """Identify the student's weakest topics by counting incorrect answers.
+
+        If fewer than 2 wrong topics are found, supplements with a mix of
+        fallback topics and the student's correct topics to ensure at least
+        4 candidates are returned.
+
+        Args:
+            reviewed_questions: List of ReviewedQuestion with is_correct flags.
+            fallback_topics:    Topics from the document summary.
+
+        Returns:
+            Up to 4 topic names the student needs to improve on.
+        """
         wrong_topics = [item.topic for item in reviewed_questions if not item.is_correct]
         if not wrong_topics:
             return []
@@ -765,6 +942,15 @@ Missed questions (what the student got wrong):
         return candidates[:4] or ["Core concepts", "Key findings"]
 
     def _derive_recommendations(self, weak_topics: list[str], summary_topics: list[str]) -> list[str]:
+        """Generate generic study recommendations when AI analysis is unavailable.
+
+        Args:
+            weak_topics:    List of weak topic names.
+            summary_topics: Topics from the document summary.
+
+        Returns:
+            Up to 4 recommendation strings.
+        """
         if not weak_topics:
             return [
                 "No urgent revision needed. Review the summary once to keep recall fresh.",
@@ -776,6 +962,19 @@ Missed questions (what the student got wrong):
     def _build_improvement_summary(
         self, score_delta: int, improved: list[str], remaining: list[str]
     ) -> str:
+        """Build a human-readable improvement summary for progress comparison.
+
+        Handles four scenarios: improved with specific topics, improved without specifics,
+        no improvement with remaining weak areas, and stable performance.
+
+        Args:
+            score_delta: Change in score percentage (may be negative).
+            improved:    Topics the student improved on.
+            remaining:   Topics still needing work.
+
+        Returns:
+            A 1-2 sentence summary string.
+        """
         if score_delta > 0 and improved:
             return (
                 f"Your follow-up quiz improved by {score_delta} points. "
@@ -791,6 +990,15 @@ Missed questions (what the student got wrong):
         return "The follow-up quiz kept performance stable, but more targeted revision is still recommended."
 
     def _build_next_steps(self, improved: list[str], remaining: list[str]) -> list[str]:
+        """Generate next-step recommendations based on progress comparison.
+
+        Args:
+            improved:  Topics the student improved on.
+            remaining: Topics still needing work.
+
+        Returns:
+            Up to 4 actionable next-step strings.
+        """
         steps: list[str] = []
         if improved:
             steps.append(f"Keep reinforcing {improved[0]} with another short recall session.")
@@ -810,16 +1018,32 @@ Missed questions (what the student got wrong):
         topic: str,
         preferred_domains: list[str],
     ) -> ResourceRecommendation | None:
+        """Search DuckDuckGo HTML results for a matching resource.
+
+        Parses the DuckDuckGo HTML result page looking for result links with
+        titles and snippets. Filters by preferred_domains if specified.
+
+        Args:
+            query:            Full search query string.
+            resource_type:    One of "article", "video", "podcast".
+            topic:            The topic label for the recommendation.
+            preferred_domains: List of domain tokens to filter by (e.g. ["khanacademy.org"]).
+
+        Returns:
+            ResourceRecommendation if a match is found, None otherwise.
+        """
         try:
             html = self._fetch_search_results(query)
         except (URLError, OSError):
             return None
 
+        # Try to match results with both title and snippet
         matches = re.findall(
             r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>.*?'
             r'<a[^>]+class="result__snippet"[^>]*>(?P<snippet>.*?)</a>',
             html, flags=re.S,
         )
+        # Fallback: match title only if snippet pattern doesn't match
         if not matches:
             matches = re.findall(
                 r'<a[^>]+class="result__a"[^>]+href="(?P<href>[^"]+)"[^>]*>(?P<title>.*?)</a>',
@@ -855,6 +1079,17 @@ Missed questions (what the student got wrong):
         queries: list[str],
         preferred_domains: list[str],
     ) -> ResourceRecommendation | None:
+        """Try multiple search queries for a resource type and return the first match.
+
+        Args:
+            topic:             Topic label for the recommendation.
+            resource_type:     One of "article", "video", "podcast".
+            queries:           Ordered list of search query strings to try.
+            preferred_domains: Domain filter passed to _search_resource.
+
+        Returns:
+            First ResourceRecommendation found, or None.
+        """
         for query in queries:
             match = self._search_resource(
                 query=query,
@@ -867,6 +1102,18 @@ Missed questions (what the student got wrong):
         return None
 
     def _search_article_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
+        """Search for an educational article about the topic.
+
+        Skips Wikipedia in favour of more reliable educational sources
+        (Khan Academy, Britannica, ScienceDaily, .edu domains, OpenStax).
+
+        Args:
+            title: Document title (used for context in search).
+            topic: Topic to search for.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         # No Wikipedia — search real educational sources directly
         return self._search_resource_variants(
             topic=topic,
@@ -882,6 +1129,18 @@ Missed questions (what the student got wrong):
         )
 
     def _search_video_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
+        """Search for an educational video about the topic.
+
+        Tries YouTube first via _search_youtube_video, then falls back
+        to DuckDuckGo search for YouTube/ted.com/khanacademy.org results.
+
+        Args:
+            title: Document title.
+            topic: Topic to search for.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         youtube = self._search_youtube_video(f"{title} {topic} explainer", topic)
         if youtube:
             return youtube
@@ -896,6 +1155,18 @@ Missed questions (what the student got wrong):
         )
 
     def _search_podcast_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
+        """Search for an educational podcast episode about the topic.
+
+        Tries ListenNotes first (scraped), then Apple Podcasts / Spotify
+        via DuckDuckGo, and finally falls back to an Apple Podcasts search URL.
+
+        Args:
+            title: Document title.
+            topic: Topic to search for.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         ln_result = self._search_listennotes(topic, title)
         if ln_result:
             return ln_result
@@ -922,6 +1193,18 @@ Missed questions (what the student got wrong):
         )
 
     def _search_listennotes(self, topic: str, doc_title: str) -> ResourceRecommendation | None:
+        """Search ListenNotes for podcast episodes matching the topic.
+
+        Scrapes the ListenNotes search HTML and ranks results by how many
+        topic tokens appear in the episode title. Returns the best match.
+
+        Args:
+            topic:     Topic to search for.
+            doc_title: Document title for additional search context.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         try:
             req = Request(
                 f"https://www.listennotes.com/search/?q={quote_plus(topic + ' ' + doc_title)}&type=episode",
@@ -936,6 +1219,7 @@ Missed questions (what the student got wrong):
             with urlopen(req, timeout=12) as resp:
                 html = resp.read().decode("utf-8", errors="ignore")
 
+            # Extract episode links with titles from the search results
             episodes = re.findall(
                 r'href="(/e/[A-Za-z0-9]+/)"[^>]*>[\s\S]{0,60}?<[^>]+class="[^"]*title[^"]*"[^>]*>([^<]{8,200})',
                 html,
@@ -943,6 +1227,7 @@ Missed questions (what the student got wrong):
             if not episodes:
                 return None
 
+            # Score each episode by topic token overlap in the title
             topic_tokens = self._topic_tokens(topic)
             best_score, best_ep = -1, None
             for path, ep_title in episodes[:8]:
@@ -966,6 +1251,20 @@ Missed questions (what the student got wrong):
             return None
 
     def _fetch_search_results(self, query: str) -> str:
+        """Fetch DuckDuckGo HTML search results for a query.
+
+        Uses the DuckDuckGo lite HTML endpoint (html.duckduckgo.com/html)
+        which returns plain HTML without JavaScript.
+
+        Args:
+            query: URL-encoded search query.
+
+        Returns:
+            Raw HTML string of the search results page.
+
+        Raises:
+            URLError: If the request fails or times out.
+        """
         req = Request(
             f"https://html.duckduckgo.com/html/?q={quote_plus(query)}",
             headers={
@@ -979,6 +1278,18 @@ Missed questions (what the student got wrong):
             return response.read().decode("utf-8", errors="ignore")
 
     def _search_wikipedia_article(self, topic: str) -> ResourceRecommendation | None:
+        """Search Wikipedia via the OpenSearch API for articles matching the topic.
+
+        This is currently unused in the main resource pipeline (Wikipedia is
+        explicitly avoided in _search_article_resource) but kept for potential
+        future use as a last-resort fallback.
+
+        Args:
+            topic: Topic to search for.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         try:
             req = Request(
                 "https://en.wikipedia.org/w/api.php"
@@ -1006,6 +1317,18 @@ Missed questions (what the student got wrong):
             return None
 
     def _search_youtube_video(self, query: str, topic: str) -> ResourceRecommendation | None:
+        """Search YouTube for a video matching the topic.
+
+        Scrapes YouTube search result HTML for video IDs and titles,
+        then scores the titles by topic token overlap.
+
+        Args:
+            query: Full search query string.
+            topic: Topic label for scoring relevance.
+
+        Returns:
+            ResourceRecommendation or None.
+        """
         try:
             req = Request(
                 f"https://www.youtube.com/results?search_query={quote_plus(query)}",
@@ -1021,6 +1344,7 @@ Missed questions (what the student got wrong):
         except (URLError, OSError):
             return None
 
+        # Extract video IDs and titles from YouTube's initial data payload
         candidates = re.findall(
             r'"videoId":"(?P<video_id>[A-Za-z0-9_-]{11})".{0,400}?"title":\{"runs":\[\{"text":"(?P<title>[^"]+)"',
             html, flags=re.S,
@@ -1048,6 +1372,19 @@ Missed questions (what the student got wrong):
         )
 
     def _score_video_title_match(self, topic: str, title_text: str) -> int:
+        """Score how well a YouTube video title matches the topic.
+
+        Awards 2 points per topic token found in the title, +1 bonus for
+        educational keywords (explainer, tutorial, etc.), -2 penalty for
+        non-educational content (music, trailer, vlog, etc.).
+
+        Args:
+            topic:      The topic to match against.
+            title_text: The YouTube video title.
+
+        Returns:
+            Integer relevance score.
+        """
         topic_tokens  = self._topic_tokens(topic)
         if not topic_tokens:
             return 0
@@ -1060,11 +1397,32 @@ Missed questions (what the student got wrong):
         return score
 
     def _topic_tokens(self, topic: str) -> list[str]:
+        """Split a topic string into meaningful tokens for search matching.
+
+        Removes common stop words and single-character tokens.
+
+        Args:
+            topic: A topic string like "experimental methodology".
+
+        Returns:
+            List of lowercase tokens with length > 2, excluding stop words.
+        """
         stop_words = {"the", "and", "for", "with", "from", "into", "your", "this", "that"}
         tokens = re.findall(r"[a-zA-Z0-9]+", topic.lower())
         return [token for token in tokens if len(token) > 2 and token not in stop_words]
 
     def _extract_result_url(self, href: str) -> str:
+        """Extract the actual URL from a DuckDuckGo redirect link.
+
+        DuckDuckGo wraps external URLs in /l/?uddg=<encoded_url>. This
+        function extracts and decodes the uddg parameter.
+
+        Args:
+            href: The href attribute from a DuckDuckGo result link.
+
+        Returns:
+            The decoded destination URL, or the original if not a DDG redirect.
+        """
         if "duckduckgo.com/l/?" not in href:
             return unescape(href)
         match = re.search(r"[?&]uddg=([^&]+)", href)
@@ -1073,9 +1431,27 @@ Missed questions (what the student got wrong):
         return unescape(unquote(match.group(1)))
 
     def _strip_html(self, value: str) -> str:
+        """Remove HTML tags and decode HTML entities from a string.
+
+        Args:
+            value: Raw HTML string.
+
+        Returns:
+            Clean text with tags removed and entities decoded.
+        """
         return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", unescape(value))).strip()
 
     def _build_article_fallback(self, topic: str) -> ResourceRecommendation:
+        """Build a fallback Wikipedia search URL when no article is found.
+
+        This is used as a last resort if all article searches fail.
+
+        Args:
+            topic: Topic to link to.
+
+        Returns:
+            ResourceRecommendation pointing to a Wikipedia search page.
+        """
         search_url = f"https://en.wikipedia.org/w/index.php?search={quote_plus(topic.strip())}"
         return ResourceRecommendation(
             topic=topic,
@@ -1089,7 +1465,7 @@ Missed questions (what the student got wrong):
     # ── Validation helpers ────────────────────────────────────────────────────
 
     def _assert_unique_questions(self, questions: list) -> None:
-        # Normalise punctuation and case before comparing
+        """Raise ValueError if any two questions are duplicates (case/punctuation normalised)."""
         def normalise(q: str) -> str:
             return re.sub(r"[^a-z0-9 ]", "", q.strip().lower())
 
@@ -1098,6 +1474,7 @@ Missed questions (what the student got wrong):
             raise ValueError("AI output validation failed: quiz contains duplicate questions.")
 
     def _assert_no_repeated_questions(self, questions: list, previous_questions: list[str]) -> None:
+        """Raise ValueError if any question repeats one from an earlier quiz."""
         def normalise(q: str) -> str:
             return re.sub(r"[^a-z0-9 ]", "", q.strip().lower())
 

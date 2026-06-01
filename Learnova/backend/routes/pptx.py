@@ -1,7 +1,16 @@
 """
-routes/pptx.py
-==============
-All PPTX-related endpoints.
+routes/pptx.py — PowerPoint Upload & Slide-by-Slide Study Sessions
+===================================================================
+Pro-tier feature: upload PPTX files, extract per-slide text, summarise
+each slide via Mac 1 (gpt-oss), then allow users to start study sessions
+over a slide range with a corresponding quiz on Mac 2 (deepseek).
+
+Flow:
+  1. POST /upload          → upload file, extract slides, return doc_id
+  2. GET  /status/{doc_id} → poll until AI summarisation is complete
+  3. POST /session/start   → pick a slide range → get summaries + quiz job
+  4. GET  /quiz-status/{id}→ poll for quiz readiness
+  5. POST /session/complete→ save score
 
 HOW TO INTEGRATE — add two lines in backend/main.py:
     from backend.routes.pptx import router as pptx_router
@@ -148,6 +157,7 @@ class QuizStatusResponse(BaseModel):
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+# POST /upload — upload a PPTX file (Pro only), extract slides, queue summaries
 @router.post("/upload")
 async def upload_pptx(
     background_tasks: BackgroundTasks,
@@ -155,12 +165,16 @@ async def upload_pptx(
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Upload a PPTX file (Pro only).
-    1. Validates file type and size.
-    2. Extracts per-slide text immediately.
-    3. Saves a document record to MongoDB with status="processing".
-    4. Fires slide summarisation on Mac 1 as a background task.
-    5. Returns the doc_id so the frontend can poll for readiness.
+    POST /upload — upload a PPTX file (Pro only).
+
+    Steps:
+      1. Validates file type (.pptx/.ppt) and size (max 10 MB).
+      2. Extracts per-slide text via extract_slides() (see pptx_service).
+      3. Saves a MongoDB document with status="processing".
+      4. Fires _run_slide_summarisation on Mac 1 as a background task.
+      5. Returns doc_id immediately — frontend polls GET /status/{doc_id}.
+
+    Cross-reference: pptx_service.extract_slides handles per-slide parsing.
     """
     _require_pro(current_user)
 
@@ -226,14 +240,16 @@ async def upload_pptx(
     }
 
 
+# GET /status/{doc_id} — poll for upload processing completion
 @router.get("/status/{doc_id}")
 async def pptx_status(
     doc_id: str,
     current_user: dict = Depends(get_current_user),
 ):
     """
-    Poll this endpoint after upload until status == 'ready'.
-    Frontend polls every 4 seconds.
+    GET /status/{doc_id} — poll this after upload until status == 'ready'.
+    Frontend typically polls every 4 seconds. Also returns existing sessions
+    and module_unlocked state.
     """
     _require_pro(current_user)
     try:
@@ -254,9 +270,10 @@ async def pptx_status(
     }
 
 
+# GET /my-documents — list all PPTX documents for the current user
 @router.get("/my-documents")
 async def my_pptx_documents(current_user: dict = Depends(get_current_user)):
-    """Return all PPTX documents for the current user."""
+    """GET /my-documents — return all PPTX documents for the current user (sorted newest first, max 20)."""
     _require_pro(current_user)
     cursor = pptx_collection.find(
         {"user_id": current_user["id"]},

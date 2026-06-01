@@ -186,6 +186,12 @@
 <script src="js/app.js"></script>
 <script src="js/api.js"></script>
 <script>
+// ── pptx-session.html ─────────────────────────────────────────────────────────
+// This page enables Pro users to upload PowerPoint files (.pptx / .ppt),
+// select slide ranges for targeted study, start AI-powered sessions, view
+// per-slide summaries, and take quizzes. It relies on LEARNOVA_API helpers
+// from api.js and the sidebar/toast/escape utilities from app.js.
+
 // ── Auth guard ────────────────────────────────────────────────────────────────
 (function() {
   const token = localStorage.getItem('token');
@@ -199,37 +205,62 @@ const API = window.LEARNOVA_API;
 const root = document.getElementById('page-root');
 
 // ── State ─────────────────────────────────────────────────────────────────────
-let activeDoc = null;         // currently loaded PPTX document
-let rangeStart = 1;
-let rangeEnd = 5;
-let selecting = false;
-let anchorSlide = null;
-let doneSlideSets = new Set();
-let activeSession = null;     // { session_id, job_id, summaries }
-let quizQuestions = [];
-let quizAnswers = {};
-let quizSubmitted = false;
-let summaryVisible = false;   // show summary before quiz
-let cancelPoll = null;
-let prevDocs = [];
+// Key data structures for the PPTX session lifecycle.
+let activeDoc = null;            // Currently loaded PPTX document from backend
+let rangeStart = 1;              // First slide of current selection
+let rangeEnd = 5;                // Last slide of current selection
+let selecting = false;           // True while user is in "pick range" mode
+let anchorSlide = null;          // First slide clicked during range selection
+let doneSlideSets = new Set();   // Set of slide numbers already covered by completed sessions
+let activeSession = null;        // Active session object { session_id, job_id, summaries, quizStatus }
+let quizQuestions = [];          // Questions from the active session's quiz
+let quizAnswers = {};            // Map of question-index → option-index chosen by the user
+let quizSubmitted = false;       // Whether the user has submitted their answers
+let summaryVisible = false;      // Whether the summary section is currently shown (before quiz)
+let cancelPoll = null;           // Function to cancel the quiz polling interval
+let prevDocs = [];               // Previously uploaded documents for quick-resume
 
 // ── API helpers ───────────────────────────────────────────────────────────────
+// Thin wrappers around fetch() that inject auth headers and point at the
+// API base URL configured in api.js (LEARNOVA_API.API_BASE_URL).
+
 const TOKEN = () => localStorage.getItem('token');
 const HEADERS = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN()}` });
 const BASE = (API?.API_BASE_URL || 'http://127.0.0.1:8000');
 
+/**
+ * Perform an authenticated GET request to the API.
+ *
+ * @param {string} path  URL path (e.g. "/api/pptx/status/abc123")
+ * @returns {Promise<object>}  Parsed JSON response
+ */
 async function apiGet(path) {
   const r = await fetch(BASE + path, { headers: HEADERS() });
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Request failed'); }
   return r.json();
 }
 
+/**
+ * Perform an authenticated POST request with a JSON body.
+ *
+ * @param {string} path  URL path
+ * @param {object} body  Request payload (will be JSON-stringified)
+ * @returns {Promise<object>}  Parsed JSON response
+ */
 async function apiPost(path, body) {
   const r = await fetch(BASE + path, { method: 'POST', headers: HEADERS(), body: JSON.stringify(body) });
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Request failed'); }
   return r.json();
 }
 
+/**
+ * Perform an authenticated POST with a multipart FormData body
+ * (used for file uploads — no Content-Type header, browser sets boundary).
+ *
+ * @param {string} path     URL path
+ * @param {FormData} formData  Multipart form payload
+ * @returns {Promise<object>}  Parsed JSON response
+ */
 async function apiPostForm(path, formData) {
   const r = await fetch(BASE + path, { method: 'POST', headers: { 'Authorization': `Bearer ${TOKEN()}` }, body: formData });
   if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.detail || 'Request failed'); }
@@ -237,6 +268,11 @@ async function apiPostForm(path, formData) {
 }
 
 // ── Render: Pro lock ──────────────────────────────────────────────────────────
+
+/**
+ * Render a locked-state UI when a non-Pro user attempts to access PPTX
+ * features. Shows upgrade CTA and a fallback link to the standard upload page.
+ */
 function renderProLock() {
   root.innerHTML = `
     <div class="pro-lock-wrap fade-up">
@@ -256,6 +292,11 @@ function renderProLock() {
 }
 
 // ── Render: Upload zone ───────────────────────────────────────────────────────
+
+/**
+ * Render the initial upload drop-zone and, if the user has previously
+ * uploaded documents (prevDocs), show a "Continue a presentation" list.
+ */
 function renderUploadZone() {
   const hasPrev = prevDocs.length > 0;
   root.innerHTML = `
@@ -287,6 +328,10 @@ function renderUploadZone() {
   initDragDrop();
 }
 
+/**
+ * Render the list of previously uploaded documents as clickable cards
+ * so the user can resume an existing presentation without re-uploading.
+ */
 function renderPrevDocs() {
   const list = document.getElementById('prev-docs-list');
   if (!list) return;
@@ -307,6 +352,14 @@ function renderPrevDocs() {
 }
 
 // ── Render: Processing ────────────────────────────────────────────────────────
+
+/**
+ * Render the processing state while Mac 1 summarises all slides.
+ *
+ * @param {string} title        Display title of the PPTX file
+ * @param {number} totalSlides  Total number of slides in the document
+ * @param {number} [progress=5] Initial progress percentage for the bar
+ */
 function renderProcessing(title, totalSlides, progress = 5) {
   root.innerHTML = `
     <div class="proc-state fade-up">
@@ -321,6 +374,12 @@ function renderProcessing(title, totalSlides, progress = 5) {
 }
 
 // ── Render: Active document ───────────────────────────────────────────────────
+
+/**
+ * Render the full document view including header (title, coverage stats),
+ * progress bar, module-unlock banner, slide picker, session history list,
+ * and the quiz area. Called after every state change.
+ */
 function renderActiveDoc() {
   if (!activeDoc) return;
   const sessions = activeDoc.sessions || [];
@@ -435,6 +494,14 @@ function renderActiveDoc() {
 }
 
 // ── Slide grid ────────────────────────────────────────────────────────────────
+
+/**
+ * Build the interactive slide-picker grid. Each pill represents one slide:
+ * - Green (class "done") = already studied in a completed session
+ * - Gold border (class "anchor") = first click of a new range selection
+ * - Gold background (class "in-range") = within the currently selected range
+ * - Neutral = unstudied, available for selection
+ */
 function renderSlideGrid() {
   const grid = document.getElementById('slide-grid');
   if (!grid) return;
@@ -460,6 +527,12 @@ function renderSlideGrid() {
   if (btn) btn.textContent = `Study slides ${rangeStart}–${rangeEnd} →`;
 }
 
+/**
+ * Handle a click on a slide pill. First click sets the anchor; second click
+ * sets the range end and clamps to skip over already-studied slides.
+ *
+ * @param {number} n  Slide number (1-based)
+ */
 function selectSlide(n) {
   if (doneSlideSets.has(n)) return;
   if (!selecting) {
@@ -480,6 +553,11 @@ function selectSlide(n) {
 }
 
 // ── Session list ──────────────────────────────────────────────────────────────
+
+/**
+ * Render the session history list (newest-first) showing each session's
+ * label, slide range, status dot, and score.
+ */
 function renderSessionList() {
   const list = document.getElementById('session-list');
   if (!list || !activeDoc) return;
@@ -497,6 +575,15 @@ function renderSessionList() {
 }
 
 // ── Summary section ──────────────────────────────────────────────────────────
+
+/**
+ * Render the per-slide summary section inside the quiz area, showing
+ * slide number, title, overview, and key takeaways for each slide in
+ * the current session. Also shows a "Quiz generating…" placeholder that
+ * becomes "Take quiz →" once the quiz job completes.
+ *
+ * @param {object} resp  Session start response containing .slide_summaries[]
+ */
 function renderSummarySection(resp) {
   const area = document.getElementById('quiz-area');
   if (!area) return;
@@ -533,6 +620,11 @@ function renderSummarySection(resp) {
   `;
 }
 
+/**
+ * Replace the "Quiz generating…" placeholder in the summary section
+ * with an active "Take quiz →" button that the user can click when
+ * they finish reading the summaries.
+ */
 function showQuizReadyButton() {
   const btn = document.getElementById('quiz-ready-btn');
   if (btn) {
@@ -541,6 +633,15 @@ function showQuizReadyButton() {
 }
 
 // ── Quiz area ─────────────────────────────────────────────────────────────────
+
+/**
+ * Render the quiz section depending on current state:
+ * - No active session → empty area
+ * - quizStatus 'pending' → spinner with "generating" message
+ * - quizStatus 'error'   → error message + retry button
+ * - quizSubmitted true   → results summary (score, save/review buttons)
+ * - Default             → quiz questions with answer selection UI
+ */
 function renderQuizArea() {
   const area = document.getElementById('quiz-area');
   if (!area) return;
@@ -605,6 +706,11 @@ function renderQuizArea() {
   renderQuizQuestions();
 }
 
+/**
+ * Render the interactive quiz question cards inside the quiz area.
+ * Each question shows a numbered header, the question text, and
+ * A/B/C/D option buttons.
+ */
 function renderQuizQuestions() {
   const container = document.getElementById('quiz-questions');
   if (!container) return;
@@ -624,10 +730,18 @@ function renderQuizQuestions() {
   `).join('');
 }
 
+/**
+ * Record the user's answer for a specific quiz question and update the UI
+ * to highlight the selected option. Enables the "Submit quiz" button once
+ * every question has been answered.
+ *
+ * @param {number} qi  Question index
+ * @param {number} oi  Option index selected
+ */
 function selectAnswer(qi, oi) {
   if (quizSubmitted) return;
   quizAnswers[qi] = oi;
-  // Update UI for this question
+  // Deselect previous choice and mark the new one
   quizQuestions[0].options.forEach((_, j) => {
     const btn = document.getElementById(`qq-${qi}-${j}`);
     if (btn) {
@@ -643,6 +757,11 @@ function selectAnswer(qi, oi) {
   if (btn) btn.disabled = !allAnswered;
 }
 
+/**
+ * Submit the quiz: compute correct/wrong per question, update the UI
+ * with visual feedback (colours, marks, explanations), and replace the
+ * submit button with a score summary + save/review actions.
+ */
 function submitQuiz() {
   quizSubmitted = true;
   var correctCount = 0;
@@ -676,12 +795,25 @@ function submitQuiz() {
   }
 }
 
+/**
+ * Toggle back to the review state where all questions are shown again
+ * with correct/wrong highlighting already applied (re-submits after a
+ * brief delay to re-render).
+ */
 function reviewQuiz() {
   quizSubmitted = false;
   renderQuizArea();
   setTimeout(submitQuiz, 100);
 }
 
+/**
+ * Save the session score to the backend via POST, update local session
+ * state, check if the module is now unlocked, advance the slide range,
+ * and re-render the active document view.
+ *
+ * @param {number} score  Percentage score (0–100)
+ * @returns {Promise<void>}
+ */
 async function saveSessionScore(score) {
   if (!activeDoc || !activeSession) return;
   try {
@@ -719,6 +851,14 @@ async function saveSessionScore(score) {
 }
 
 // ── Start session ─────────────────────────────────────────────────────────────
+
+/**
+ * Start a new study session for the selected slide range.
+ * POSTs to /api/pptx/session/start, shows the summary immediately,
+ * and begins polling Mac 2 for quiz generation in the background.
+ *
+ * @returns {Promise<void>}
+ */
 async function startSession() {
   if (!activeDoc) return;
   if (cancelPoll) { cancelPoll(); cancelPoll = null; }
@@ -805,6 +945,17 @@ async function startSession() {
   }
 }
 
+/**
+ * Poll the quiz-status endpoint every 3 seconds until the Mac 2 quiz job
+ * finishes. Times out after 60 attempts (~3 minutes). Returns a cancel
+ * function that the caller can invoke to stop polling.
+ *
+ * @param {string}   jobId           The quiz generation job ID
+ * @param {object}   callbacks
+ * @param {function} callbacks.onDone   Called with the quiz data on success
+ * @param {function} callbacks.onError  Called with an error message on failure
+ * @returns {function}  Cancel function (clearInterval)
+ */
 function pollForQuizPptx(jobId, { onDone, onError }) {
   let attempts = 0;
   const iv = setInterval(async () => {
@@ -823,6 +974,12 @@ function pollForQuizPptx(jobId, { onDone, onError }) {
   return () => clearInterval(iv);
 }
 
+/**
+ * Retry quiz generation by resetting the active session's status and
+ * calling startSession again to create a fresh quiz job.
+ *
+ * @returns {Promise<void>}
+ */
 async function retryQuiz() {
   if (!activeSession) return;
   activeSession.quizStatus = 'pending';
@@ -832,12 +989,22 @@ async function retryQuiz() {
 }
 
 // ── Upload handling ───────────────────────────────────────────────────────────
+
+/**
+ * Handle the file-input change event and delegate to uploadPptx.
+ *
+ * @param {Event} event  Input change event with .target.files
+ */
 async function handleFileSelect(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   await uploadPptx(file);
 }
 
+/**
+ * Attach drag-and-drop event listeners to the upload zone for
+ * visual feedback and file handling.
+ */
 function initDragDrop() {
   const zone = document.getElementById('upload-zone');
   if (!zone) return;
@@ -850,6 +1017,13 @@ function initDragDrop() {
   });
 }
 
+/**
+ * Upload a PPTX file to the backend and begin polling for processing
+ * completion. Validates extension, size, and Pro tier before uploading.
+ *
+ * @param {File} file  The selected .pptx file
+ * @returns {Promise<void>}
+ */
 async function uploadPptx(file) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (!['ppt', 'pptx'].includes(ext)) { showToast('Only .pptx and .ppt files are supported'); return; }
@@ -874,6 +1048,15 @@ async function uploadPptx(file) {
   }
 }
 
+/**
+ * Poll the PPTX status endpoint while Mac 1 summarises all slides.
+ * Updates the progress bar every 4 seconds with simulated increments.
+ * Once status === 'ready', renders the full active document view.
+ *
+ * @param {string} docId        Backend document ID
+ * @param {string} title        Document title for display
+ * @param {number} totalSlides  Total number of slides
+ */
 function pollForProcessing(docId, title, totalSlides) {
   let progress = 8;
   let attempts = 0;
@@ -902,6 +1085,16 @@ function pollForProcessing(docId, title, totalSlides) {
 }
 
 // ── Load existing doc ─────────────────────────────────────────────────────────
+
+/**
+ * Load an existing PPTX document by ID. If the document is still being
+ * processed, show the processing view and poll for readiness. Otherwise,
+ * restore doneSlideSets from completed sessions, find the next uncovered
+ * slide range, and render the full document view.
+ *
+ * @param {string} docId  Backend document ID
+ * @returns {Promise<void>}
+ */
 async function loadDoc(docId) {
   try {
     const doc = await apiGet(`/api/pptx/status/${docId}`);
@@ -927,6 +1120,10 @@ async function loadDoc(docId) {
   }
 }
 
+/**
+ * Return to the upload zone, clearing the active document and session
+ * state and cancelling any active polling.
+ */
 function backToUpload() {
   activeDoc = null;
   activeSession = null;
@@ -935,6 +1132,14 @@ function backToUpload() {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Count the number of unique slides that have been covered across all
+ * completed sessions (using a Set to avoid double-counting).
+ *
+ * @param {object[]} sessions  Array of session objects with .slide_start, .slide_end, .done
+ * @returns {number}  Count of unique slides covered
+ */
 function countCoveredSlides(sessions) {
   const covered = new Set();
   (sessions || []).filter(s => s.done).forEach(s => {
@@ -944,6 +1149,14 @@ function countCoveredSlides(sessions) {
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Page initialisation: fetch the user's previous documents (Pro only),
+ * check for a ?doc= query param to load a specific document, or render
+ * the upload zone by default.
+ *
+ * @returns {Promise<void>}
+ */
 async function init() {
   // Pro check: non-pro users see upload zone (same as free upload page)
   // but session features (slide picker, quiz) are locked

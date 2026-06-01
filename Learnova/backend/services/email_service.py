@@ -1,6 +1,19 @@
 """
-Email service using Gmail SMTP.
-Sends welcome emails, summary reports, and weekly reports.
+email_service.py  —  Transactional email service via Gmail SMTP
+================================================================
+Sends four types of emails to Learnova users:
+  1. Welcome email          — sent on registration
+  2. Pro welcome email      — sent on plan upgrade
+  3. Summary report email   — sent after document summarisation
+  4. Weekly report email    — sent every Monday via scheduler
+
+All email HTML is built inline (no template engine) and sent through
+Gmail's SMTP server (smtp.gmail.com:587) with STARTTLS.
+
+Cross-references:
+  - Called by backend/routers/ (auth_router.py, document_router.py)
+  - Weekly reports triggered by a scheduler in app.py
+  - gather_user_stats queries MongoDB history collection
 """
 from __future__ import annotations
 
@@ -12,6 +25,8 @@ from datetime import datetime, timezone, timedelta
 import asyncio
 
 
+# ── SMTP Configuration ────────────────────────────────────────────────────────
+
 EMAIL_FROM = os.getenv("EMAIL_FROM", "learnovaaiproject@gmail.com")
 EMAIL_FROM_NAME = "Learnova"
 SMTP_HOST = "smtp.gmail.com"
@@ -20,8 +35,22 @@ SMTP_USER = os.getenv("SMTP_USER", EMAIL_FROM)
 SMTP_PASS = os.getenv("SMTP_PASS", "")
 
 
+# ── Core send function ────────────────────────────────────────────────────────
+
 async def _send_email(to_email: str, subject: str, html: str) -> bool:
-    """Send an email via Gmail SMTP. Returns True on success."""
+    """Send an email via Gmail SMTP.
+
+    Runs the SMTP call in a thread executor to avoid blocking the async event loop.
+    Skips sending if SMTP_PASS is not configured (safe for development).
+
+    Args:
+        to_email: Recipient email address.
+        subject:  Email subject line.
+        html:     HTML body content.
+
+    Returns:
+        True if the email was sent successfully, False otherwise.
+    """
     if not SMTP_PASS:
         print("[email] SMTP_PASS not set — skipping email")
         return False
@@ -48,15 +77,38 @@ async def _send_email(to_email: str, subject: str, html: str) -> bool:
         return False
 
 
+# ── Weekly Report ──────────────────────────────────────────────────────────────
+
 async def send_weekly_report(user_email: str, user_name: str, stats: dict) -> bool:
-    """Send weekly progress email via Gmail SMTP. Returns True on success."""
+    """Send a weekly progress email to a single user.
+
+    Args:
+        user_email: Recipient's email address.
+        user_name:  Recipient's display name.
+        stats:      Dict from gather_user_stats() containing activity data.
+
+    Returns:
+        True if the email was sent successfully.
+    """
     html = _build_email_html(user_name, stats)
     subject = f"Your Learnova weekly report — {datetime.now().strftime('%d %b %Y')}"
     return await _send_email(user_email, subject, html)
 
 
 async def gather_user_stats(user_id: str, db_history) -> dict:
-    """Pull last 7 days of activity from MongoDB for a user."""
+    """Pull the last 7 days of activity from MongoDB for a given user.
+
+    Aggregates total documents, completed quizzes, average score,
+    weak topics, strong topics, and document titles.
+
+    Args:
+        user_id:     MongoDB ObjectId string for the user.
+        db_history:  Async MongoDB collection for document/quiz history.
+
+    Returns:
+        Dict with keys: total_docs, quizzes_completed, avg_score,
+                        weak_topics, strong_topics, doc_titles.
+    """
     week_ago = datetime.now(timezone.utc) - timedelta(days=7)
 
     cursor = db_history.find({
@@ -95,7 +147,16 @@ async def gather_user_stats(user_id: str, db_history) -> dict:
 
 
 async def send_weekly_reports_to_all(users_col, history_col) -> None:
-    """Called by the scheduler every Monday. Sends report to all active users."""
+    """Called by the scheduler every Monday. Sends reports to all active users.
+
+    Iterates all active users, gathers their weekly stats, and sends a
+    personalised weekly report email. Skips users with zero activity.
+    Records the run date in system_settings to prevent duplicate sends on restart.
+
+    Args:
+        users_col:   Async MongoDB collection for user accounts.
+        history_col: Async MongoDB collection for document/quiz history.
+    """
     print("[email] Starting weekly report run…")
     cursor = users_col.find({"isActive": {"$ne": False}})
     users = await cursor.to_list(length=10000)
@@ -131,15 +192,41 @@ async def send_weekly_reports_to_all(users_col, history_col) -> None:
         import sys; sys.stdout.flush()
 
 
+# ── Summary Report ──────────────────────────────────────────────────────────────
+
 async def send_summary_report(user_email: str, user_name: str, doc_title: str, summary: dict) -> bool:
-    """Send an email containing the document summary via Gmail SMTP."""
+    """Send an email containing the AI-generated document summary.
+
+    Args:
+        user_email: Recipient's email address.
+        user_name:  Recipient's display name.
+        doc_title:  Title of the summarised document.
+        summary:    Dict with keys: body (list of paragraphs), takeaways (list).
+
+    Returns:
+        True if the email was sent successfully.
+    """
     html = _build_summary_email_html(user_name, doc_title, summary)
     subject = f"Your Learnova summary — {doc_title[:60]}"
     return await _send_email(user_email, subject, html)
 
 
+# ── HTML Builders ──────────────────────────────────────────────────────────────
+
 def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
-    """Build HTML for a summary report email."""
+    """Build the HTML for a summary report email.
+
+    Inlines all CSS for maximum email client compatibility.
+    Uses the Learnova brand palette (dark bg, gold accents).
+
+    Args:
+        name:     Recipient's display name.
+        doc_title: Title of the summarised document.
+        summary:  Dict with "body" (list of paragraphs) and "takeaways" (list).
+
+    Returns:
+        Complete HTML string ready for sending.
+    """
     body_paragraphs = summary.get("body", [])
     takeaways = summary.get("takeaways", [])
     body_html = "".join(f"<p>{p}</p>" for p in body_paragraphs)
@@ -200,15 +287,34 @@ def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
 </html>"""
 
 
+# ── Welcome Emails ────────────────────────────────────────────────────────────
+
 async def send_welcome_email(user_email: str, user_name: str) -> bool:
-    """Send a welcome email to a newly registered user via Gmail SMTP."""
+    """Send a welcome email to a newly registered user.
+
+    Args:
+        user_email: Recipient's email address.
+        user_name:  Recipient's display name.
+
+    Returns:
+        True if the email was sent successfully.
+    """
     html = _build_welcome_email_html(user_name)
     subject = f"Welcome to Learnova, {user_name}! 🎉"
     return await _send_email(user_email, subject, html)
 
 
 async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str) -> bool:
-    """Send a welcome email when a user upgrades to Pro."""
+    """Send a welcome email when a user upgrades to a Pro plan.
+
+    Args:
+        user_email: Recipient's email address.
+        user_name:  Recipient's display name.
+        plan_type:  One of "monthly" or "yearly".
+
+    Returns:
+        True if the email was sent successfully.
+    """
     html = _build_pro_welcome_email_html(user_name, plan_type)
     label = "Monthly" if plan_type == "monthly" else "Yearly"
     subject = f"You're now a Learnova Pro, {user_name}! 🚀"
@@ -216,7 +322,18 @@ async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str
 
 
 def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
-    label = "Monthly" if plan_type == "monthly" else "Yearly"
+    """Build the HTML for a Pro upgrade welcome email.
+
+    Highlights the premium features unlocked by the upgrade.
+    Uses the Learnova brand palette with a gradient header.
+
+    Args:
+        name:      Recipient's display name.
+        plan_type:  One of "monthly" or "yearly".
+
+    Returns:
+        Complete HTML string.
+    """
     return f"""
 <!DOCTYPE html>
 <html>
@@ -270,6 +387,17 @@ def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
 
 
 def _build_welcome_email_html(name: str) -> str:
+    """Build the HTML for a new-user welcome email.
+
+    Simple, friendly design with a call-to-action to upload the first document.
+    Inlines all CSS for email client compatibility.
+
+    Args:
+        name: Recipient's display name.
+
+    Returns:
+        Complete HTML string.
+    """
     return f"""
 <!DOCTYPE html>
 <html>
@@ -319,6 +447,18 @@ def _build_welcome_email_html(name: str) -> str:
 
 
 def _build_email_html(name: str, stats: dict) -> str:
+    """Build the HTML for a weekly progress report email.
+
+    Displays summary stats (documents, quizzes, average score) in a card layout,
+    followed by lists of strong areas and topics needing more work.
+
+    Args:
+        name:  Recipient's display name.
+        stats: Dict from gather_user_stats() containing weekly activity data.
+
+    Returns:
+        Complete HTML string.
+    """
     avg = f"{stats['avg_score']}%" if stats['avg_score'] is not None else "No quizzes yet"
     weak_html = "".join(f"<li>{t}</li>" for t in stats["weak_topics"]) or "<li>None identified</li>"
     strong_html = "".join(f"<li>{t}</li>" for t in stats["strong_topics"]) or "<li>None identified</li>"

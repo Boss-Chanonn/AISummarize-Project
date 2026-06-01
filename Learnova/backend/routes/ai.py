@@ -1,11 +1,20 @@
 """
-Learnova AI Routes
-==================
-Registers all AI endpoints on the main FastAPI app.
+routes/ai.py — AI Service Endpoints (Summarisation, Quiz, Analysis)
+====================================================================
+Registers all AI endpoints on the main FastAPI app using a dual-Mac setup:
+  - Mac 1 (gpt-oss / SummaryOllamaSettings)   → summarisation, analysis, learning modules
+  - Mac 2 (deepseek / QuizOllamaSettings)      → quiz generation (including follow-up)
+
+Endpoints are synchronous (blocking) except for the combined
+POST /summarize-and-queue-quiz which fires quiz generation in a background task
+and provides a job_id for polling.
 
 HOW TO INTEGRATE — one edit in backend/main.py:
     from backend.routes.ai import router as ai_router
     app.include_router(ai_router, prefix="/api/ai", tags=["ai"])
+
+Cross-reference: routes/upload.py, routes/pptx.py, routes/history.py all delegate
+                 AI work to the same AIService or its dual-Mac clients.
 """
 from __future__ import annotations
 
@@ -52,8 +61,15 @@ _service = AIService(
 _quiz_jobs: dict[str, dict[str, Any]] = {}
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Error handler ──────────────────────────────────────────────────────────────
 def _handle(exc: Exception) -> None:
+    """
+    Centralised error handler for AI route exceptions.
+    Maps known exception types to appropriate HTTP status codes:
+      - OllamaError → 503 Service Unavailable
+      - ValueError  → 422 Unprocessable Entity
+      - Other       → 500 Internal Server Error
+    """
     import traceback
     print(f"[ai_route] ERROR type={type(exc).__name__} msg={exc}", flush=True)
     traceback.print_exc()
@@ -97,9 +113,11 @@ def _run_quiz_job(job_id: str, payload: QuizRequest) -> None:
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
+
+# GET /health — check availability of both AI Macs
 @router.get("/health")
 def ai_health() -> dict:
-    """Check both Macs and report status separately."""
+    """GET /health — check both Macs independently and report status + model info."""
     summary_status, quiz_status = "ok", "ok"
     try:
         _service.client.health()
@@ -127,15 +145,22 @@ def ai_health() -> dict:
 
 
 # ── Combined endpoint — summary now, quiz later ───────────────────────────────
+
+# POST /summarize-and-queue-quiz — summarise synchronously, queue quiz in background
 @router.post("/summarize-and-queue-quiz", response_model=SummarizeAndQueueResponse)
 async def summarize_and_queue_quiz(
     payload: SummarizeAndQueueRequest,
     background_tasks: BackgroundTasks,
 ) -> SummarizeAndQueueResponse:
     """
-    1. Calls Mac 1 (gpt-oss) synchronously for the summary — returns immediately.
-    2. Fires quiz generation on Mac 2 (deepseek-r1:8b) as a background task.
-    3. Returns the summary + a job_id to poll with GET /ai/quiz-status/{job_id}.
+    POST /summarize-and-queue-quiz — two-phase AI pipeline.
+
+    Phase 1 (synchronous): Summarise on Mac 1 (gpt-oss). Blocks until complete.
+    Phase 2 (background):  Queue quiz generation on Mac 2 (deepseek). Returns
+                           a job_id for polling via GET /quiz-status/{job_id}.
+
+    This is the preferred endpoint for the frontend's "AI Study" flow because
+    the summary is needed immediately while the quiz can arrive later.
     """
     # Step 1 — summarise on Mac 1 (blocks until done)
     try:
@@ -143,7 +168,7 @@ async def summarize_and_queue_quiz(
     except Exception as exc:
         _handle(exc)
 
-    # Step 2 — queue quiz on Mac 2
+    # Step 2 — queue quiz on Mac 2 as a FastAPI BackgroundTask
     job_id = str(uuid.uuid4())
     _quiz_jobs[job_id] = {"status": "pending", "result": None, "error": None}
 
@@ -160,9 +185,11 @@ async def summarize_and_queue_quiz(
 
 
 # ── Polling endpoint ──────────────────────────────────────────────────────────
+
+# GET /quiz-status/{job_id} — poll for background quiz readiness
 @router.get("/quiz-status/{job_id}", response_model=QuizStatusResponse)
 def quiz_status(job_id: str) -> QuizStatusResponse:
-    """Frontend polls this every 3 seconds until status is 'done' or 'error'."""
+    """GET /quiz-status/{job_id} — frontend polls this every ~3 seconds until status is 'done' or 'error'."""
     job = _quiz_jobs.get(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"No quiz job found for id: {job_id}")
@@ -174,25 +201,32 @@ def quiz_status(job_id: str) -> QuizStatusResponse:
     )
 
 
-# ── Existing endpoints (unchanged) ────────────────────────────────────────────
+# ── Individual AI endpoints (each calls the corresponding AIService method) ────
+
+# POST /summarize — generate a structured summary from document text
 @router.post("/summarize", response_model=SummaryResponse)
 def summarize(payload: SummaryRequest) -> SummaryResponse:
+    """POST /summarize — generate a structured summary (title, overview, body, takeaways, topics)."""
     try:
         return _service.summarize(payload)
     except Exception as exc:
         _handle(exc)
 
 
+# POST /quiz — generate a complete quiz from a summary
 @router.post("/quiz", response_model=QuizResponse)
 def quiz(payload: QuizRequest) -> QuizResponse:
+    """POST /quiz — generate a set of quiz questions based on the document summary."""
     try:
         return _service.generate_quiz(payload)
     except Exception as exc:
         _handle(exc)
 
 
+# POST /analyze-results — analyse quiz performance for strengths/weaknesses
 @router.post("/analyze-results")
 def analyze_results(payload: AnalyzeResultsRequest):
+    """POST /analyze-results — produce strengths, weaknesses, and recommendations from quiz results."""
     try:
         result = _service.analyze_results(payload)
         return result.model_dump()
@@ -200,8 +234,10 @@ def analyze_results(payload: AnalyzeResultsRequest):
         _handle(exc)
 
 
+# POST /learning-module — generate a structured learning module from a summary
 @router.post("/learning-module")
 def learning_module(payload: LearningModuleRequest):
+    """POST /learning-module — generate a multi-section learning module with curated content."""
     try:
         result = _service.generate_learning_module(payload)
         return result.model_dump()
@@ -209,8 +245,10 @@ def learning_module(payload: LearningModuleRequest):
         _handle(exc)
 
 
+# POST /recommend-resources — suggest external resources based on document topics
 @router.post("/recommend-resources")
 def recommend_resources(payload: ResourceRecommendationRequest):
+    """POST /recommend-resources — recommend external study resources (videos, articles, etc.)."""
     try:
         result = _service.recommend_resources(payload)
         return result.model_dump()
@@ -218,8 +256,10 @@ def recommend_resources(payload: ResourceRecommendationRequest):
         _handle(exc)
 
 
+# POST /follow-up-quiz — generate a new quiz targeting weak areas
 @router.post("/follow-up-quiz")
 def follow_up_quiz(payload: FollowUpQuizRequest):
+    """POST /follow-up-quiz — generate a follow-up quiz focusing on previously weak topics."""
     try:
         result = _service.generate_follow_up_quiz(payload)
         return result.model_dump()
@@ -227,8 +267,10 @@ def follow_up_quiz(payload: FollowUpQuizRequest):
         _handle(exc)
 
 
+# POST /compare-progress — compare quiz performance across multiple documents
 @router.post("/compare-progress")
 def compare_progress(payload: CompareProgressRequest):
+    """POST /compare-progress — compare performance across multiple documents to show learning trends."""
     try:
         result = _service.compare_progress(payload)
         return result.model_dump()

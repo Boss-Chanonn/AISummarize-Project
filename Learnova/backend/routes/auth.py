@@ -1,3 +1,12 @@
+"""
+routes/auth.py — Authentication & User Management
+==================================================
+Handles registration, login, logout, profile CRUD, and password changes.
+Uses JWT (HS256) for token-based auth with bcrypt password hashing.
+Token revocation is handled via a MongoDB blocklist collection (JTI tracking).
+All protected endpoints depend on `get_current_user` from the auth middleware.
+"""
+
 from fastapi import APIRouter, Depends
 from backend.models.user import (
     UserCreate, UserLogin, UserUpdate, PasswordChange
@@ -14,11 +23,13 @@ import uuid
 
 router = APIRouter()
 
+# ── Password hashing (bcrypt) ──────────────────────────────────────────────────
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# ── JWT configuration ──────────────────────────────────────────────────────────
 SECRET_KEY = os.getenv("SECRET_KEY", "changeme")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours (default)
 
 
 # ----------------------------- Auth Helpers -----------------------------
@@ -33,7 +44,11 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def create_access_token(data: dict) -> str:
-    """Create a signed JWT token with expiration and unique token ID."""
+    """
+    Create a signed JWT token with expiration and unique token ID (JTI).
+    The JTI enables server-side revocation via the blocklist collection —
+    see the /logout endpoint which inserts the JTI into token_blocklist_collection.
+    """
     payload = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload.update({"exp": expire, "jti": str(uuid.uuid4())})
@@ -41,15 +56,23 @@ def create_access_token(data: dict) -> str:
 
 
 # ----------------------------- Public Endpoints -----------------------------
+
+# GET /health — lightweight health check for the auth router
 @router.get("/health")
 async def health_check():
     """Simple endpoint to confirm auth router is alive."""
     return {"status": "ok"}
 
 
+# POST /register — create a new user account (public, no auth required)
 @router.post("/register", status_code=201)
 async def register(user: UserCreate):
-    """Create a new user account after validating basic required fields."""
+    """
+    POST /register — create a new user account.
+    Validates password length and DOB presence, checks for duplicate email,
+    hashes the password with bcrypt, inserts into MongoDB, and fires a
+    best-effort welcome email. New accounts default to role="user", tier="free".
+    """
     if len(user.password) < 8:
         return message_error(400, "Password must be at least 8 characters")
     if not user.dob:
@@ -69,21 +92,28 @@ async def register(user: UserCreate):
         "status": "active",
         "createdAt": datetime.utcnow()
     })
+    # ── Fire-and-forget welcome email (silently ignore failures) ──
     try:
         from backend.services.email_service import send_welcome_email
         import asyncio
         asyncio.ensure_future(send_welcome_email(user.email, user.name))
     except Exception:
-        pass  # welcome email is best-effort
+        pass
     return {"message": "Account created — please sign in"}
 
 
+# POST /login — authenticate and issue a JWT token
 @router.post("/login")
 async def login(credentials: UserLogin):
-    """Authenticate user credentials and return JWT plus profile payload."""
+    """
+    POST /login — authenticate with email/password.
+    On success, returns a signed JWT (expires in ACCESS_TOKEN_EXPIRE_MINUTES)
+    plus a user profile payload. The token embeds email, name, role, and user ID.
+    """
     user = await users_collection.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
+    # ── Build JWT payload with identity claims ──
     token = create_access_token({
         "email": user["email"],
         "name": user["name"],
@@ -105,12 +135,20 @@ async def login(credentials: UserLogin):
 
 
 # ----------------------------- Protected Endpoints -----------------------------
+# All endpoints below require a valid JWT via the `get_current_user` dependency.
+
+# POST /logout — invalidate the current JWT by storing its JTI in the blocklist
 @router.post("/logout")
 async def logout(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     current_user: dict = Depends(get_current_user)
 ):
-    """Invalidate current token by saving its JTI into blocklist."""
+    """
+    POST /logout — invalidate the current token.
+    Decodes the JWT to extract its JTI (unique token ID), then inserts it into
+    the MongoDB token_blocklist_collection. The auth middleware checks this
+    collection on every protected request, effectively revoking the token.
+    """
     token = credentials.credentials
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -120,13 +158,14 @@ async def logout(
             expire_at = datetime.fromtimestamp(exp, tz=timezone.utc)
             await token_blocklist_collection.insert_one({"jti": jti, "expireAt": expire_at})
     except Exception:
-        pass
+        pass  # Best-effort: if the token is already malformed, logout is a no-op
     return {"message": "Logged out successfully"}
 
 
+# GET /profile — fetch the authenticated user's profile (no password returned)
 @router.get("/profile")
 async def get_profile(current_user: dict = Depends(get_current_user)):
-    """Return profile data for the currently authenticated user."""
+    """GET /profile — return profile data for the currently authenticated user."""
     return {
         "id": str(current_user["_id"]),
         "name": current_user["name"],
@@ -138,12 +177,17 @@ async def get_profile(current_user: dict = Depends(get_current_user)):
     }
 
 
+# PUT /profile — update allowed profile fields
 @router.put("/profile")
 async def update_profile(
     update: UserUpdate,
     current_user: dict = Depends(get_current_user)
 ):
-    """Update editable profile fields for the current user."""
+    """
+    PUT /profile — update editable profile fields.
+    Only sends non-None fields to MongoDB (avoids overwriting with empty values).
+    Fields that can be updated are defined by the UserUpdate model.
+    """
     update_fields = {k: v for k, v in update.dict().items() if v is not None}
     if not update_fields:
         return message_error(400, "No fields to update")
@@ -151,12 +195,16 @@ async def update_profile(
     return {"message": "Profile updated"}
 
 
+# PUT /password — change password (requires current password verification)
 @router.put("/password")
 async def change_password(
     body: PasswordChange,
     current_user: dict = Depends(get_current_user)
 ):
-    """Change password after verifying the current password first."""
+    """
+    PUT /password — change password after verifying current credentials.
+    Uses bcrypt to hash the new password before persisting to MongoDB.
+    """
     if not verify_password(body.current_password, current_user["password"]):
         return message_error(400, "Current password is incorrect")
     new_hashed = hash_password(body.new_password)

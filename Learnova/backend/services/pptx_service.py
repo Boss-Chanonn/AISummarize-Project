@@ -1,15 +1,27 @@
 """
-pptx_service.py
-===============
+pptx_service.py  —  PPTX processing pipeline
+=============================================
 Handles everything PPTX-specific:
   1. Per-slide text extraction (python-pptx)
   2. Per-slide AI summarisation (Mac 1 — gpt-oss)
-  3. Slice a stored summary by slide range
-  4. Module unlock logic (all slides covered?)
+  3. Slicing a stored summary by slide range
+  4. Module unlock logic (are all slides covered?)
+
+Pipeline flow:
+  1. Upload → extract_slides() extracts text per slide
+  2. summarise_all_slides() → AI summaries stored in MongoDB
+  3. Quiz generation → build_range_summary_response() creates a SummaryResponse
+     from a subset of slide summaries (no re-processing needed)
+  4. all_slides_covered() → checks if the student has studied every slide
 
 Install dependency if not present:
     pip install python-pptx --break-system-packages
+
+Cross-references:
+  - Uses OllamaClient with SummaryOllamaSettings (Mac 1, gpt-oss).
+  - build_range_summary_response creates a SummaryResponse (see schemas.py).
 """
+
 from __future__ import annotations
 
 import io
@@ -25,6 +37,23 @@ def _generate_slide_json(client: OllamaClient, prompt: str) -> dict:
     """
     Call Ollama with think:False so reasoning models don't waste tokens
     on chain-of-thought before writing the slide summary JSON.
+
+    This is a specialised variant of OllamaClient.generate_json that:
+      - Uses a lower temperature (0.1) for more deterministic output
+      - Caps num_predict at 400 (slide summaries are short)
+      - Cleans markdown code fences from the raw response
+      - Falls back to _repair_truncated_json if the output is cut off
+
+    Args:
+        client: An OllamaClient instance (typically targeting Mac 1 / gpt-oss).
+        prompt: The formatted prompt string for the slide.
+
+    Returns:
+        Parsed JSON dict with keys: summary_title, overview, topics, takeaways.
+
+    Raises:
+        OllamaError: If the response is empty after all retries.
+        json.JSONDecodeError: If the response cannot be parsed even after repair.
     """
     import json as _json
     from backend.services.ollama_client import OllamaError, _repair_truncated_json
@@ -46,7 +75,7 @@ def _generate_slide_json(client: OllamaClient, prompt: str) -> dict:
     if not response_text:
         raise OllamaError("Empty response from Ollama for slide summary")
 
-    # Clean markdown fences
+    # Clean markdown fences that some models wrap around JSON output
     cleaned = response_text
     if cleaned.startswith("```"):
         cleaned = _re.sub(r"^```[a-zA-Z]*\n?", "", cleaned)
@@ -59,6 +88,7 @@ def _generate_slide_json(client: OllamaClient, prompt: str) -> dict:
     try:
         return _json.loads(cleaned)
     except _json.JSONDecodeError:
+        # If the JSON was truncated (e.g. hit the token limit), try to repair it
         cleaned = _repair_truncated_json(cleaned)
         return _json.loads(cleaned)
 
@@ -67,6 +97,14 @@ def _generate_slide_json(client: OllamaClient, prompt: str) -> dict:
 
 @dataclass
 class SlideText:
+    """Raw text content extracted from a single PPTX slide.
+
+    Attributes:
+        slide_number: 1-indexed slide number.
+        title:        The slide title text (if detected).
+        body:         The remaining text content (non-title shapes).
+        full_text:    Title + body concatenated (used for AI summarisation).
+    """
     slide_number: int       # 1-indexed
     title: str
     body: str
@@ -75,6 +113,15 @@ class SlideText:
 
 @dataclass
 class SlideSummary:
+    """AI-generated summary for a single slide.
+
+    Attributes:
+        slide_number:  1-indexed slide number.
+        summary_title: Short title for this slide's summary.
+        overview:      2-3 sentence explanation of the slide's content.
+        topics:        List of noun-phrase topics covered on this slide.
+        takeaways:     Key claims or points from the slide.
+    """
     slide_number: int
     summary_title: str
     overview: str
@@ -84,6 +131,10 @@ class SlideSummary:
 
 @dataclass
 class PptxDocument:
+    """Aggregate of all slide summaries for a single PPTX file.
+
+    This is the top-level structure stored in MongoDB after processing.
+    """
     title: str
     total_slides: int
     slide_summaries: list[SlideSummary]
@@ -92,7 +143,18 @@ class PptxDocument:
 # ── Text extraction ───────────────────────────────────────────────────────────
 
 def extract_slides(data: bytes) -> list[SlideText]:
-    """Extract per-slide text from PPTX bytes. Returns one SlideText per slide."""
+    """Extract per-slide text from PPTX binary data.
+
+    Iterates every shape on every slide, collecting title and body text.
+    The title is identified by looking for a shape named "title" (python-pptx
+    convention). Falls back to using the first text shape as the title.
+
+    Args:
+        data: Raw PPTX file bytes (from file upload or GridFS).
+
+    Returns:
+        List of SlideText objects, one per slide, preserving slide order.
+    """
     prs = Presentation(io.BytesIO(data))
     slides: list[SlideText] = []
 
@@ -157,7 +219,20 @@ def _summarise_slide(
     slide: SlideText,
     retries: int = 2,
 ) -> SlideSummary:
-    """Call Mac 1 to summarise a single slide. Retries on failure."""
+    """Call Mac 1 (gpt-oss) to summarise a single slide.
+
+    If the slide has minimal text (< 30 chars), returns a stub summary
+    without making an API call. Retries up to `retries` times on failure.
+
+    Args:
+        client:    OllamaClient targeting the summary model (Mac 1).
+        pptx_title: Title of the overall presentation (for context).
+        slide:     SlideText object with the slide's raw content.
+        retries:   Maximum number of retry attempts after the first try.
+
+    Returns:
+        SlideSummary with AI-generated content, or a stub on failure.
+    """
     import json
 
     if len(slide.full_text.strip()) < 30:
@@ -208,9 +283,19 @@ def summarise_all_slides(
     slides: list[SlideText],
     client: OllamaClient | None = None,
 ) -> list[SlideSummary]:
-    """
-    Summarise every slide via Mac 1 (gpt-oss).
-    Called once at upload time — results are stored in MongoDB.
+    """Summarise every slide via Mac 1 (gpt-oss).
+
+    Called once at PPTX upload time — the results are stored in MongoDB
+    so that subsequent quiz sessions can slice cached summaries without
+    re-processing.
+
+    Args:
+        pptx_title: Title of the presentation.
+        slides:     List of SlideText objects from extract_slides().
+        client:     Optional OllamaClient; creates a default one if not provided.
+
+    Returns:
+        List of SlideSummary objects in slide order (same length as input).
     """
     active_client = client or OllamaClient(SummaryOllamaSettings())
     return [_summarise_slide(active_client, pptx_title, slide) for slide in slides]
@@ -225,7 +310,18 @@ def slice_summaries(
 ) -> list[SlideSummary]:
     """
     Return slide summaries for a given range [start, end] (both inclusive, 1-indexed).
-    This is the core of the "no re-processing" feature — slicing the cached summaries.
+
+    This is the core of the "no re-processing" feature — instead of calling the
+    AI again for every study session, we just slice the cached summaries from
+    the initial upload.
+
+    Args:
+        all_summaries: Full list of SlideSummary from summarise_all_slides().
+        start:         First slide number (inclusive).
+        end:           Last slide number (inclusive).
+
+    Returns:
+        Filtered list of SlideSummary within the given range.
     """
     return [s for s in all_summaries if start <= s.slide_number <= end]
 
@@ -237,6 +333,13 @@ def build_range_summary_text(
     """
     Flatten a list of SlideSummary objects into a single text block
     suitable for sending to the quiz generator.
+
+    Args:
+        pptx_title: Title of the presentation.
+        summaries:  List of SlideSummary to flatten.
+
+    Returns:
+        Plain text block with slide numbers, titles, overviews, topics, and takeaways.
     """
     parts = [f"Presentation: {pptx_title}\n"]
     for s in summaries:
@@ -257,7 +360,20 @@ def build_range_summary_response(
 ) -> SummaryResponse:
     """
     Build a SummaryResponse-compatible object from a slide range.
-    This is passed to the quiz generator as if it were a regular document summary.
+
+    Merges overviews, topics, and takeaways across all slides in the range,
+    deduplicating while preserving order. This is passed to the quiz generator
+    as if it were a regular document summary, allowing the quiz pipeline to
+    work identically for documents and PPTX files.
+
+    Args:
+        pptx_title: Title of the presentation.
+        summaries:  Slide summaries for the range (from slice_summaries()).
+        start:      First slide number in the range.
+        end:        Last slide number in the range.
+
+    Returns:
+        A SummaryResponse that can be used directly by QuizRequest.
     """
     all_topics: list[str] = []
     all_takeaways: list[str] = []
@@ -294,12 +410,21 @@ def build_range_summary_response(
     )
 
 
-# ── Module unlock check ───────────────────────────────────────────────────────
-
 def all_slides_covered(total_slides: int, sessions: list[dict]) -> bool:
     """
-    Returns True when every slide from 1..total_slides has been included
-    in at least one completed session.
+    Check whether every slide from 1..total_slides has been included
+    in at least one completed study session.
+
+    Used to determine if the student has finished the entire PPTX and
+    should unlock the summary/quiz for the full deck.
+
+    Args:
+        total_slides: Total number of slides in the PPTX.
+        sessions:     List of session dicts from MongoDB (each has
+                      slide_start, slide_end, and done flag).
+
+    Returns:
+        True if every slide has been covered in a completed session.
     """
     covered: set[int] = set()
     for session in sessions:

@@ -1,3 +1,16 @@
+"""
+routes/upload.py — Document Upload & Learning Package Generation
+=================================================================
+Handles file uploads (PDF, DOCX, TXT, PPTX) and text-paste submissions.
+Orchestrates a dual-Mac AI pipeline:
+  - Mac 1 (gpt-oss)   → summary generation (async via httpx or run_in_executor)
+  - Mac 2 (deepseek)   → quiz generation (background thread, polled via quiz-status)
+Also includes PDF quality assessment, text extraction helpers, and a
+deterministic fallback payload when AI services are unavailable.
+
+Cross-reference: routes/content.py (results/modules), routes/history.py (persistence).
+"""
+
 import io
 import os
 from datetime import datetime, timezone
@@ -136,12 +149,22 @@ Content: {text}"""
     return SummaryResponse.model_validate(data)
 
 # ── Background quiz job store ─────────────────────────────────────────────────
+# In-memory dict that maps job_id -> quiz status/result.
+# Populated by _run_quiz_in_background, polled by the /upload/quiz-status endpoint.
+# NOTE: Not persisted across server restarts — quiz generation is best-effort.
 import threading as _threading
 _upload_quiz_jobs: dict = {}  # { job_id: {"status":"pending"|"done"|"error", "quiz":[], "error":str} }
 
 
 def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, history_id: str) -> None:
-    """Thread target — generates quiz on Mac 2, stores result, updates MongoDB."""
+    """
+    Thread target — generates quiz on Mac 2 (deepseek), stores result in the
+    in-memory job dict, then persists to MongoDB via a sync pymongo client
+    (since this runs in a daemon thread without access to the async event loop).
+
+    Cross-reference: The upload endpoint fires this via `threading.Thread`.
+                     The frontend polls /upload/quiz-status/{job_id}.
+    """
     import time as _t, asyncio as _asyncio
     try:
         t0 = _t.time()
@@ -153,6 +176,7 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         )
         elapsed = round(_t.time() - t0, 1)
         model = _ai_service.quiz_client.settings.model
+        # ── Convert response to legacy frontend format ──
         quiz_data = []
         for q in quiz_response.questions:
             try:
@@ -169,7 +193,7 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
         _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
 
-        # Persist quiz to MongoDB using pymongo sync client (thread safe)
+        # ── Persist quiz to MongoDB using pymongo sync client (thread-safe) ──
         try:
             from bson import ObjectId
             import os
@@ -190,14 +214,16 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
         _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
 
-# ── In-memory quiz job store ──────────────────────────────────────────────────
+# ── In-memory quiz job store (declaration repeated for module-level access) ───
 # { job_id: { "status": "pending"|"done"|"error", "quiz": [...], "error": str } }
 _upload_quiz_jobs: dict = {}
 
 router = APIRouter()
 
+# ── Upload constraints ────────────────────────────────────────────────────────
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
+# Free-tier users are restricted to text-based formats; PPTX requires Pro.
 ALLOWED_EXTENSIONS_FREE = {"pdf", "txt", "doc", "docx"}
 ALLOWED_EXTENSIONS_PRO = {"pdf", "txt", "doc", "docx", "ppt", "pptx"}
 
@@ -599,9 +625,16 @@ def _build_upload_response(
 
 
 # ----------------------------- Quiz Status Endpoint -----------------------------
+
+# GET /upload/quiz-status/{job_id} — poll for Mac 2 quiz readiness
 @router.get("/upload/quiz-status/{job_id}")
 async def upload_quiz_status(job_id: str):
-    """Frontend polls this after upload until quiz is ready."""
+    """
+    GET /upload/quiz-status/{job_id} — polling endpoint for background quiz generation.
+    Returns "pending" while Mac 2 is still working, "done" with quiz data when ready,
+    or "error" if generation failed. The frontend polls this after the initial upload
+    response returns a quizJobId (see the /upload endpoint below).
+    """
     job = _upload_quiz_jobs.get(job_id)
     if not job:
         return {"job_id": job_id, "status": "pending", "quiz": [], "error": None}
@@ -609,6 +642,8 @@ async def upload_quiz_status(job_id: str):
 
 
 # ----------------------------- Upload Endpoint -----------------------------
+
+# POST /upload — main upload handler
 @router.post("/upload")
 async def upload_document(
     current_user: dict = Depends(get_current_user),
@@ -616,7 +651,20 @@ async def upload_document(
     text_content: Optional[str] = Form(None),
     title: Optional[str] = Form(None),
 ):
-    """Process file/text upload, generate learning package, and save history."""
+    """
+    POST /upload — process a file or text-paste submission.
+    Flow:
+      1. Validates file type against user tier (free vs pro).
+      2. PDFs go through a quality gate (scanned/image PDF detection).
+      3. Extracts text via format-specific helpers.
+      4. Phase 1 — Mac 1 generates summary (via _async_summarize).
+      5. Phase 2 — builds AI payload; falls back to legacy path.
+      6. Saves history document to MongoDB immediately.
+      7. Phase 4 — fires quiz generation on Mac 2 in a background thread.
+      8. Returns immediately with a quizJobId for the frontend to poll.
+    Cross-reference: Poll quiz progress at /upload/quiz-status/{quizJobId}.
+                     Results viewed through routes/content.py.
+    """
     user_id = str(current_user["_id"])
     user_tier = current_user.get("tier", "free")
 
@@ -652,18 +700,21 @@ async def upload_document(
     elif text_content and text_content.strip():
         extracted_text = text_content.strip()
         file_type = "TXT"
-        page_count = max(1, len(extracted_text) // 3000)
+        page_count = max(1, len(extracted_text) // 3000)  # rough page estimate
         doc_title = title or "Pasted text"
 
     else:
         return message_error(400, "Please upload a file or paste text content.")
 
+    # Rough word count for display metadata; used in the frontend info rows
     word_estimate = len(extracted_text.split()) if extracted_text else page_count * 350
 
     import time as _t, uuid as _uuid
     fallback_payload = _build_fallback_payload(doc_title, page_count)
 
     # ── Phase 1: Summary on Mac 1 (gpt-oss) ─────────────────────────────────
+    # Uses _async_summarize (httpx-based async call) instead of run_in_executor
+    # to avoid conflicts with Ollama's OLLAMA_NUM_PARALLEL=1 queue.
     summary_response = None
     try:
         t0 = _t.time()
@@ -697,6 +748,9 @@ async def upload_document(
         )
 
     # ── Phase 3: Save history immediately ───────────────────────────────────
+    # The history document is persisted BEFORE the quiz finishes so the frontend
+    # can navigate to the results page. Quiz data is backfilled via the background
+    # thread (Phase 4) or the default fallback quiz.
     now = datetime.now(timezone.utc)
     seq_id = await _get_next_seq_id(user_id)
     history_doc = _build_history_doc(
@@ -707,7 +761,10 @@ async def upload_document(
     result = await history_collection.insert_one(history_doc)
     history_id = str(result.inserted_id)
 
-    # ── Phase 4: Fire quiz on Mac 2 (deepseek) in background ────────────────
+    # ── Phase 4: Fire quiz on Mac 2 (deepseek) in background thread ──────────
+    # Quiz generation is CPU-intensive and uses a separate Ollama model, so it
+    # runs on a daemon thread rather than blocking the HTTP response. The frontend
+    # polls /upload/quiz-status/{quiz_job_id} until the quiz is ready.
     quiz_job_id = None
     if summary_response:
         quiz_job_id = str(_uuid.uuid4())
@@ -720,7 +777,9 @@ async def upload_document(
         t.start()
         print(f"[upload] Mac 2 quiz queued — job_id={quiz_job_id}")
 
-    # ── Phase 5: Return immediately ──────────────────────────────────────────
+    # ── Phase 5: Return immediately (do NOT wait for quiz) ───────────────────
+    # The response includes quizJobId for frontend polling, and quizReady=false
+    # when background quiz generation was queued.
     processed_at = _format_processed_time(now)
     response = _build_upload_response(
         history_id=history_id, seq_id=seq_id, doc_title=doc_title,

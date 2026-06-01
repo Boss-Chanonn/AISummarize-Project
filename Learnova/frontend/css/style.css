@@ -1,5 +1,10 @@
 /* ════════════════════════════════════
    LEARNOVA — MASTER STYLESHEET
+   Design system: dark-first with data-attribute theming (light, high-contrast,
+   deuteranopia, protanopia, tritanopia). Uses CSS custom properties for all
+   colors, spacing, and typography. Layout uses CSS Grid for the app shell
+   and Flexbox for component-level alignment. Motion follows
+   cubic-bezier(0.16,1,0.3,1) — Apple-grade easing.
    Last updated: 2026-05-09
    ════════════════════════════════════ */
 
@@ -8,6 +13,8 @@
    ───────────────────────────────────── */
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
 
+/* Typography: DM Serif Display for headings (serif, editorial feel) and
+   DM Sans for UI copy (sans-serif, readable at small sizes). */
 /* -- Component: Reset -- */
 *,
 *::before,
@@ -18,6 +25,11 @@
 }
 
 /* -- Component: Theme Tokens (Dark Default) -- */
+/* All visual tokens are declared as CSS custom properties on :root.
+   Each theme variant [data-theme="..."] re-declares only the tokens that
+   change, keeping palette management centralized. Naming convention:
+   --bg = page background, --surface = card/sheet, --cream = text primary,
+   --gold = accent, --green = success, --red-soft = error. */
 :root {
   --bg: #0A0A0A;
   --surface: #111111;
@@ -212,6 +224,8 @@ select {
 /* ─────────────────────────────────────
    2. Layout & App Shell
    ───────────────────────────────────── */
+/* App shell uses CSS Grid: fixed 220px sidebar + fluid main content area.
+   Sidebar is position: sticky with 100vh height so it scrolls with the page. */
 .app-shell{display:grid;grid-template-columns:220px 1fr;min-height:100vh}
 
 /* ─────────────────────────────────────
@@ -231,6 +245,8 @@ select {
 .sidebar-avatar:hover{opacity:1;background:var(--cream-05);border-color:var(--border)}
 .sidebar-bottom.open .sidebar-avatar{background:var(--cream-05);border-color:var(--border-md)}
 .sidebar-label{transition:opacity 0.15s}
+/* Hamburger: hidden by default (display:none), shown via media query.
+   Fixed position top-left; z-index 250 keeps it above the sidebar. */
 .sidebar-hamburger{
   display:none;align-items:center;justify-content:center;
   position:fixed;top:16px;left:16px;z-index:250;
@@ -285,6 +301,8 @@ select {
 .sidebar-account-item-signout:hover{color:var(--red-soft);border-color:rgba(200,120,80,0.28);background:rgba(200,120,80,0.06)}
 
 /* -- Component: Main Content Area -- */
+/* Main content fills the grid remainder. Generous padding for readability;
+   min-height ensures background spans the full viewport. */
 .main-content{padding:40px 48px;min-height:100vh}
 
 /* ─────────────────────────────────────
@@ -316,6 +334,8 @@ select {
 /* -- Component: Cards and Stats -- */
 .card{background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:22px;transition:border-color 0.15s}
 .card:hover{border-color:var(--border-md)}
+/* Stats grid: 3-column layout for dashboard KPI cards (uploads, quizzes, scores).
+   Collapses to 2 columns at 860px, 1 column on mobile via media query. */
 .stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:32px}
 .stat-card{background:linear-gradient(180deg, rgba(240,237,232,0.045), rgba(240,237,232,0.02));border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:22px}
 .stat-label{font-size:11px;color:var(--cream-25);letter-spacing:0.4px;margin-bottom:10px}
@@ -536,6 +556,8 @@ select {
 }
 
 /* -- Component: Quick Actions -- */
+/* 2-column shortcut grid for key dashboard actions (Upload, Quiz, History).
+   Each card is a full clickable area with icon, title, and description. */
 .quick-actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px}
 .qa-card{padding:22px 24px;background:linear-gradient(180deg, rgba(240,237,232,0.045), rgba(240,237,232,0.02));border:0.5px solid var(--border);border-radius:var(--radius-lg);cursor:pointer;transition:border-color 0.15s;text-decoration:none;color:inherit;display:block}
 .qa-card:hover{border-color:rgba(200,184,154,0.28)}
@@ -544,6 +566,8 @@ select {
 .qa-desc{font-size:12px;color:var(--cream-25);line-height:1.6}
 .qa-arrow{float:right;color:var(--gold);font-size:14px;margin-top:-18px}
 
+/* Responsive breakpoint (860px): collapse app-shell to single column, hide
+   sidebar, switch stat/theme grids to 2 columns, stack all split layouts. */
 @media(max-width:860px){
   .app-shell{grid-template-columns:1fr}
   .sidebar{display:none}
@@ -563,6 +587,9 @@ select {
 ════════════════════════════════════════ */
 
 /* -- 10.1 Core Keyframes -- */
+/* Note: this fadeUp overrides the earlier 12px variant (in Shared Components
+   section) with 18px for a more dramatic entrance. In CSS, the last
+   @keyframes declaration wins globally regardless of selector specificity. */
 @keyframes fadeUp   { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
 @keyframes fadeIn   { from{opacity:0} to{opacity:1} }
 @keyframes slideRight { from{opacity:0;transform:translateX(-14px)} to{opacity:1;transform:translateX(0)} }
@@ -785,6 +812,8 @@ select {
 
 /* ─────────────────────────────────────
    5. User Pages
+   — Page-specific overrides for dashboard, upload, results, payment,
+     module, billing, and confirmation screens.
    ───────────────────────────────────── */
 
 /* -- dashboard.html & history.html -- */
@@ -838,6 +867,9 @@ select {
 }
 
 /* -- upload.html -- */
+/* Curtain layout: two-column grid where the left panel collapses when
+   .curtain-right toggles grid-template-columns from "1fr 1fr" to "0fr 1fr",
+   hiding the upload form and revealing the full-width results panel. */
 .upload-layout{
   display:grid;
   grid-template-columns:1fr 1fr;
@@ -1182,6 +1214,9 @@ select {
 
 /* ─────────────────────────────────────
    6. Admin Pages
+   — Scoped to admin-dashboard and admin-user-management pages. Reuses
+     the same CSS custom property tokens; adds table layouts, CRUD forms,
+     modals, bulk actions, pagination, and inline editing components.
    - User Management (admin-users.html)
    - Stats Overview (admin-stats.html)
    ───────────────────────────────────── */
@@ -1390,6 +1425,9 @@ select {
 
 /* ─────────────────────────────────────
    8. Auth / Landing Pages
+   — Public-facing marketing pages: hero section (64px heading), feature strip,
+     process/pricing grids, and auth modal. Designed for conversion with large
+     typography, generous whitespace, and gradient surface treatments.
    - Landing (index.html)
    - Login / Register modal
    ───────────────────────────────────── */
@@ -1515,6 +1553,9 @@ select {
 
 /* ─────────────────────────────────────
    7. System Admin Page (system-admin.html)
+   — System-level admin tools: service status monitoring, user control panel,
+     database document browser/editor, security center, and audit log viewer.
+     All scoped under .sys-* classes.
    ───────────────────────────────────── */
 
 /* -- Section Switching -- */
@@ -1695,6 +1736,8 @@ select {
   .failed-log-row{grid-template-columns:80px 2fr 1fr 1fr 80px}
 }
 
+/* Responsive breakpoint (760px): mobile sidebar overlay — sidebar becomes a
+   fixed panel sliding in from the left; hamburger button becomes visible. */
 @media(max-width:760px){
   .app-shell{grid-template-columns:1fr}
   .sidebar{display:none}
@@ -1704,6 +1747,9 @@ select {
   .sidebar-hamburger{display:flex}
   .sidebar-hamburger.is-active{left:268px}
 }
+/* Responsive breakpoint (761px–1024px): collapsed sidebar — only 64px wide,
+   showing only icons (labels hidden). Saves horizontal space on smaller screens
+   while keeping navigation accessible. */
 @media(min-width:761px)and(max-width:1024px){
   .app-shell{grid-template-columns:64px 1fr}
   .sidebar{width:64px;padding:20px 0;align-items:center}
@@ -1725,6 +1771,7 @@ select {
   .sidebar-hamburger{display:none}
 }
 
+/* System admin responsive (860px): wrap admin card headers and action buttons. */
 @media(max-width:860px){
   .sys-card-header{flex-wrap:wrap}
   .sys-card-actions{width:100%;justify-content:flex-end}

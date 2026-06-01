@@ -339,6 +339,13 @@
 <script src="js/app.js"></script>
 <script src="js/api.js"></script>
 <script>
+// ── module.html ───────────────────────────────────────────────────────────────
+// This page renders a personalised AI-generated learning module after the user
+// completes an initial quiz. It shows recommended resources (articles, videos,
+// podcasts), a follow-up quiz targeting weak topics, calendar scheduling, and
+// a YouTube player modal. Module data is fetched from the backend via URL
+// params (?historyId=) and persisted through calls to LEARNOVA_API from api.js.
+
 // ── Auth guard ──────────────────────────────────────────────────────────────
 (function() {
   const token = localStorage.getItem('token');
@@ -348,7 +355,10 @@
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
 
 // ── State ────────────────────────────────────────────────────────────────────
-let activeResult = null;  // loaded from backend via historyId URL param
+// Core data structures that drive the module page — loaded and hydrated
+// on page initialisation (initModulePage).
+
+let activeResult = null;  // Full result object loaded from backend via historyId URL param
 const _cfg = window.LEARNOVA_CONFIG || window.APP_CONFIG || {};
 const moduleConfig = (typeof getModuleConfig === 'function') ? getModuleConfig() : (_cfg.module || {});
 const calendars = moduleConfig.calendars || [
@@ -356,61 +366,124 @@ const calendars = moduleConfig.calendars || [
   { name: 'Apple Calendar',  color: '#888888' },
   { name: 'Outlook',         color: '#0F6E56' }
 ];
-let resources = [];
-let selectedCal = 0;
-let currentCardId = null;
-let scheduledCount = 0;
-let completedCount = 0;
+let resources = [];       // Array of resource objects { id, title, type, url, duration, scheduled, completed, … }
+let selectedCal = 0;      // Index of the currently selected calendar provider
+let currentCardId = null;     // ID of the resource currently being scheduled via calendar modal
+let scheduledCount = 0;       // Count of resources marked as scheduled
+let completedCount = 0;       // Count of resources marked as completed
 let followUpQuestions = activeResult?.followUpQuiz?.questions
   ? activeResult.followUpQuiz.questions.map(e => ({ ...e }))
   : [];
-let followUpAnswers = [];
-let followUpIndex = 0;
-let followUpAnswered = false;
-let undoTimer = null;
-let undoCountdown = 0;
-let pendingCompletedResourceId = null;
+let followUpAnswers = [];     // Recorded answers for the follow-up quiz
+let followUpIndex = 0;        // Current question index within the follow-up quiz
+let followUpAnswered = false; // Whether the current question has been answered
+let undoTimer = null;         // Interval handle for the undo-countdown timer
+let undoCountdown = 0;        // Seconds remaining for undo action
+let pendingCompletedResourceId = null;  // Most recently completed resource ID (for undo)
 
 const iconSVG = {
+  // Inline SVG icons for each resource type — used inside the resource cards
   video:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C8B89A" stroke-width="1.3"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="#C8B89A" stroke="none"/></svg>',
   article: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B9E6B" stroke-width="1.3"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>',
   podcast: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9678C8" stroke-width="1.3"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>'
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Map a resource type string to its corresponding CSS thumbnail class.
+ *
+ * @param {string} type  'article' | 'video' | 'podcast'
+ * @returns {string}     CSS class name (e.g. 't-article')
+ */
 function getThumbClass(type) {
   return type === 'article' ? 't-article' : (type === 'podcast' ? 't-podcast' : 't-video');
 }
+/**
+ * Human-readable label for a resource type.
+ *
+ * @param {string} type  'article' | 'video' | 'podcast'
+ * @returns {string}     Capitalised label (e.g. 'Article')
+ */
 function getTypeLabel(type) {
   return type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Resource';
 }
+
+/**
+ * Check whether the active result has identified weak topics or weaknesses.
+ *
+ * @returns {boolean}
+ */
 function hasWeakTopics() {
   return Boolean(activeResult?.weakTopics?.length || activeResult?.weaknesses?.length);
 }
+/**
+ * Check whether a URL is effectively unusable (empty, fragment-only, or
+ * a bare domain homepage). Search-result URLs are considered valid.
+ *
+ * @param {string} url  The URL to validate
+ * @returns {boolean}   True if the URL is invalid / unusable
+ */
 function hasInvalidUrl(url) {
   const v = String(url || '').trim();
   if (!v || v === '#' || v === 'http://' || v === 'https://') return true;
-  // Only block bare homepages — search URLs and watch URLs are valid fallbacks
+  // Accept search/listing pages as valid fallbacks; only block bare homepages
   return /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|open\.spotify\.com)\/?$/.test(v);
 }
+
+/**
+ * Check if a resource's URL is stale (invalid or mismatched with source).
+ * Used during hydration to decide whether to refresh from the API.
+ *
+ * @param {object} resource  Resource object with .url, .type, .source
+ * @returns {boolean}        True if the URL should be refreshed
+ */
 function hasStaleResourceUrl(resource) {
   const url = String(resource?.url || '');
   return hasInvalidUrl(url)
     || (resource?.type === 'article' && /wikipedia\.org\/wiki\//.test(url) && resource?.source !== 'wikipedia.org');
 }
+/**
+ * Extract a YouTube video ID from a watch or short-url.
+ *
+ * @param {string} url  Full YouTube URL
+ * @returns {string|null}  11-character video ID, or null if no match
+ */
 function extractYouTubeId(url) {
   if (!url) return null;
   const m = String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
   return m ? m[1] : null;
 }
+/**
+ * Quick check whether a URL points to YouTube.
+ *
+ * @param {string} url
+ * @returns {boolean}
+ */
 function isYouTubeUrl(url) {
   return Boolean(extractYouTubeId(url));
 }
+/**
+ * Generate a human-readable resource title from a topic and type.
+ * Used as a fallback when the API doesn't return a specific title.
+ *
+ * @param {string} topic  The topic/keyword for the resource
+ * @param {string} type   'video' | 'article' | 'podcast'
+ * @returns {string}      Formatted title string
+ */
 function buildResourceTitle(topic, type) {
   if (type === 'video') return `${topic}: explainer walkthrough`;
   if (type === 'podcast') return `${topic}: discussion and revision audio`;
   return `${topic}: article and key-point review`;
 }
+/**
+ * Build a search-engine URL for a resource topic. Falls back to generic
+ * search queries when no curated URL is available from the API.
+ *
+ * @param {string} topic  Search keyword
+ * @param {string} type   'video' → YouTube search, 'podcast' → ListenNotes, else → Wikipedia
+ * @returns {string}      Fully qualified search URL
+ */
 function buildResourceUrl(topic, type) {
   const query = String(topic || 'study topic').trim();
   if (type === 'video') return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query + ' explained');
@@ -418,6 +491,11 @@ function buildResourceUrl(topic, type) {
   // Wikipedia Special:Search redirects to the article directly if exact match exists
   return 'https://en.wikipedia.org/wiki/Special:Search?search=' + encodeURIComponent(query) + '&ns0=1&go=Go';
 }
+/**
+ * Persist the current module resources, learning module, follow-up quiz,
+ * and progress to the backend via POST /api/history/:id/module-resources.
+ * Silently fails on network errors (non-critical).
+ */
 function persistModuleResources() {
   if (!activeResult) return;
   activeResult.moduleResources = resources.map(r => ({ ...r }));
@@ -439,6 +517,13 @@ function persistModuleResources() {
 }
 
 // ── Resource rendering ────────────────────────────────────────────────────────
+
+/**
+ * Render the recommended resources grid. Each resource card shows a
+ * thumbnail (clickable for YouTube videos via modal), title, source,
+ * duration, meta badge, and action buttons (watch/open, schedule,
+ * mark complete). YouTube resources get an inline player modal trigger.
+ */
 function renderResources() {
   if (!resources.length) {
     document.getElementById('res-list').innerHTML = `
@@ -539,6 +624,12 @@ function renderResources() {
 }
 
 // ── Module header ─────────────────────────────────────────────────────────────
+
+/**
+ * Render the hero header area: breadcrumb, badge, title, description,
+ * focus list, and meta stats (total time, resources, progress). Falls
+ * back gracefully when the learning module or weak topics are absent.
+ */
 function renderModuleHeader() {
   const hasWeak = hasWeakTopics();
   const weakestTopic = activeResult?.weaknesses?.[0] || '';
@@ -583,8 +674,18 @@ function renderModuleHeader() {
 }
 
 // ── Calendar modal ────────────────────────────────────────────────────────────
+// Calendar connection status — refreshed every time the modal opens.
 let calendarStatus = { google: false, outlook: false, apple: false };
 
+/**
+ * Open the calendar-scheduling modal for a given resource. Pre-fills
+ * the date with tomorrow's date and loads calendar connection status.
+ *
+ * @param {number} cardId  Resource ID
+ * @param {string} title   Display title for the event
+ * @param {string} dur     Duration description (e.g. "10 min")
+ * @param {string} type    Resource type for the icon
+ */
 async function openCalModal(cardId, title, dur, type) {
   currentCardId = cardId;
   document.getElementById('cm-res-name').textContent = title;
@@ -597,6 +698,12 @@ async function openCalModal(cardId, title, dur, type) {
   document.getElementById('cal-backdrop').classList.add('open');
 }
 
+/**
+ * Fetch the user's connected calendar providers from the backend.
+ * Updates the global calendarStatus object.
+ *
+ * @returns {Promise<void>}
+ */
 async function loadCalendarStatus() {
   try {
     const token = localStorage.getItem('token') || '';
@@ -609,6 +716,11 @@ async function loadCalendarStatus() {
   } catch (_) {}
 }
 
+/**
+ * Render the calendar-provider selection list inside the modal.
+ * Connected providers show a radio-tick; disconnected providers show
+ * a connect/configure button.
+ */
 function renderCalOpts() {
   const providers = [
     { id: 'google', name: 'Google Calendar', color: '#4A90D9', connected: calendarStatus.google, email: calendarStatus.google_email },
@@ -635,6 +747,12 @@ function renderCalOpts() {
   }).join('');
 }
 
+/**
+ * Select a calendar provider by index. If the provider is not yet
+ * connected, triggers the connection flow instead.
+ *
+ * @param {number} i  Index into the providers array (0=google, 1=apple, 2=outlook)
+ */
 function selectCal(i) {
   const providers = ['google', 'apple', 'outlook'];
   if (calendarStatus[providers[i]]) {
@@ -646,8 +764,22 @@ function selectCal(i) {
 }
 
 function closeCalModal() { document.getElementById('cal-backdrop').classList.remove('open'); }
+
+/**
+ * Close the calendar modal when the user clicks on the backdrop (outside
+ * the modal box).
+ *
+ * @param {Event} e  Click event
+ */
 function closeOnBackdrop(e) { if (e.target === document.getElementById('cal-backdrop')) closeCalModal(); }
 
+/**
+ * Confirm the calendar-scheduling action: create a calendar event via
+ * POST /api/calendar/events, optionally download an .ics file for local
+ * import, and update the resource's scheduled state locally.
+ *
+ * @returns {Promise<void>}
+ */
 async function confirmSchedule() {
   const resource = resources.find(r => r.id === currentCardId);
   if (!resource) return;
@@ -705,6 +837,13 @@ async function confirmSchedule() {
   showToast('Added to ' + PROVIDER_NAMES[provider]);
 }
 
+/**
+ * Initiate a calendar connection. Apple and Outlook use email-based
+ * configuration (prompts the user); Google redirects to OAuth.
+ *
+ * @param {string} provider  'google' | 'apple' | 'outlook'
+ * @returns {Promise<void>}
+ */
 async function connectCalendar(provider) {
   const token = localStorage.getItem('token') || '';
   if (provider === 'apple' || provider === 'outlook') {
@@ -736,6 +875,13 @@ async function connectCalendar(provider) {
   }
 }
 
+/**
+ * Disconnect a calendar provider by revoking the API token on the
+ * backend via POST /api/calendar/disconnect.
+ *
+ * @param {string} provider  'google' | 'apple' | 'outlook'
+ * @returns {Promise<void>}
+ */
 async function disconnectCalendar(provider) {
   const token = localStorage.getItem('token') || '';
   try {
@@ -753,6 +899,11 @@ async function disconnectCalendar(provider) {
 const PROVIDER_NAMES = { google: 'Google Calendar', apple: 'Apple Calendar', outlook: 'Outlook' };
 
 // ── Progress / state ──────────────────────────────────────────────────────────
+
+/**
+ * Recalculate and render the module state cards (completed, scheduled,
+ * remaining counts), the overall progress bar, and the follow-up quiz shell.
+ */
 function updateModuleStates() {
   completedCount = resources.filter(r => r.completed).length;
   scheduledCount = resources.filter(r => r.scheduled).length;
@@ -768,6 +919,12 @@ function updateModuleStates() {
 }
 
 // ── Mark complete + undo ──────────────────────────────────────────────────────
+
+/**
+ * Mark a resource as completed, persist to backend, show the undo toast.
+ *
+ * @param {number} resourceId  ID of the resource to mark complete
+ */
 function markResourceComplete(resourceId) {
   resources = resources.map(r => r.id === resourceId ? { ...r, completed: true } : r);
   persistModuleResources();
@@ -776,6 +933,10 @@ function markResourceComplete(resourceId) {
   updateModuleStates();
   showUndoToast();
 }
+/**
+ * Show the undo toast bar with a 5-second countdown. If the user clicks
+ * "Undo" within the window, the completion is reverted.
+ */
 function showUndoToast() {
   clearUndoToast();
   undoCountdown = 5;
@@ -789,10 +950,17 @@ function showUndoToast() {
     document.getElementById('undo-toast-sub').textContent = `Undo available for ${undoCountdown}s.`;
   }, 1000);
 }
+/**
+ * Clear any active undo timer and hide the undo toast bar.
+ */
 function clearUndoToast() {
   if (undoTimer) { clearInterval(undoTimer); undoTimer = null; }
   document.getElementById('undo-toast')?.classList.remove('show');
 }
+/**
+ * Revert the most recent "mark complete" action, restoring the resource
+ * to an uncompleted state.
+ */
 function undoComplete() {
   if (pendingCompletedResourceId == null) return;
   resources = resources.map(r => r.id === pendingCompletedResourceId ? { ...r, completed: false } : r);
@@ -805,6 +973,15 @@ function undoComplete() {
 }
 
 // ── Follow-up quiz shell ──────────────────────────────────────────────────────
+
+/**
+ * Render the follow-up quiz section based on current state:
+ * - No result / not done → locked message requiring initial quiz
+ * - Resources incomplete  → "Complete all cards first" message
+ * - Progress already recorded → comparison grid (score delta, improved topics, next steps)
+ * - Questions available    → active quiz render via renderFollowUpQuestion()
+ * - Default               → "Start follow-up quiz" CTA
+ */
 function renderFollowUpShell() {
   const mount = document.getElementById('follow-up-shell');
   if (!activeResult || !activeResult.done) {
@@ -865,6 +1042,10 @@ function renderFollowUpShell() {
     </div>`;
 }
 
+/**
+ * Render the current follow-up quiz question with options, progress bar,
+ * and navigation (skip / next). Shows immediate feedback after answering.
+ */
 function renderFollowUpQuestion() {
   const mount = document.getElementById('follow-up-shell');
   const q = followUpQuestions[followUpIndex];
@@ -899,6 +1080,12 @@ function renderFollowUpQuestion() {
     </div>`;
 }
 
+/**
+ * Record the user's follow-up quiz answer, highlight correct/wrong options,
+ * show explanation, and reveal the "Next" button.
+ *
+ * @param {number} i  Index of the selected option (0–3)
+ */
 function selectFollowUpAnswer(i) {
   if (followUpAnswered) return;
   followUpAnswered = true;
@@ -917,10 +1104,18 @@ function selectFollowUpAnswer(i) {
   document.getElementById('fu-skip').style.display = 'none';
   document.getElementById('fu-next').style.display = 'inline-flex';
 }
+/**
+ * Skip the current follow-up question (records -1 as chosen index)
+ * and advance to the next one.
+ */
 function skipFollowUpQuestion() {
   followUpAnswers.push({ chosen_index: -1, question_index: followUpIndex });
   nextFollowUpQuestion();
 }
+/**
+ * Advance to the next follow-up question, or finish the quiz when all
+ * questions have been answered.
+ */
 function nextFollowUpQuestion() {
   followUpIndex += 1;
   followUpAnswered = false;
@@ -928,6 +1123,14 @@ function nextFollowUpQuestion() {
   renderFollowUpQuestion();
 }
 
+/**
+ * Start or restart the follow-up quiz. If the quiz hasn't been generated
+ * yet (or forceRefresh is true), calls LEARNOVA_API.generateFollowUpQuiz
+ * to build questions targeting the user's weak topics.
+ *
+ * @param {boolean} [forceRefresh=false]  Whether to regenerate questions
+ * @returns {Promise<void>}
+ */
 async function startFollowUpQuiz(forceRefresh = false) {
   if (!activeResult?.learningModule) return;
   if (resources.length && completedCount < resources.length) {
@@ -962,6 +1165,13 @@ async function startFollowUpQuiz(forceRefresh = false) {
   renderFollowUpQuestion();
 }
 
+/**
+ * Finish the follow-up quiz: send answers to LEARNOVA_API.analyzeQuizResults,
+ * compare progress via LEARNOVA_API.compareProgress, persist results, and
+ * re-render the follow-up shell with the comparison grid.
+ *
+ * @returns {Promise<void>}
+ */
 async function finishFollowUpQuiz() {
   try {
     const analysis = await LEARNOVA_API.analyzeQuizResults({
@@ -985,6 +1195,14 @@ async function finishFollowUpQuiz() {
 }
 
 // ── Resource hydration ────────────────────────────────────────────────────────
+
+/**
+ * Map a learning-module object (from the API) into the local `resources`
+ * array format, cycling through article/video/podcast types per section.
+ *
+ * @param {object} module  Learning module object with .sections[] or .focus_areas[]
+ * @returns {object[]}     Array of resource objects ready for rendering
+ */
 function mapModuleSections(module) {
   const sections = module.sections?.length
     ? module.sections
@@ -1006,6 +1224,14 @@ function mapModuleSections(module) {
   }));
 }
 
+/**
+ * Merge API-recommended resources into the base module-derived list.
+ * Preserves scheduling and completion states from the base.
+ *
+ * @param {object[]} base   Locally-built resource list
+ * @param {object}   recs   API response containing .resources[]
+ * @returns {object[]}      Merged resource list (API results override base by topic)
+ */
 function mergeRecommended(base, recs) {
   const recommended = recs?.resources || [];
   if (!recommended.length) return base;
@@ -1029,6 +1255,12 @@ function mergeRecommended(base, recs) {
   });
 }
 
+/**
+ * Build a fallback learning module from the result's weak topics or
+ * general topic tags when the AI generation fails or is unavailable.
+ *
+ * @returns {object}  Module object with .title, .description, .focus_areas, .sections
+ */
 function buildFallbackModule() {
   const areas = (activeResult?.weakTopics || activeResult?.weaknesses || activeResult?.topicTags || []).slice(0, 4);
   const fallback = [...new Set([...(areas.length ? areas : []), 'Core concepts', 'Method and findings'])].slice(0, 4);
@@ -1045,6 +1277,14 @@ function buildFallbackModule() {
   };
 }
 
+/**
+ * Normalise the active result's summary into the format expected by
+ * the various LEARNOVA_API endpoints. Guarantees minimum body paragraphs,
+ * takeaways, and topics so the API never receives empty arrays.
+ *
+ * @param {object} summary  Raw summary object from the result
+ * @returns {object}        Normalised summary payload
+ */
 function normalizeSummaryForApi(summary) {
   const raw = summary || {};
   const body = Array.isArray(raw.body) && raw.body.length
@@ -1081,6 +1321,12 @@ function normalizeSummaryForApi(summary) {
   };
 }
 
+/**
+ * Extract and deduplicate weak topics from the active result, falling
+ * back to a generic "Core argument" topic if nothing is available.
+ *
+ * @returns {string[]}  Up to 4 unique topic strings
+ */
 function normalizeWeakTopics() {
   const topics = [
     ...(activeResult?.weakTopics || []),
@@ -1091,6 +1337,12 @@ function normalizeWeakTopics() {
   return unique.length ? unique : ['Core argument'];
 }
 
+/**
+ * Extract up to 8 missed (incorrect) questions from the initial quiz
+ * for use in generating the learning module.
+ *
+ * @returns {object[]}  Array of { question, topic, user_answer, correct_answer, explanation }
+ */
 function normalizeMissedQuestions() {
   return (activeResult.questions || [])
     .filter(q => !q.correct)
@@ -1104,6 +1356,14 @@ function normalizeMissedQuestions() {
     .slice(0, 8);
 }
 
+/**
+ * Fetch AI-recommended resources from LEARNOVA_API.recommendResources
+ * and merge them into the local resources array. Falls back silently
+ * to the locally-built resource list if the API call fails.
+ *
+ * @param {string[]} topics  Weak topics to target for recommendations
+ * @returns {Promise<void>}
+ */
 async function hydrateResources(topics) {
   try {
     const recs = await LEARNOVA_API.recommendResources({
@@ -1117,6 +1377,17 @@ async function hydrateResources(topics) {
   } catch (_) { /* keep fallback URLs */ }
 }
 
+/**
+ * Orchestrate the learning-module lifecycle:
+ * 1. Use cached moduleResources if available (with stale-URL refresh).
+ * 2. Fall back to activeResult.learningModule if it exists.
+ * 3. Generate a new module via LEARNOVA_API.generateLearningModule.
+ * 4. On API failure, use buildFallbackModule().
+ *
+ * Then hydrates resources and persists everything to the backend.
+ *
+ * @returns {Promise<void>}
+ */
 async function ensureLearningModule() {
   if (!activeResult?.done || !activeResult.analysis) return;
 
@@ -1161,8 +1432,18 @@ async function ensureLearningModule() {
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 // ── YouTube modal ─────────────────────────────────────────────────────────────
+
+/**
+ * Open the YouTube player modal overlay. Extracts the video ID from the URL,
+ * embeds the iframe with autoplay, and displays title/source metadata.
+ *
+ * @param {string} url       Full YouTube watch URL
+ * @param {string} title     Video title for the modal header
+ * @param {string} topic     Associated topic label
+ * @param {string} source    Source attribution
+ * @param {string} duration  Duration string for display
+ */
 function openYtModal(url, title, topic, source, duration) {
   const videoId = extractYouTubeId(url);
   if (!videoId) {
@@ -1182,6 +1463,10 @@ function openYtModal(url, title, topic, source, duration) {
   document.body.style.overflow = 'hidden';
 }
 
+/**
+ * Close the YouTube player modal, stop the video by clearing the iframe
+ * src, and restore page scrolling.
+ */
 function closeYtModal() {
   document.getElementById('yt-backdrop').classList.remove('open');
   // Stop video by clearing src
@@ -1189,16 +1474,31 @@ function closeYtModal() {
   document.body.style.overflow = '';
 }
 
+/**
+ * Close the YouTube modal when clicking on the backdrop area.
+ *
+ * @param {Event} e  Click event
+ */
 function closeYtOnBackdrop(e) {
   if (e.target === document.getElementById('yt-backdrop')) closeYtModal();
 }
 
-// Close on Escape key
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
+// Close the YouTube player modal when the user presses Escape.
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeYtModal();
 });
 
 // ── Load result from backend ─────────────────────────────────────────────────
+
+/**
+ * Fetch the full quiz/result object from the backend by history ID.
+ * Maps the backend's response format to the internal shape expected
+ * by the module page's rendering functions.
+ *
+ * @param {string} historyId  MongoDB ObjectID of the history item
+ * @returns {Promise<object>}  Normalised result object
+ */
 async function loadResultFromBackend(historyId) {
   const token = localStorage.getItem('token') || '';
   const res = await fetch('/api/results?id=' + historyId, {
@@ -1252,6 +1552,14 @@ async function loadResultFromBackend(historyId) {
   };
 }
 
+/**
+ * Initialise the module page: show a loading state, fetch the result
+ * from the backend using the historyId URL param (or localStorage
+ * fallback), build the learning module and resources, and render
+ * everything (header, resources, states, follow-up quiz).
+ *
+ * @returns {Promise<void>}
+ */
 async function initModulePage() {
   // Show loading state
   document.getElementById('res-list').innerHTML = `
@@ -1305,6 +1613,11 @@ async function initModulePage() {
 initModulePage();
 
 // ── Handle OAuth callback redirect ─────────────────────────────────────────
+
+/**
+ * On page load, check for ?calendar=connected|error in the URL (OAuth
+ * redirect from Google/Auth0). Show a toast and clean the URL params.
+ */
 (function() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('calendar') === 'connected') {

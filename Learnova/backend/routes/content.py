@@ -1,3 +1,12 @@
+"""
+routes/content.py — Quiz Results & Learning Modules
+====================================================
+Handles retrieval of completed quiz results (per-item or latest) and
+learning module metadata. All data comes from the `history` MongoDB collection.
+
+Cross-reference: routes/upload.py (populates history), routes/history.py (submits quiz answers).
+"""
+
 from fastapi import APIRouter, Depends, Query
 from backend.database.db import history_collection
 from backend.middleware.auth_middleware import get_current_user
@@ -9,12 +18,25 @@ router = APIRouter()
 
 
 # ----------------------------- Results Endpoints -----------------------------
+
+# GET /results — quiz results for review
 @router.get("/results")
 async def get_results(
     id: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get quiz results for one history item or the latest completed quiz."""
+    """
+    GET /results — retrieve quiz results for one history item or the latest completed quiz.
+
+    Query params:
+      id (optional) — specific history document ID. Omit to get the most recent
+                       completed quiz (sorted by completedAt descending).
+
+    Builds two question-review formats:
+      - `questions`: simple review with your answer vs correct answer.
+      - `analysis.reviewed_questions`: detailed breakdown for the AI analysis tab.
+    Also computes `weak_topics` from incorrectly answered questions.
+    """
     user_id = str(current_user["_id"])
 
     if id:
@@ -24,6 +46,7 @@ async def get_results(
             return message_error(400, "Invalid ID")
         item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
+        # Fetch the most recent completed quiz for this user
         item = await history_collection.find_one(
             {"userId": user_id, "done": True}, sort=[("completedAt", -1)]
         )
@@ -38,6 +61,7 @@ async def get_results(
     analysis_reviewed_questions = []
     weak_topics = []
 
+    # ── Build reviewed-questions lists by comparing user answers to correct ones ──
     for index, question in enumerate(quiz_full):
         chosen = user_answers[index] if index < len(user_answers) else -1
         options = question.get("opts", [])
@@ -46,6 +70,8 @@ async def get_results(
         topic = question.get("topic") or "General comprehension"
         if not is_correct and topic not in weak_topics:
             weak_topics.append(topic)
+
+        # Simple review format — one object per question
         reviewed_questions.append({
             "q": question.get("q", ""),
             "topic": topic,
@@ -54,6 +80,7 @@ async def get_results(
             "answer": None if is_correct else (options[correct_index] if 0 <= correct_index < len(options) else ""),
             "explanation": question.get("explanation", ""),
         })
+        # Detailed review format — used by the AI analysis tab
         analysis_reviewed_questions.append({
             "question": question.get("q") or "Review this quiz question from the document.",
             "topic": topic,
@@ -63,6 +90,7 @@ async def get_results(
             "explanation": question.get("explanation") or "Review the document summary to understand why this answer is correct.",
         })
 
+    # ── Derive weaknesses and study-next recommendations ──
     analysis = doc.get("analysis", {}) or {}
     topic_tags = doc.get("summary", {}).get("topics", [])
     weaknesses = analysis.get("weaknesses") or weak_topics or topic_tags[:2]
@@ -109,12 +137,20 @@ async def get_results(
 
 
 # ----------------------------- Modules Endpoints -----------------------------
+
+# GET /modules — learning modules for one history item or latest upload
 @router.get("/modules")
 async def get_modules(
     historyId: str = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
-    """Get learning modules for one history item or the latest upload."""
+    """
+    GET /modules — retrieve learning modules and study-next recommendations.
+
+    Query params:
+      historyId (optional) — specific history document ID. Omit to get the
+                             most recently uploaded item's modules.
+    """
     user_id = str(current_user["_id"])
 
     if historyId:
@@ -124,6 +160,7 @@ async def get_modules(
             return message_error(400, "Invalid ID")
         item = await history_collection.find_one({"_id": oid, "userId": user_id})
     else:
+        # Fall back to the most recent upload
         item = await history_collection.find_one(
             {"userId": user_id}, sort=[("uploadedAt", -1)]
         )

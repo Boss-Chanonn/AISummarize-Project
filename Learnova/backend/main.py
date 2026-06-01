@@ -1,3 +1,33 @@
+"""
+Learnova API — FastAPI Application Entry Point
+===============================================
+
+This module initialises and configures the FastAPI application for the Learnova
+platform.  It is responsible for:
+
+- Loading environment variables and configuring CORS / security middleware
+- Setting up rate limiting via slowapi
+- Attaching an HTTP activity-logging middleware that records every API call
+  to the ``system_logs`` collection (see :func:`_write_system_log`)
+- Registering all route modules (auth, user, upload, history, content, admin,
+  sysadmin, billing, AI, PPTX, calendar)
+- Declaring startup health checks against MongoDB and Ollama endpoints
+- Scheduling the weekly email digest via APScheduler
+- Mounting the built frontend as a static-file fallback
+
+Routes are organised under ``/api/`` and imported lazily after middleware setup
+to avoid circular-dependency issues between route modules and the app instance.
+
+Cross-references
+----------------
+- :mod:`backend.middleware.auth_middleware` — JWT-based authentication guards
+- :mod:`backend.middleware.security`        — SecurityHeadersMiddleware
+- :mod:`backend.database.db`               — MongoDB client and collection handles
+- :mod:`backend.services.ollama_client`    — Ollama connection settings
+- :mod:`backend.services.email_service`    — Weekly / summary email logic
+- :mod:`backend.routes.*`                  — Each submodule handles a feature domain
+"""
+
 from fastapi import FastAPI, Request, Response, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -47,8 +77,23 @@ app.add_middleware(
 _LOG_SECRET = os.getenv("SECRET_KEY", "changeme")
 
 
+# ── Activity-Logging Helpers ──────────────────────────────────────────
+# These helper functions are used exclusively by the ``log_activity``
+# middleware (line ~125) to extract identity information from each request
+# and persist a log entry in ``system_logs_collection``.
+# They operate as a fallback chain:
+#   1. Try the JWT bearer token (authenticated users).
+#   2. Fall back to the JSON body of a login POST (fresh login).
+#   3. If neither yields an email, the log entry records ``None``.
+
+
 def _extract_user_email_from_header(auth_header: str) -> str | None:
-    """Read the user email from a bearer token when one is present."""
+    """Read the user email from a bearer token when one is present.
+
+    Called by :func:`_resolve_log_user_email` as the first preference.
+    Uses the same ``SECRET_KEY`` that issued the token so decoding is
+    transparent — no database lookup needed just for logging.
+    """
     if not auth_header.startswith("Bearer "):
         return None
 
@@ -60,13 +105,21 @@ def _extract_user_email_from_header(auth_header: str) -> str | None:
 
 
 async def _extract_login_email_from_request(request: Request) -> str | None:
-    """Read login email from JSON body and restore the body for the route handler."""
+    """Read login email from JSON body and restore the body for the route handler.
+
+    Because middleware reads ``request.body()``, the original stream is consumed.
+    This function reinjects the body via ``request._receive`` so that the
+    downstream route handler (``/api/auth/login``) can still parse it.
+    This is the **second** preference in the logging fallback chain — it only
+    applies to login POSTs that do not already carry a valid bearer token.
+    """
     if request.method != "POST" or request.url.path != "/api/auth/login":
         return None
 
     try:
         body = await request.body()
 
+        # Replace the receive method so FastAPI's route handler gets the body again.
         async def receive() -> dict:
             return {"type": "http.request", "body": body, "more_body": False}
 
@@ -82,7 +135,16 @@ async def _extract_login_email_from_request(request: Request) -> str | None:
 
 
 async def _resolve_log_user_email(request: Request) -> str | None:
-    """Choose the best available user identity for one activity log entry."""
+    """Choose the best available user identity for one activity log entry.
+
+    Fallback chain:
+    1. Decode the JWT from the ``Authorization`` header (already-authenticated user).
+    2. Read the plain-text email from the login POST body (fresh login).
+    3. Return ``None`` — the log entry will have no ``user_email`` field.
+
+    This avoids storing plain-text credentials in logs while still capturing
+    useful identity information for audit trails.
+    """
     header_email = _extract_user_email_from_header(
         request.headers.get("Authorization", "")
     )
@@ -93,7 +155,22 @@ async def _resolve_log_user_email(request: Request) -> str | None:
 
 
 async def _write_system_log(request: Request, status_code: int, user_email: str | None) -> None:
-    """Store one API activity log entry without interrupting the request flow."""
+    """Store one API activity log entry without interrupting the request flow.
+
+    This is a fire-and-forget insert — exceptions are silently caught by the
+    caller (:func:`log_activity`) so a DB write failure never breaks the API
+    response for the end user.
+
+    Schema
+    ------
+    Each document contains: HTTP method, path, response status, client IP,
+    the resolved user email (or ``None``), and a UTC timestamp.
+
+    Cross-reference
+    ---------------
+    Logs are queried by the sysadmin route (``backend.routes.sysadmin``) to
+    power the activity-audit dashboard.
+    """
     await system_logs_collection.insert_one({
         "method": request.method,
         "path": request.url.path,
@@ -105,10 +182,23 @@ async def _write_system_log(request: Request, status_code: int, user_email: str 
 
 @app.middleware("http")
 async def log_activity(request: Request, call_next):
-    """Log API requests for system-admin audit views after each response."""
+    """Log API requests for system-admin audit views after each response.
+
+    Runs on **every** incoming HTTP request.  It first resolves the user's
+    identity (see :func:`_resolve_log_user_email`), then lets the request
+    proceed through the rest of the middleware stack and the route handler.
+    After the response is generated, it persists a log entry — but **only**
+    for paths starting with ``/api/`` (static-file serving is excluded to
+    avoid noise in the audit trail).
+
+    Cross-reference
+    ---------------
+    The recorded logs are surfaced by ``backend.routes.sysadmin`` through
+    the activity-log dashboard endpoints.
+    """
     user_email = await _resolve_log_user_email(request)
     response = await call_next(request)
-    # Only log API calls (not static files)
+    # Only log API calls (not static files or frontend asset requests)
     if request.url.path.startswith("/api/"):
         try:
             await _write_system_log(request, response.status_code, user_email)
@@ -189,7 +279,11 @@ async def startup_event():
         _check_ai_connections()
         print("✅ Learnova backend started")
 
-        # Start weekly email scheduler (Monday 08:00 NZST = UTC+12/13)
+        # ── Weekly Email Scheduler ──────────────────────────────────────────
+        # Schedule the bulk weekly digest for **every** Monday at 08:00 NZST
+        # (Pacific/Auckland = UTC+12 in winter, UTC+13 in daylight-saving).
+        # On non-Monday startups or after 08:00 on Monday, we run a one-shot
+        # catch-up so the first deployment doesn't wait a full week.
         try:
             from apscheduler.schedulers.asyncio import AsyncIOScheduler
             from backend.database.db import users_collection as _uc, history_collection as _hc
@@ -207,13 +301,19 @@ async def startup_event():
             app.state.scheduler = _sched
             print("[email] ✅ Weekly scheduler started — runs every Monday 08:00 NZST")
 
-            # Catch-up: run only if no weekly report sent this week
+            # ── Catch-Up Logic ──────────────────────────────────────────────
+            # If it's already past 08:00 Monday (or any other day), check
+            # the ``system_settings`` collection to see whether a report has
+            # been sent *today*.  If not, fire the job immediately so the
+            # first deployment is not delayed by a full week.
             try:
                 from zoneinfo import ZoneInfo
                 _nz_tz = ZoneInfo("Pacific/Auckland")
                 _nz_now = datetime.now(_nz_tz)
                 _is_monday = _nz_now.weekday() == 0
                 _past_8am = _nz_now.hour >= 8
+                # Skip catch-up only if it's Monday before 08:00 — the cron
+                # job will fire shortly.
                 if (_is_monday and _past_8am) or (not _is_monday):
                     from backend.database.db import client as _mcli
                     _sdb = _mcli[os.getenv("DATABASE_NAME", "learnova")]
@@ -255,6 +355,23 @@ async def send_summary_email(request: Request, current_user: dict = Depends(get_
 
 @app.post("/api/email/send-weekly", tags=["email"])
 async def trigger_weekly_email(current_user: dict = Depends(get_current_user)):
+    """Send the current user their weekly learning-activity digest immediately.
+
+    Gathers per-user statistics via :func:`gather_user_stats
+    <backend.services.email_service.gather_user_stats>` and then sends the
+    pre-formatted weekly HTML report via :func:`send_weekly_report
+    <backend.services.email_service.send_weekly_report>`.
+
+    Parameters
+    ----------
+    current_user : dict
+        Resolved from the JWT bearer token via the ``get_current_user`` dependency.
+
+    Returns
+    -------
+    dict
+        ``{"sent": bool, "email": str, "stats": dict}``
+    """
     from backend.services.email_service import gather_user_stats, send_weekly_report
     from backend.database.db import history_collection
     user_id = str(current_user["_id"])
@@ -267,6 +384,21 @@ async def trigger_weekly_email(current_user: dict = Depends(get_current_user)):
 
 @app.get("/api/email/preview", tags=["email"])
 async def preview_weekly_email(current_user: dict = Depends(get_current_user)):
+    """Preview the weekly email HTML without sending it.
+
+    Useful for debugging email templates or allowing the user to see what
+    their weekly digest will look like before it is dispatched.
+
+    Parameters
+    ----------
+    current_user : dict
+        Resolved from the JWT bearer token.
+
+    Returns
+    -------
+    fastapi.responses.HTMLResponse
+        The rendered weekly-report HTML.
+    """
     from backend.services.email_service import gather_user_stats, _build_email_html
     from backend.database.db import history_collection
     from fastapi.responses import HTMLResponse
