@@ -76,9 +76,12 @@
           <div class="empty-sub">Upload a document or paste text to begin.</div>
         </div>
       </div>
+      <div class="curtain-panel" id="curtain-panel"></div>
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
@@ -640,6 +643,35 @@ async function pollQuizReady(jobId) {
   }
 }
 
+function showCompactFileDuringProcessing(file, hasPaste) {
+  const panel = document.querySelector('.panel-left');
+  if(!panel)return;
+  setSummaryMode(true);
+  panel.classList.add('compact');
+  const sizeLabel = file ? (file.size < 1024 * 1024 ? Math.max(1, Math.round(file.size / 1024)) + ' KB' : (file.size / (1024 * 1024)).toFixed(1) + ' MB') : 'N/A';
+  const ext = file ? file.name.split('.').pop().toUpperCase() : 'TXT';
+  const name = file ? file.name : 'Pasted text';
+  const mount = document.getElementById('upload-summary-shell');
+  if(mount){
+    mount.innerHTML = '<div class="doc-info-card">'
+      + '<div class="file-icon-box" style="width:64px;height:72px;font-size:13px">' + ext + '</div>'
+      + '<div class="doc-info-main">'
+      +   '<div class="doc-info-name">' + name + '</div>'
+      +   '<div class="doc-info-meta">.' + ext.toLowerCase() + ' \u00b7 ' + sizeLabel + '</div>'
+      + '</div>'
+      + '<span class="badge badge-green" style="background:rgba(200,184,154,0.12);color:var(--gold)">Processing\u2026</span>'
+      + '</div>';
+  }
+  const compactName = document.getElementById('compact-file-name');
+  const compactIcon = document.getElementById('compact-file-icon');
+  const compactMeta = document.getElementById('compact-file-meta');
+  if(compactIcon) compactIcon.textContent = ext;
+  if(compactName) compactName.textContent = name;
+  if(compactMeta) compactMeta.textContent = 'Processing\u2026';
+  document.getElementById('upload-panel-label').textContent = 'Document info';
+  document.getElementById('right-panel').innerHTML = '<div class="loading-state"><div class="loading-shell"><div class="loading-label">Generating your summary</div><div class="loading-spinner"></div><div class="loading-text">This may take up to a minute\u2026</div></div></div>';
+}
+
 async function processDocument() {
   // Multi-file: if Pro and more than 1 file, queue them all
   if (isPro() && uploadedFiles.length > 1) {
@@ -648,11 +680,11 @@ async function processDocument() {
   }
   // Phase 1: Set initial loading UI state.
   localStorage.removeItem('currentQuiz');
-  showProcessingState();
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
   const _token = localStorage.getItem('token') || '';
+  showCompactFileDuringProcessing(file, hasPaste);
 
   // Phase 2: Build FormData payload for file or pasted text.
   const formData = new FormData();
@@ -844,6 +876,11 @@ function showSummary(data) {
   })}</div>`;
   if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), summaryHTML, 'backward');
   else document.getElementById('right-panel').innerHTML = summaryHTML;
+  const curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.innerHTML = summaryHTML;
+    requestAnimationFrame(() => curtain.classList.add('curtain-visible'));
+  }
   syncCompactFile();
 }
 
@@ -902,8 +939,17 @@ function renderQuestion(direction='forward') {
         </button>
       </div>
     </div>`;
-  if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, direction);
-  else document.getElementById('right-panel').innerHTML = html;
+  var panel = document.getElementById('curtain-panel');
+  if(panel && panel.classList.contains('curtain-visible')){
+    panel.innerHTML = html;
+  }else{
+    if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, direction);
+    else document.getElementById('right-panel').innerHTML = html;
+    if(panel){
+      panel.innerHTML = html;
+      requestAnimationFrame(() => panel.classList.add('curtain-visible'));
+    }
+  }
 }
 
 /**
@@ -979,16 +1025,32 @@ async function showQuizResults() {
       <button class="btn btn-primary" id="btn-full-results" disabled>Saving…</button>
     </div>
     </div>`;
-  if (window.LN) {
-    window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
-    setTimeout(() => {
-      const panel = document.getElementById('right-panel');
-      window.LN.revealSequence(panel.querySelectorAll('.result-step'), 110);
-      const ring = panel.querySelector('circle[stroke="var(--gold)"]');
-      if (ring) window.LN.animateScoreRing(ring, pct);
+  var curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.innerHTML = html;
+    if(!curtain.classList.contains('curtain-visible')){
+      requestAnimationFrame(() => curtain.classList.add('curtain-visible'));
+    }
+    setTimeout(function(){
+      var steps = curtain.querySelectorAll('.result-step');
+      var ring = curtain.querySelector('circle[stroke="var(--gold)"]');
+      if(window.LN){
+        window.LN.revealSequence(steps, 110);
+        if(ring) window.LN.animateScoreRing(ring, pct);
+      }
     }, 220);
-  } else {
-    document.getElementById('right-panel').innerHTML = html;
+  }else{
+    if (window.LN) {
+      window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
+      setTimeout(function() {
+        var p = document.getElementById('right-panel');
+        window.LN.revealSequence(p.querySelectorAll('.result-step'), 110);
+        var r = p.querySelector('circle[stroke="var(--gold)"]');
+        if(r) window.LN.animateScoreRing(r, pct);
+      }, 220);
+    } else {
+      document.getElementById('right-panel').innerHTML = html;
+    }
   }
 
   // Phase 2: Build per-question details for persistence.
@@ -1059,6 +1121,11 @@ function resetUpload() {
   setSummaryMode(false);
   setUploadCollapsed(false);
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
+  const curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.classList.remove('curtain-visible');
+    setTimeout(() => { curtain.innerHTML = ''; }, 500);
+  }
 }
 
 /**

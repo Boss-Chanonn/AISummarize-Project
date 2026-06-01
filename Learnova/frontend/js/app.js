@@ -730,54 +730,54 @@ function closeProfile() {
 function renderSidebar(activePage) {
   const isPro = LEARNOVA_USER.tier === 'pro';
   return `
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar-main">
     <div class="sidebar-logo">Learnova</div>
     <div class="sidebar-section">Main</div>
     <a href="dashboard.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="dashboard.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-      Dashboard
+      <span class="sidebar-label">Dashboard</span>
     </a>
     <a href="upload.html" class="sidebar-item${activePage==='upload'?' active':''}" data-page="upload.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 2h8l2 2v10H3V2z"/><path d="M9 2v3h3"/><path d="M5 7h6M5 10h4"/></svg>
-      Documents
+      <span class="sidebar-label">Documents</span>
     </a>
     <a href="module.html" class="sidebar-item${activePage==='module'?' active':''}" data-page="module.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 12V5l6-3 6 3v7"/><path d="M8 2v10"/><path d="M5 10h6"/></svg>
-      Learning
+      <span class="sidebar-label">Learning</span>
     </a>
     <a href="history.html" class="sidebar-item${activePage==='history'?' active':''}" data-page="history.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v4l2.5 1.5"/></svg>
-      History
+      <span class="sidebar-label">History</span>
     </a>
     ${isPro ? `
     <div class="sidebar-section">Pro</div>
     <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
-      Pro Features ✦
+      <span class="sidebar-label">Pro Features ✦</span>
     </a>
     <a href="pptx-session.html" class="sidebar-item${activePage==='pptx'?' active':''}" data-page="pptx-session.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="2" width="14" height="11" rx="1.5"/><path d="M5 6h4M5 9h6"/><circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
-      PPTX Sessions
+      <span class="sidebar-label">PPTX Sessions</span>
     </a>` : `
     <div class="sidebar-section">Upgrade</div>
     <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html" style="color:var(--gold)">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
-      Learnova Pro
+      <span class="sidebar-label">Learnova Pro</span>
     </a>`}
     ${LEARNOVA_USER.role === 'admin' ? `
     <div class="sidebar-section">Admin</div>
     <a href="admin-users.html" class="sidebar-item${activePage==='admin-users'?' active':''}" data-page="admin-users.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 14v-1a3 3 0 0 0-3-3H5a3 3 0 0 0-3 3v1"/><circle cx="6.5" cy="5.5" r="2.5"/><path d="M14 7h-3M14 10h-3"/></svg>
-      Admin Panel
+      <span class="sidebar-label">Admin Panel</span>
     </a>` : ''}
     <div class="sidebar-section">Account</div>
     <button class="sidebar-item" onclick="openProfile()" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
-      Profile
+      <span class="sidebar-label">Profile</span>
     </button>
     <button class="sidebar-item" onclick="openSettings('accessibility')" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>
-      Settings
+      <span class="sidebar-label">Settings</span>
     </button>
     <div class="sidebar-bottom">
       <button class="sidebar-avatar sidebar-account-trigger" id="sidebar-account-trigger" type="button" onclick="toggleSidebarAccountMenu(event)" aria-haspopup="true" aria-expanded="false">
@@ -793,6 +793,31 @@ function renderSidebar(activePage) {
       </button>
     </div>
   </aside>`;
+}
+
+function toggleSidebar(e){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  if(window.innerWidth<=760){
+    sidebar.classList.toggle('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    hamburger&&hamburger.classList.toggle('is-active');
+    backdrop&&backdrop.classList.toggle('open');
+  }else{
+    sidebar.classList.toggle('sidebar-collapsed');
+  }
+  e&&e.stopPropagation&&e.stopPropagation();
+}
+function closeSidebar(){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  sidebar.classList.remove('sidebar-overlay','open');
+  hamburger&&hamburger.classList.remove('is-active');
+  backdrop&&backdrop.classList.remove('open');
 }
 
 document.addEventListener('DOMContentLoaded', () => {

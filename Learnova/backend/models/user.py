@@ -98,3 +98,39 @@ class BillingResponse(BaseModel):
     plan_started: Optional[str] = None
     plan_expires: Optional[str] = None
     amount_paid: Optional[float] = None
+
+
+# ----------------------------- Calendar Models -----------------------------
+
+class CalendarConnection(BaseModel):
+    """OAuth token data stored for one connected calendar provider."""
+
+    provider: str                    # "google" | "outlook" | "apple"
+    email: str                       # account email used for connection
+    access_token: str
+    refresh_token: Optional[str] = None
+    expires_at: Optional[float] = None  # unix timestamp
+    connected_at: str = ""           # ISO datetime
+    caldav_url: Optional[str] = None # Apple Calendar CalDAV
+
+
+class CalendarEvent(BaseModel):
+    """Payload for creating a calendar event from a study resource."""
+
+    provider: str                    # "google" | "outlook" | "apple"
+    title: str
+    description: str = ""
+    start_time: str                  # ISO datetime
+    end_time: str                    # ISO datetime
+    location: str = ""
+
+
+class CalendarStatus(BaseModel):
+    """Status of all calendar connections for a user."""
+
+    google: bool = False
+    google_email: str = ""
+    outlook: bool = False
+    outlook_email: str = ""
+    apple: bool = False
+    apple_email: str = ""

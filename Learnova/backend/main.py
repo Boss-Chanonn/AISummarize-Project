@@ -129,6 +129,7 @@ from backend.routes.sysadmin import router as sysadmin_router
 from backend.routes.billing import router as billing_router
 from backend.routes.ai import router as ai_router
 from backend.routes.pptx import router as pptx_router
+from backend.routes.calendar import router as calendar_router
 
 
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
@@ -142,6 +143,7 @@ app.include_router(sysadmin_router, prefix="/api/sysadmin", tags=["sysadmin"])
 app.include_router(billing_router, prefix="/api/billing", tags=["billing"])
 app.include_router(ai_router, prefix="/api/ai", tags=["ai"])
 app.include_router(pptx_router, prefix="/api/pptx", tags=["pptx"])
+app.include_router(calendar_router, prefix="/api/calendar", tags=["calendar"])
 
 
 

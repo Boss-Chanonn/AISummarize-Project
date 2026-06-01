@@ -264,6 +264,8 @@
 
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <!-- Calendar modal -->
 <div class="modal-backdrop" id="cal-backdrop" onclick="closeOnBackdrop(event)">
@@ -581,37 +583,160 @@ function renderModuleHeader() {
 }
 
 // ── Calendar modal ────────────────────────────────────────────────────────────
-function openCalModal(cardId, title, dur, type) {
+let calendarStatus = { google: false, outlook: false, apple: false };
+
+async function openCalModal(cardId, title, dur, type) {
   currentCardId = cardId;
   document.getElementById('cm-res-name').textContent = title;
   document.getElementById('cm-res-dur').textContent = dur;
   document.getElementById('cm-ico').innerHTML = iconSVG[type] || iconSVG.video;
   const d = new Date(); d.setDate(d.getDate() + 1);
   document.getElementById('cm-date').value = d.toISOString().slice(0, 10);
+  await loadCalendarStatus();
   renderCalOpts();
   document.getElementById('cal-backdrop').classList.add('open');
 }
-function renderCalOpts() {
-  document.getElementById('cal-opts').innerHTML = calendars.map((c, i) => `
-    <div class="cal-opt ${i === selectedCal ? 'sel' : ''}" onclick="selectCal(${i})">
-      <div class="cal-dot" style="background:${c.color}"></div>
-      <div class="cal-name">${c.name}</div>
-      <div class="cal-tick ${i === selectedCal ? 'on' : ''}">
-        ${i === selectedCal ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0A0A0A" stroke-width="1.8"><path d="M1.5 4.5L3.5 6.5L7.5 2.5"/></svg>' : ''}
-      </div>
-    </div>`).join('');
+
+async function loadCalendarStatus() {
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/calendar/status', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.ok) {
+      calendarStatus = await res.json();
+    }
+  } catch (_) {}
 }
-function selectCal(i) { selectedCal = i; renderCalOpts(); }
+
+function renderCalOpts() {
+  const providers = [
+    { id: 'google', name: 'Google Calendar', color: '#4A90D9', connected: calendarStatus.google, email: calendarStatus.google_email },
+    { id: 'apple', name: 'Apple Calendar', color: '#888888', connected: calendarStatus.apple, email: calendarStatus.apple_email },
+    { id: 'outlook', name: 'Outlook', color: '#0F6E56', connected: calendarStatus.outlook, email: calendarStatus.outlook_email },
+  ];
+  document.getElementById('cal-opts').innerHTML = providers.map((p, i) => {
+    if (p.connected) {
+      return `<div class="cal-opt ${i === selectedCal ? 'sel' : ''}" onclick="selectCal(${i})">
+        <div class="cal-dot" style="background:${p.color}"></div>
+        <div class="cal-name">${p.name} <span style="font-size:10px;color:var(--green);opacity:0.7">· ${p.email}</span></div>
+        <button class="sched-btn" style="font-size:10px;padding:4px 8px" onclick="event.stopPropagation();disconnectCalendar('${p.id}')" title="Disconnect">✕</button>
+        <div class="cal-tick ${i === selectedCal ? 'on' : ''}">
+          ${i === selectedCal ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0A0A0A" stroke-width="1.8"><path d="M1.5 4.5L3.5 6.5L7.5 2.5"/></svg>' : ''}
+        </div>
+      </div>`;
+    }
+    const connectLabel = p.id === 'apple' ? 'Configure' : 'Connect';
+    return `<div class="cal-opt" style="opacity:0.55">
+      <div class="cal-dot" style="background:${p.color}"></div>
+      <div class="cal-name">${p.name}</div>
+      <button class="sched-btn" style="font-size:10px;padding:4px 8px" onclick="event.stopPropagation();connectCalendar('${p.id}')">${connectLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+function selectCal(i) {
+  const providers = ['google', 'apple', 'outlook'];
+  if (calendarStatus[providers[i]]) {
+    selectedCal = i;
+    renderCalOpts();
+  } else {
+    connectCalendar(providers[i]);
+  }
+}
+
 function closeCalModal() { document.getElementById('cal-backdrop').classList.remove('open'); }
 function closeOnBackdrop(e) { if (e.target === document.getElementById('cal-backdrop')) closeCalModal(); }
-function confirmSchedule() {
+
+async function confirmSchedule() {
+  const resource = resources.find(r => r.id === currentCardId);
+  if (!resource) return;
+  const providers = ['google', 'apple', 'outlook'];
+  const provider = providers[selectedCal];
+  const date = document.getElementById('cm-date').value;
+  const time = document.getElementById('cm-time').value;
+  const start_time = new Date(date + 'T' + time + ':00').toISOString();
+  const end_time = new Date(new Date(start_time).getTime() + 30 * 60000).toISOString();
+
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/calendar/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        provider,
+        title: resource.title,
+        description: 'Study session: ' + (resource.topicKey || resource.title) + ' - Learnova',
+        start_time,
+        end_time,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.detail || data.message || 'Could not create event');
+      return;
+    }
+    if (data.ics_url) {
+      window.open(data.ics_url, '_blank');
+    }
+  } catch (err) {
+    showToast('Could not connect to calendar service');
+    return;
+  }
+
   closeCalModal();
   resources = resources.map(r => r.id === currentCardId ? { ...r, scheduled: true } : r);
   persistModuleResources();
   renderResources();
   updateModuleStates();
-  showToast('Added to ' + calendars[selectedCal].name);
+  showToast('Added to ' + PROVIDER_NAMES[provider]);
 }
+
+async function connectCalendar(provider) {
+  const token = localStorage.getItem('token') || '';
+  if (provider === 'apple') {
+    const email = prompt('Enter your Apple ID email for calendar:');
+    if (!email) return;
+    const res = await fetch('/api/calendar/apple/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ email }),
+    });
+    if (res.ok) {
+      await loadCalendarStatus();
+      renderCalOpts();
+      showToast('Apple Calendar configured');
+    }
+    return;
+  }
+  try {
+    const res = await fetch('/api/calendar/' + provider + '/auth', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (data.auth_url) {
+      window.location.href = data.auth_url;
+    }
+  } catch (err) {
+    showToast('Could not start connection');
+  }
+}
+
+async function disconnectCalendar(provider) {
+  const token = localStorage.getItem('token') || '';
+  try {
+    await fetch('/api/calendar/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ provider }),
+    });
+    await loadCalendarStatus();
+    renderCalOpts();
+    showToast('Disconnected');
+  } catch (_) {}
+}
+
+const PROVIDER_NAMES = { google: 'Google Calendar', apple: 'Apple Calendar', outlook: 'Outlook' };
 
 // ── Progress / state ──────────────────────────────────────────────────────────
 function updateModuleStates() {
@@ -1159,6 +1284,21 @@ async function initModulePage() {
 }
 
 initModulePage();
+
+// ── Handle OAuth callback redirect ─────────────────────────────────────────
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('calendar') === 'connected') {
+    const provider = params.get('provider') || '';
+    const email = params.get('email') || '';
+    showToast((PROVIDER_NAMES[provider] || provider) + ' connected as ' + email);
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname + '?historyId=' + (new URLSearchParams(window.location.search).get('historyId') || ''));
+  } else if (params.get('calendar') === 'error') {
+    showToast('Calendar connection failed: ' + (params.get('reason') || 'unknown error'));
+    window.history.replaceState({}, '', window.location.pathname + '?historyId=' + (new URLSearchParams(window.location.search).get('historyId') || ''));
+  }
+})();
 </script>
 <script src="js/animations.js"></script>
 </body>

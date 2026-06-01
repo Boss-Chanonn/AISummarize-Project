@@ -41,7 +41,8 @@ window.LEARNOVA_CONFIG = {
       { name: 'Apple Calendar', color: '#888888' },
       { name: 'Outlook', color: '#0F6E56' }
     ],
-    resources: []
+    resources: [],
+    apiBaseUrl: 'http://127.0.0.1:8000'
   },
   history: []
 };
