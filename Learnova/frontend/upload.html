@@ -528,6 +528,7 @@ async function processMultiQueue() {
   _multiQueue = [...uploadedFiles];
   _multiResults = [];
   _multiCurrent = 0;
+  var _firstSuccessData = null;
   document.getElementById('btn-process').disabled = true;
   document.getElementById('btn-rescan').style.display = 'none';
 
@@ -555,13 +556,37 @@ async function processMultiQueue() {
         await pollQuizReady(data.quizJobId);
       }
 
+      if (!_firstSuccessData) {
+        _firstSuccessData = data;
+        if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
+        if (data.quizReady && data.quizData && data.quizData.length) {
+          localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+        }
+      }
       _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: data.historyId, success: true });
     } catch (err) {
       _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: null, success: false, error: err.message });
     }
   }
 
-  showMultiComplete();
+  if (_firstSuccessData) {
+    showSummary(_firstSuccessData);
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+    var btnQuiz = document.getElementById('btn-quiz');
+    if (_firstSuccessData.quizReady && _firstSuccessData.quizData && _firstSuccessData.quizData.length) {
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Start quiz →';
+    } else if (_firstSuccessData.quizJobId) {
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = true;
+      btnQuiz.textContent = 'Quiz generating…';
+      pollForUploadQuiz(_firstSuccessData.quizJobId, _firstSuccessData.historyId, btnQuiz);
+    }
+  } else {
+    showMultiComplete();
+  }
 }
 
 function showMultiProgress(current, total, filename) {
@@ -673,6 +698,29 @@ function showCompactFileDuringProcessing(file, hasPaste) {
 }
 
 async function processDocument() {
+  // Single PPTX file → redirect to pptx-session for slide-by-slide study
+  if (uploadedFiles.length === 1 && isPro()) {
+    var singleFile = uploadedFiles[0];
+    var ext = '.' + singleFile.name.split('.').pop().toLowerCase();
+    if (ext === '.ppt' || ext === '.pptx') {
+      document.getElementById('btn-process').disabled = true;
+      var pptxForm = new FormData();
+      pptxForm.append('file', singleFile);
+      try {
+        var pptxRes = await fetch('/api/pptx/upload', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
+          body: pptxForm,
+        });
+        var pptxData = await pptxRes.json();
+        if (pptxRes.ok && pptxData.doc_id) {
+          window.location.href = 'pptx-session.html?doc=' + pptxData.doc_id;
+          return;
+        }
+      } catch (_) {}
+      showToast('PPTX upload failed, trying standard upload…');
+    }
+  }
   // Multi-file: if Pro and more than 1 file, queue them all
   if (isPro() && uploadedFiles.length > 1) {
     await processMultiQueue();
