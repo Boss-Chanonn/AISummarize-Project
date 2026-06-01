@@ -200,7 +200,7 @@ function handleFileInput(files) {
   if (!isPro() && newFiles.length > 0) {
     uploadedFiles = [newFiles[0]];
   } else {
-    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,3);
   }
 
   renderFileList();
@@ -529,7 +529,8 @@ async function processMultiQueue() {
   _multiResults = [];
   _multiCurrent = 0;
   document.getElementById('btn-process').disabled = true;
-  setCurtain(true);
+  var curtain = document.getElementById('curtain-panel');
+  if (curtain) curtain.classList.add('curtain-visible');
 
   for (let i = 0; i < _multiQueue.length; i++) {
     _multiCurrent = i;
