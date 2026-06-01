@@ -91,6 +91,7 @@ document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 let uploadedFiles = [];
 let _multiQueue = [];       // files waiting to be processed
 let _multiResults = [];     // completed results [{title, historyId, success}]
+let _multiAllData = [];     // full response data for each successful file
 let _multiCurrent = 0;      // index of file currently processing
 let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
 let resumedSession = false;
@@ -527,8 +528,8 @@ function switchToTextInput() {
 async function processMultiQueue() {
   _multiQueue = [...uploadedFiles];
   _multiResults = [];
+  _multiAllData = [];
   _multiCurrent = 0;
-  var _firstSuccessData = null;
   document.getElementById('btn-process').disabled = true;
   document.getElementById('btn-rescan').style.display = 'none';
 
@@ -556,37 +557,64 @@ async function processMultiQueue() {
         await pollQuizReady(data.quizJobId);
       }
 
-      if (!_firstSuccessData) {
-        _firstSuccessData = data;
-        if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-        if (data.quizReady && data.quizData && data.quizData.length) {
-          localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
-        }
-      }
-      _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: data.historyId, success: true });
+      data._fileName = file.name.replace(/\.[^/.]+$/, '');
+      _multiAllData.push(data);
+      _multiResults.push({ title: data._fileName, historyId: data.historyId, success: true });
     } catch (err) {
       _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: null, success: false, error: err.message });
     }
   }
 
-  if (_firstSuccessData) {
-    showSummary(_firstSuccessData);
+  if (_multiAllData.length) {
+    renderMultiSummary(_multiAllData);
     document.getElementById('btn-rescan').style.display = 'flex';
     document.getElementById('btn-process').style.display = 'none';
     var btnQuiz = document.getElementById('btn-quiz');
-    if (_firstSuccessData.quizReady && _firstSuccessData.quizData && _firstSuccessData.quizData.length) {
-      btnQuiz.style.display = 'flex';
-      btnQuiz.disabled = false;
-      btnQuiz.textContent = 'Start quiz →';
-    } else if (_firstSuccessData.quizJobId) {
-      btnQuiz.style.display = 'flex';
-      btnQuiz.disabled = true;
-      btnQuiz.textContent = 'Quiz generating…';
-      pollForUploadQuiz(_firstSuccessData.quizJobId, _firstSuccessData.historyId, btnQuiz);
-    }
+    if (btnQuiz) btnQuiz.style.display = 'none';
   } else {
     showMultiComplete();
   }
+}
+
+function renderMultiSummary(docs) {
+  var sections = docs.map(function(d, idx){
+    var bodyHtml = (d.summary && d.summary.body || []).map(function(p){ return '<p style="font-size:14px;line-height:1.7;color:var(--cream-60);margin-bottom:12px">' + escapeHtml(p) + '</p>'; }).join('');
+    var takeHtml = (d.summary && d.summary.takeaways || []).map(function(t){ return '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:14px;color:var(--cream-60);border-bottom:0.5px solid var(--border)"><span style="color:var(--gold);flex-shrink:0">—</span>' + escapeHtml(t) + '</div>'; }).join('');
+    var hasQuiz = d.quizData && d.quizData.length;
+    return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">' +
+        '<span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);background:rgba(200,184,154,0.1);padding:3px 10px;border-radius:4px">File ' + (idx + 1) + '</span>' +
+        '<span style="font-size:15px;font-family:var(--serif);color:var(--cream)">' + escapeHtml(d._fileName) + '</span>' +
+      '</div>' +
+      '<div class="sum-body">' + bodyHtml + '</div>' +
+      (takeHtml ? '<div style="margin-top:20px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-40);margin-bottom:8px">Key takeaways</div>' + takeHtml + '</div>' : '') +
+      (hasQuiz ? '<button class="btn btn-primary" style="margin-top:20px" onclick="loadMultiQuiz(' + idx + ')">Take quiz →</button>' : '') +
+    '</div>';
+  }).join('');
+
+  var panel = document.getElementById('right-panel');
+  if (!panel) return;
+  panel.innerHTML = '<div style="padding:36px 40px;max-width:720px;margin:0 auto">' +
+    '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">' + docs.length + ' files processed</div>' +
+    sections +
+    '<div style="text-align:center;padding-top:8px">' +
+      '<button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>' +
+      '<a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>' +
+    '</div></div>';
+
+  var curtain = document.getElementById('curtain-panel');
+  if (curtain) {
+    curtain.innerHTML = panel.innerHTML;
+    requestAnimationFrame(function(){ curtain.classList.add('curtain-visible'); });
+  }
+}
+
+function loadMultiQuiz(idx) {
+  var data = _multiAllData && _multiAllData[idx] ? _multiAllData[idx] : null;
+  if (!data || !data.quizData || !data.quizData.length) { showToast('Quiz not available'); return; }
+  localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+  if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
+  window.location.href = 'upload.html?mode=quiz';
 }
 
 function showMultiProgress(current, total, filename) {
