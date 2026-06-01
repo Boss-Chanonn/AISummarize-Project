@@ -529,8 +529,7 @@ async function processMultiQueue() {
   _multiResults = [];
   _multiCurrent = 0;
   document.getElementById('btn-process').disabled = true;
-  var curtain = document.getElementById('curtain-panel');
-  if (curtain) curtain.classList.add('curtain-visible');
+  document.getElementById('btn-rescan').style.display = 'none';
 
   for (let i = 0; i < _multiQueue.length; i++) {
     _multiCurrent = i;
