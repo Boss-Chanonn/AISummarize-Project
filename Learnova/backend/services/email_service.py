@@ -218,6 +218,94 @@ def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
 </html>"""
 
 
+async def send_welcome_email(user_email: str, user_name: str) -> bool:
+    """Send a welcome email to a newly registered user."""
+    if not RESEND_API_KEY:
+        print("[email] RESEND_API_KEY not set — skipping welcome email")
+        return False
+
+    html = _build_welcome_email_html(user_name)
+    subject = f"Welcome to Learnova, {user_name}! 🎉"
+
+    verified_email = os.getenv("EMAIL_FROM", user_email)
+    payload = {
+        "from": f"{EMAIL_FROM_NAME} <onboarding@resend.dev>",
+        "to": [verified_email],
+        "reply_to": user_email,
+        "subject": subject,
+        "html": html,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if resp.status_code == 200:
+                print(f"[email] ✅ Welcome email sent to {user_email}")
+                return True
+            else:
+                print(f"[email] ❌ Failed welcome email to {user_email}: {resp.status_code} {resp.text[:500]}")
+                return False
+    except Exception as e:
+        print(f"[email] ❌ Error sending welcome to {user_email}: {e}")
+        return False
+
+
+def _build_welcome_email_html(name: str) -> str:
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body {{ font-family: Georgia, serif; background: #F7F5F2; margin: 0; padding: 0; color: #1C1917; }}
+  .wrap {{ max-width: 580px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; }}
+  .header {{ background: #1C1917; padding: 36px 40px; text-align: center; }}
+  .header h1 {{ color: #C8B89A; font-size: 28px; margin: 0; }}
+  .header p {{ color: rgba(240,237,232,0.5); margin: 8px 0 0; font-size: 14px; }}
+  .body {{ padding: 36px 40px; text-align: center; }}
+  .greeting {{ font-size: 22px; margin-bottom: 8px; }}
+  .sub {{ font-size: 14px; color: #6B7280; margin-bottom: 28px; line-height: 1.6; }}
+  .rocket {{ font-size: 64px; margin: 0 0 20px; display: block; }}
+  .cta {{ display: inline-block; background: #1C1917; color: #C8B89A !important; text-decoration: none;
+          padding: 14px 32px; border-radius: 8px; font-size: 15px; margin-top: 8px; }}
+  .footer {{ padding: 20px 40px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Learnova ✦</h1>
+    <p>AI-Powered Learning Platform</p>
+  </div>
+  <div class="body">
+    <span class="rocket">🚀</span>
+    <div class="greeting">Hey {name},</div>
+    <div class="sub">
+      Welcome to Learnova!<br><br>
+      Nothing to see here yet — but give it a week<br>
+      and you'll have summaries, quizzes, and insights<br>
+      waiting for you.<br><br>
+      Upload your first document and let the AI<br>
+      do the heavy lifting.
+    </div>
+    <a href="http://localhost:8000/upload.html" class="cta">Upload your first document →</a>
+  </div>
+  <div class="footer">
+    Learnova · AI-Powered Learning Platform
+  </div>
+</div>
+</body>
+</html>"""
+
+
 def _build_email_html(name: str, stats: dict) -> str:
     avg = f"{stats['avg_score']}%" if stats['avg_score'] is not None else "No quizzes yet"
     weak_html = "".join(f"<li>{t}</li>" for t in stats["weak_topics"]) or "<li>None identified</li>"

@@ -69,6 +69,12 @@ async def register(user: UserCreate):
         "status": "active",
         "createdAt": datetime.utcnow()
     })
+    try:
+        from backend.services.email_service import send_welcome_email
+        import asyncio
+        asyncio.ensure_future(send_welcome_email(user.email, user.name))
+    except Exception:
+        pass  # welcome email is best-effort
     return {"message": "Account created — please sign in"}
 
 
