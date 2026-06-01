@@ -117,6 +117,107 @@ async def send_weekly_reports_to_all(users_col, history_col) -> None:
     print(f"[email] Weekly run complete — {sent}/{len(users)} emails sent")
 
 
+async def send_summary_report(user_email: str, user_name: str, doc_title: str, summary: dict) -> bool:
+    """Send an email containing the document summary via Resend API."""
+    if not RESEND_API_KEY:
+        print("[email] RESEND_API_KEY not set — skipping summary email")
+        return False
+
+    html = _build_summary_email_html(user_name, doc_title, summary)
+    subject = f"Your Learnova summary — {doc_title[:60]}"
+
+    verified_email = os.getenv("EMAIL_FROM", user_email)
+    payload = {
+        "from": f"{EMAIL_FROM_NAME} <onboarding@resend.dev>",
+        "to": [verified_email],
+        "reply_to": user_email,
+        "subject": subject,
+        "html": html,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if resp.status_code == 200:
+                print(f"[email] ✅ Summary report sent to {user_email}")
+                return True
+            else:
+                print(f"[email] ❌ Failed to send summary to {user_email}: {resp.status_code} {resp.text[:500]}")
+                return False
+    except Exception as e:
+        print(f"[email] ❌ Error sending summary to {user_email}: {e}")
+        return False
+
+
+def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
+    """Build HTML for a summary report email."""
+    body_paragraphs = summary.get("body", [])
+    takeaways = summary.get("takeaways", [])
+    body_html = "".join(f"<p>{p}</p>" for p in body_paragraphs)
+    takeaways_html = "".join(
+        f'<tr><td style="padding:6px 0;font-size:14px;color:#1C1917;border-bottom:1px solid #E5E0D8">— {t}</td></tr>'
+        for t in takeaways
+    )
+
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body {{ font-family: Georgia, serif; background: #F7F5F2; margin: 0; padding: 0; color: #1C1917; }}
+  .wrap {{ max-width: 580px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; }}
+  .header {{ background: #1C1917; padding: 36px 40px; }}
+  .header h1 {{ color: #C8B89A; font-size: 28px; margin: 0 0 4px; }}
+  .header p {{ color: rgba(240,237,232,0.5); margin: 0; font-size: 14px; }}
+  .body {{ padding: 36px 40px; }}
+  .greeting {{ font-size: 20px; margin-bottom: 24px; }}
+  .doc-title {{ font-size: 18px; font-weight: bold; color: #6E512B; margin-bottom: 20px; }}
+  .body p {{ font-size: 14px; line-height: 1.7; color: #1C1917; margin-bottom: 14px; }}
+  .takes-section {{ margin-top: 28px; }}
+  .takes-label {{ font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: #6B7280; margin-bottom: 8px; }}
+  table {{ width: 100%; border-collapse: collapse; }}
+  .cta {{ display: block; background: #1C1917; color: #C8B89A !important; text-decoration: none;
+          text-align: center; padding: 14px; border-radius: 8px; font-size: 15px; margin-top: 32px; }}
+  .footer {{ padding: 20px 40px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <h1>Learnova ✦</h1>
+    <p>Document summary report</p>
+  </div>
+  <div class="body">
+    <div class="greeting">Hi {name},</div>
+    <p style="font-size:14px;color:#6B7280;margin-bottom:20px">
+      Here is your AI-generated summary of <strong>{doc_title}</strong>.
+    </p>
+    <div class="doc-title">{doc_title}</div>
+    {body_html}
+    <div class="takes-section">
+      <div class="takes-label">Key Takeaways</div>
+      <table><tbody>{takeaways_html}</tbody></table>
+    </div>
+    <a href="http://localhost:8000/upload.html" class="cta">View full summary →</a>
+  </div>
+  <div class="footer">
+    You're receiving this because you uploaded a document to Learnova.<br>
+    Learnova · AI-Powered Learning Platform
+  </div>
+</div>
+</body>
+</html>"""
+
+
 def _build_email_html(name: str, stats: dict) -> str:
     avg = f"{stats['avg_score']}%" if stats['avg_score'] is not None else "No quizzes yet"
     weak_html = "".join(f"<li>{t}</li>" for t in stats["weak_topics"]) or "<li>None identified</li>"

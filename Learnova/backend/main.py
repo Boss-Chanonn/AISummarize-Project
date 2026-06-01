@@ -213,6 +213,21 @@ async def startup_event():
 
 
 # ----------------------------- Email Endpoints -----------------------------
+@app.post("/api/email/send-summary", tags=["email"])
+async def send_summary_email(request: Request, current_user: dict = Depends(get_current_user)):
+    """Email the current document summary to the user."""
+    from backend.services.email_service import send_summary_report
+    body = await request.json()
+    doc_title = body.get("title", "Untitled document")
+    summary = body.get("summary", {})
+    email = current_user.get("email", "")
+    name = current_user.get("name", current_user.get("username", "Learner"))
+    if not email:
+        return message_error(400, "No email address on your account")
+    ok = await send_summary_report(email, name, doc_title, summary)
+    return {"sent": ok, "email": email}
+
+
 @app.post("/api/email/send-weekly", tags=["email"])
 async def trigger_weekly_email(current_user: dict = Depends(get_current_user)):
     from backend.services.email_service import gather_user_stats, send_weekly_report

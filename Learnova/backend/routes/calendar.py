@@ -144,25 +144,29 @@ async def apple_ical(
     )
 
 
-@router.post("/apple/connect")
-async def apple_connect(
+@router.post("/connect")
+async def connect_calendar(
     request: Request,
     current_user: dict = Depends(get_current_user),
 ):
-    """Store Apple Calendar CalDAV connection info for the user."""
+    """Store a simple email-based calendar connection (Apple / Outlook / etc.)."""
     body = await request.json()
+    provider = body.get("provider", "apple").lower()
     email = body.get("email", "")
+    if not email:
+        return message_error(400, "email is required")
+    if provider not in ("apple", "outlook"):
+        return message_error(400, f"Unsupported provider for simple connect: {provider}")
     connection = {
-        "provider": "apple",
+        "provider": provider,
         "email": email,
-        "caldav_url": body.get("caldav_url", ""),
         "access_token": "",
         "refresh_token": "",
         "expires_at": 0,
         "connected_at": datetime.now(timezone.utc).isoformat(),
     }
     await _upsert_connection(current_user, connection)
-    return {"message": f"Apple Calendar configured for {email}"}
+    return {"message": f"{PROVIDER_NAMES.get(provider, provider)} configured for {email}"}
 
 
 # ----------------------------- Event Creation -----------------------------
@@ -187,11 +191,11 @@ async def create_calendar_event(
     if not start_time or not end_time:
         return message_error(400, "start_time and end_time are required")
 
-    if provider == "apple":
+    if provider in ("apple", "outlook"):
         params = f"title={title}&description={description}&start={start_time}&end={end_time}"
         return {
             "ics_url": f"/api/calendar/apple/ical?{params}",
-            "message": "Download the .ics file to import into Apple Calendar",
+            "message": f"Download the .ics file to import into {PROVIDER_NAMES.get(provider, provider)}",
         }
 
     connections = current_user.get("calendar_connections", [])

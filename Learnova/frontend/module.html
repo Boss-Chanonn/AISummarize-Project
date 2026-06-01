@@ -707,18 +707,19 @@ async function confirmSchedule() {
 
 async function connectCalendar(provider) {
   const token = localStorage.getItem('token') || '';
-  if (provider === 'apple') {
-    const email = prompt('Enter your Apple ID email for calendar:');
+  if (provider === 'apple' || provider === 'outlook') {
+    const label = provider === 'apple' ? 'Apple ID' : 'Microsoft account';
+    const email = prompt('Enter your ' + label + ' email for calendar:');
     if (!email) return;
-    const res = await fetch('/api/calendar/apple/connect', {
+    const res = await fetch('/api/calendar/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, provider }),
     });
     if (res.ok) {
       await loadCalendarStatus();
       renderCalOpts();
-      showToast('Apple Calendar configured');
+      showToast(PROVIDER_NAMES[provider] + ' configured');
     }
     return;
   }
