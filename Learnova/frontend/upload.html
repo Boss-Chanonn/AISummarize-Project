@@ -556,7 +556,8 @@ async function processMultiQueue() {
 
       // Poll for quiz if needed
       if (data.quizJobId && !data.quizReady) {
-        await pollQuizReady(data.quizJobId);
+        data.quizData = await pollQuizReady(data.quizJobId);
+        data.quizReady = true;
       }
 
       data._fileName = file.name.replace(/\.[^/.]+$/, '');
@@ -722,9 +723,11 @@ async function pollQuizReady(jobId) {
         headers: { 'Authorization': 'Bearer ' + token }
       });
       const d = await res.json();
-      if (d.status === 'done' || d.status === 'error') return;
+      if (d.status === 'done') return d.quiz || [];
+      if (d.status === 'error') return [];
     } catch (_) {}
   }
+  return [];
 }
 
 function showCompactFileDuringProcessing(file, hasPaste) {
