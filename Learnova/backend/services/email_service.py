@@ -1,60 +1,58 @@
 """
-Weekly progress email service using Resend API.
-Runs every Monday at 8:00 AM via APScheduler.
+Email service using Gmail SMTP.
+Sends welcome emails, summary reports, and weekly reports.
 """
 from __future__ import annotations
 
 import os
-import json
-import httpx
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timezone, timedelta
+import asyncio
 
 
-RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 EMAIL_FROM = os.getenv("EMAIL_FROM", "learnovaaiproject@gmail.com")
-# Resend requires a verified domain — use their onboarding address for testing
 EMAIL_FROM_NAME = "Learnova"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = 587
+SMTP_USER = os.getenv("SMTP_USER", EMAIL_FROM)
+SMTP_PASS = os.getenv("SMTP_PASS", "")
+
+
+async def _send_email(to_email: str, subject: str, html: str) -> bool:
+    """Send an email via Gmail SMTP. Returns True on success."""
+    if not SMTP_PASS:
+        print("[email] SMTP_PASS not set — skipping email")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["From"] = f"{EMAIL_FROM_NAME} <{EMAIL_FROM}>"
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(html, "html"))
+        import asyncio
+        loop = asyncio.get_running_loop()
+
+        def _send():
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.sendmail(EMAIL_FROM, [to_email], msg.as_string())
+
+        await loop.run_in_executor(None, _send)
+        print(f"[email] ✅ Sent to {to_email}")
+        return True
+    except Exception as e:
+        print(f"[email] ❌ Failed to send to {to_email}: {e}")
+        return False
 
 
 async def send_weekly_report(user_email: str, user_name: str, stats: dict) -> bool:
-    """Send weekly progress email via Resend API. Returns True on success."""
-    if not RESEND_API_KEY:
-        print("[email] RESEND_API_KEY not set — skipping email")
-        return False
-
+    """Send weekly progress email via Gmail SMTP. Returns True on success."""
     html = _build_email_html(user_name, stats)
     subject = f"Your Learnova weekly report — {datetime.now().strftime('%d %b %Y')}"
-
-    # Resend free tier only allows sending to the verified account email
-    # Use EMAIL_FROM as the recipient override if set, otherwise use user_email
-    verified_email = os.getenv("EMAIL_FROM", user_email)
-    payload = {
-        "from": f"{EMAIL_FROM_NAME} <onboarding@resend.dev>",
-        "to": [verified_email],
-        "reply_to": user_email,
-        "subject": subject,
-        "html": html,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            if resp.status_code == 200:
-                print(f"[email] ✅ Weekly report sent to {user_email}")
-                return True
-            else:
-                print(f"[email] ❌ Failed to send to {user_email}: {resp.status_code} {resp.text[:500]}")
-                return False
-    except Exception as e:
-        print(f"[email] ❌ Error sending to {user_email}: {e}")
-        return False
+    return await _send_email(user_email, subject, html)
 
 
 async def gather_user_stats(user_id: str, db_history) -> dict:
@@ -118,42 +116,10 @@ async def send_weekly_reports_to_all(users_col, history_col) -> None:
 
 
 async def send_summary_report(user_email: str, user_name: str, doc_title: str, summary: dict) -> bool:
-    """Send an email containing the document summary via Resend API."""
-    if not RESEND_API_KEY:
-        print("[email] RESEND_API_KEY not set — skipping summary email")
-        return False
-
+    """Send an email containing the document summary via Gmail SMTP."""
     html = _build_summary_email_html(user_name, doc_title, summary)
     subject = f"Your Learnova summary — {doc_title[:60]}"
-
-    verified_email = os.getenv("EMAIL_FROM", user_email)
-    payload = {
-        "from": f"{EMAIL_FROM_NAME} <onboarding@resend.dev>",
-        "to": [verified_email],
-        "reply_to": user_email,
-        "subject": subject,
-        "html": html,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            if resp.status_code == 200:
-                print(f"[email] ✅ Summary report sent to {user_email}")
-                return True
-            else:
-                print(f"[email] ❌ Failed to send summary to {user_email}: {resp.status_code} {resp.text[:500]}")
-                return False
-    except Exception as e:
-        print(f"[email] ❌ Error sending summary to {user_email}: {e}")
-        return False
+    return await _send_email(user_email, subject, html)
 
 
 def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
@@ -219,42 +185,10 @@ def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
 
 
 async def send_welcome_email(user_email: str, user_name: str) -> bool:
-    """Send a welcome email to a newly registered user."""
-    if not RESEND_API_KEY:
-        print("[email] RESEND_API_KEY not set — skipping welcome email")
-        return False
-
+    """Send a welcome email to a newly registered user via Gmail SMTP."""
     html = _build_welcome_email_html(user_name)
     subject = f"Welcome to Learnova, {user_name}! 🎉"
-
-    verified_email = os.getenv("EMAIL_FROM", user_email)
-    payload = {
-        "from": f"{EMAIL_FROM_NAME} <onboarding@resend.dev>",
-        "to": [verified_email],
-        "reply_to": user_email,
-        "subject": subject,
-        "html": html,
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                "https://api.resend.com/emails",
-                headers={
-                    "Authorization": f"Bearer {RESEND_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            if resp.status_code == 200:
-                print(f"[email] ✅ Welcome email sent to {user_email}")
-                return True
-            else:
-                print(f"[email] ❌ Failed welcome email to {user_email}: {resp.status_code} {resp.text[:500]}")
-                return False
-    except Exception as e:
-        print(f"[email] ❌ Error sending welcome to {user_email}: {e}")
-        return False
+    return await _send_email(user_email, subject, html)
 
 
 def _build_welcome_email_html(name: str) -> str:
