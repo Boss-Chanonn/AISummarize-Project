@@ -677,7 +677,20 @@ async function confirmSchedule() {
       return;
     }
     if (data.ics_url) {
-      window.open(data.ics_url, '_blank');
+      var token = localStorage.getItem('token') || '';
+      fetch(data.ics_url, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r){ return r.blob(); })
+        .then(function(blob){
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'study-event.ics';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        })
+        .catch(function(){ showToast('Could not download calendar file'); });
     }
   } catch (err) {
     showToast('Could not connect to calendar service');
