@@ -93,6 +93,8 @@ let _multiQueue = [];       // files waiting to be processed
 let _multiResults = [];     // completed results [{title, historyId, success}]
 let _multiAllData = [];     // full response data for each successful file
 let _multiCurrent = 0;      // index of file currently processing
+let _multiMode = false;     // true when chaining multiple files (summary→quiz→next)
+let _multiIndex = 0;        // which file within _multiAllData we're on
 let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
 let resumedSession = false;
 let processingTimer = null;
@@ -566,7 +568,9 @@ async function processMultiQueue() {
   }
 
   if (_multiAllData.length) {
-    renderMultiSummary(_multiAllData);
+    _multiMode = true;
+    _multiIndex = 0;
+    showMultiFileSummary(0);
     document.getElementById('btn-rescan').style.display = 'flex';
     document.getElementById('btn-process').style.display = 'none';
     var btnQuiz = document.getElementById('btn-quiz');
@@ -576,46 +580,7 @@ async function processMultiQueue() {
   }
 }
 
-function renderMultiSummary(docs) {
-  var sections = docs.map(function(d, idx){
-    var bodyHtml = (d.summary && d.summary.body || []).map(function(p){ return '<p style="font-size:14px;line-height:1.7;color:var(--cream-60);margin-bottom:12px">' + escapeHtml(p) + '</p>'; }).join('');
-    var takeHtml = (d.summary && d.summary.takeaways || []).map(function(t){ return '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;font-size:14px;color:var(--cream-60);border-bottom:0.5px solid var(--border)"><span style="color:var(--gold);flex-shrink:0">—</span>' + escapeHtml(t) + '</div>'; }).join('');
-    var hasQuiz = d.quizData && d.quizData.length;
-    return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
-      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">' +
-        '<span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);background:rgba(200,184,154,0.1);padding:3px 10px;border-radius:4px">File ' + (idx + 1) + '</span>' +
-        '<span style="font-size:15px;font-family:var(--serif);color:var(--cream)">' + escapeHtml(d._fileName) + '</span>' +
-      '</div>' +
-      '<div class="sum-body">' + bodyHtml + '</div>' +
-      (takeHtml ? '<div style="margin-top:20px"><div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-40);margin-bottom:8px">Key takeaways</div>' + takeHtml + '</div>' : '') +
-      (hasQuiz ? '<button class="btn btn-primary" style="margin-top:20px" onclick="loadMultiQuiz(' + idx + ')">Take quiz →</button>' : '') +
-    '</div>';
-  }).join('');
 
-  var panel = document.getElementById('right-panel');
-  if (!panel) return;
-  panel.innerHTML = '<div style="padding:36px 40px;max-width:720px;margin:0 auto">' +
-    '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">' + docs.length + ' files processed</div>' +
-    sections +
-    '<div style="text-align:center;padding-top:8px">' +
-      '<button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>' +
-      '<a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>' +
-    '</div></div>';
-
-  var curtain = document.getElementById('curtain-panel');
-  if (curtain) {
-    curtain.innerHTML = panel.innerHTML;
-    requestAnimationFrame(function(){ curtain.classList.add('curtain-visible'); });
-  }
-}
-
-function loadMultiQuiz(idx) {
-  var data = _multiAllData && _multiAllData[idx] ? _multiAllData[idx] : null;
-  if (!data || !data.quizData || !data.quizData.length) { showToast('Quiz not available'); return; }
-  localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
-  if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-  window.location.href = 'upload.html?mode=quiz';
-}
 
 function showMultiProgress(current, total, filename) {
   const panel = document.getElementById('right-panel');
@@ -644,6 +609,72 @@ function showMultiProgress(current, total, filename) {
       </div>
     </div>
   `;
+}
+
+function showMultiFileSummary(idx) {
+  var doc = _multiAllData[idx];
+  if (!doc) return;
+  if (doc.historyId) localStorage.setItem('currentHistoryId', doc.historyId);
+  if (doc.quizData && doc.quizData.length) localStorage.setItem('currentQuiz', JSON.stringify(doc.quizData));
+  showSummary(doc);
+}
+
+function _multiNextFile() {
+  _multiIndex++;
+  if (_multiIndex < _multiAllData.length) {
+    showMultiFileSummary(_multiIndex);
+  } else {
+    showMultiFinalResults();
+  }
+}
+
+function showMultiFinalResults() {
+  _multiMode = false;
+  var resultsHtml = _multiAllData.map(function(d, idx){
+    var saved = JSON.parse(localStorage.getItem('_multiSaved_' + idx) || '{}');
+    var pct = saved.score || 0;
+    var correct = saved.correct || 0;
+    var total = saved.total || (d.quizData && d.quizData.length) || 8;
+    var weaknesses = saved.weaknesses && saved.weaknesses.length ? saved.weaknesses : ['Review your weak areas'];
+    var strengths = saved.strengths && saved.strengths.length ? saved.strengths : ['You completed the quiz'];
+    return '<div style="margin-bottom:40px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">' +
+        '<span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);background:rgba(200,184,154,0.1);padding:3px 10px;border-radius:4px">File ' + (idx + 1) + '</span>' +
+        '<span style="font-size:15px;font-family:var(--serif);color:var(--cream)">' + escapeHtml(d._fileName) + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;margin-bottom:20px">' +
+        '<div style="flex:1;background:rgba(240,237,232,0.04);border-radius:8px;padding:16px;text-align:center">' +
+          '<div style="font-size:28px;font-weight:bold;color:var(--gold)">' + pct + '%</div>' +
+          '<div style="font-size:11px;color:var(--cream-40);margin-top:4px">Score</div>' +
+        '</div>' +
+        '<div style="flex:1;background:rgba(240,237,232,0.04);border-radius:8px;padding:16px;text-align:center">' +
+          '<div style="font-size:28px;font-weight:bold;color:var(--cream)">' + correct + '/' + total + '</div>' +
+          '<div style="font-size:11px;color:var(--cream-40);margin-top:4px">Correct</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-40);margin-bottom:6px">Needs work</div>' +
+      weaknesses.map(function(w){ return '<div style="font-size:13px;color:var(--cream-60);padding:4px 0">• ' + w + '</div>'; }).join('') +
+      '<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-40);margin:14px 0 6px">Strong areas</div>' +
+      strengths.map(function(s){ return '<div style="font-size:13px;color:var(--cream-60);padding:4px 0">• ' + s + '</div>'; }).join('') +
+    '</div>';
+  }).join('');
+
+  var panel = document.getElementById('right-panel');
+  if (!panel) return;
+  panel.innerHTML = '<div style="padding:36px 40px;max-width:720px;margin:0 auto">' +
+    '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">All files complete</div>' +
+    resultsHtml +
+    '<div style="text-align:center;padding-top:8px">' +
+      '<button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>' +
+      '<a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>' +
+    '</div></div>';
+
+  var curtain = document.getElementById('curtain-panel');
+  if (curtain) {
+    curtain.innerHTML = panel.innerHTML;
+    requestAnimationFrame(function(){ curtain.classList.add('curtain-visible'); });
+  }
+  document.getElementById('btn-quiz').style.display = 'none';
 }
 
 function showMultiComplete() {
@@ -945,7 +976,14 @@ function showSummary(data) {
   setSummaryMode(true);
   renderDocumentInfo();
   const quizReady = quizData.length > 0;
-  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
+  var multiHeader = '';
+  if (_multiMode) {
+    multiHeader = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding-bottom:16px;border-bottom:0.5px solid var(--border)">' +
+      '<span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);background:rgba(200,184,154,0.1);padding:3px 10px;border-radius:4px">File ' + (_multiIndex + 1) + ' of ' + _multiAllData.length + '</span>' +
+      '<span style="font-size:14px;color:var(--cream-40)">' + escapeHtml(data._fileName || '') + '</span>' +
+    '</div>';
+  }
+  const summaryHTML = multiHeader + `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
     ctaLabel: quizReady ? 'Take quiz →' : 'Quiz generating…',
     ctaHandler: quizReady ? 'startQuiz()' : "showToast('Quiz is still generating — this will update automatically')",
     ctaHint: quizReady ? quizData.length + ' questions ready' : 'Quiz still generating'
@@ -1159,18 +1197,42 @@ async function showQuizResults() {
     }
     const btn = document.getElementById('btn-full-results');
     if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+      if (_multiMode) {
+        var nextLabel = 'Next file →';
+        if (_multiIndex >= _multiAllData.length - 1) nextLabel = 'View final results →';
+        btn.textContent = nextLabel;
+        btn.disabled = false;
+        btn.onclick = function() { _multiNextFile(); };
+        localStorage.setItem('_multiSaved_' + _multiIndex, JSON.stringify({
+          score: pct, correct: correctCount, total: quizData.length,
+          weaknesses: [], strengths: ['Quiz completed']
+        }));
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Full results →';
+        btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+      }
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {
     // Phase 4: Fallback to local results view when backend save fails.
     const btn = document.getElementById('btn-full-results');
     if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html'; };
+      if (_multiMode) {
+        var nextLabel = 'Next file →';
+        if (_multiIndex >= _multiAllData.length - 1) nextLabel = 'View final results →';
+        btn.textContent = nextLabel;
+        btn.disabled = false;
+        btn.onclick = function() { _multiNextFile(); };
+        localStorage.setItem('_multiSaved_' + _multiIndex, JSON.stringify({
+          score: pct, correct: correctCount, total: quizData.length,
+          weaknesses: [], strengths: ['Quiz completed']
+        }));
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Full results →';
+        btn.onclick = function() { window.location.href = 'results.html'; };
+      }
     }
     showToast('Quiz complete — ' + pct + '%');
   }
@@ -1180,6 +1242,9 @@ async function showQuizResults() {
  * Reset upload workspace and clear transient quiz/processing state.
  */
 function resetUpload() {
+  _multiMode = false;
+  _multiIndex = 0;
+  for (var i = 0; i < 10; i++) localStorage.removeItem('_multiSaved_' + i);
   if (processingTimer) {
     clearInterval(processingTimer);
     processingTimer = null;
