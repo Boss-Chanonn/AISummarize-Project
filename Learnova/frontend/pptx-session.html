@@ -645,24 +645,35 @@ function selectAnswer(qi, oi) {
 
 function submitQuiz() {
   quizSubmitted = true;
+  var correctCount = 0;
   // Show correct/wrong for each question
-  quizQuestions.forEach((q, qi) => {
-    const chosen = quizAnswers[qi];
-    q.options.forEach((_, oi) => {
-      const btn = document.getElementById(`qq-${qi}-${oi}`);
+  quizQuestions.forEach(function(q, qi) {
+    var chosen = quizAnswers[qi];
+    var ok = chosen === q.correct_index;
+    if (ok) correctCount++;
+    q.options.forEach(function(_, oi) {
+      var btn = document.getElementById('qq-' + qi + '-' + oi);
       if (!btn) return;
       if (oi === q.correct_index) btn.classList.add('correct');
       else if (oi === chosen) btn.classList.add('wrong');
       btn.style.pointerEvents = 'none';
     });
-    const fb = document.getElementById(`qq-fb-${qi}`);
+    var fb = document.getElementById('qq-fb-' + qi);
     if (fb) {
-      const ok = chosen === q.correct_index;
-      fb.className = `qq-feedback show ${ok ? 'correct' : 'wrong'}`;
-      fb.textContent = `${ok ? 'Correct.' : 'Incorrect.'} ${q.explanation}`;
+      fb.className = 'qq-feedback show ' + (ok ? 'correct' : 'wrong');
+      fb.textContent = (ok ? 'Correct. ' : 'Incorrect. ') + q.explanation;
     }
   });
-  renderQuizArea();
+  // Update header to show score + action buttons
+  var submitBtn = document.getElementById('submit-quiz-btn');
+  if (submitBtn) {
+    var pct = Math.round((correctCount / quizQuestions.length) * 100);
+    submitBtn.outerHTML = '<div style="display:flex;gap:8px;align-items:center">' +
+      '<span style="font-family:var(--serif);font-size:22px;color:var(--gold)">' + pct + '%</span>' +
+      '<button class="btn btn-primary" onclick="saveSessionScore(' + pct + ')">Save →</button>' +
+      '<button class="btn" onclick="reviewQuiz()">Review</button>' +
+      '</div>';
+  }
 }
 
 function reviewQuiz() {
