@@ -107,3 +107,36 @@ class OllamaClient:
             ) from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned invalid JSON from its HTTP API.") from exc
+
+
+def _repair_truncated_json(text: str) -> str:
+    """Attempt to repair truncated JSON by closing open braces, brackets, and strings."""
+    text = text.rstrip()
+    stack = []
+    in_string = False
+    escape = False
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            escape = True
+            continue
+        if ch == '"' and not escape:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in "{[":
+            stack.append(ch)
+        elif ch == "}" and stack and stack[-1] == "{":
+            stack.pop()
+        elif ch == "]" and stack and stack[-1] == "[":
+            stack.pop()
+    if in_string:
+        text += '"'
+    for opener in reversed(stack):
+        text += "}" if opener == "{" else "]"
+    import re
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    return text

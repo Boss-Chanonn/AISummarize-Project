@@ -461,28 +461,6 @@ function openSettings(tab='general') {
             ? 'You are on the Pro plan. Premium uploads, advanced feedback, and full learning tools are unlocked for your account.'
             : 'You are on the Free plan. Upgrade to Pro to unlock unlimited documents, PPTX upload, multi-file uploads, and more.'
 }
-function sendSummaryEmail() {
-  var doc = typeof currentDoc !== 'undefined' ? currentDoc : null;
-  if (!doc || !doc.summary) {
-    if (typeof showToast === 'function') showToast('No summary to send');
-    return;
-  }
-  var token = localStorage.getItem('token') || '';
-  fetch('/api/email/send-summary', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-    body: JSON.stringify({
-      title: doc.summary.title || doc.title,
-      summary: doc.summary,
-    }),
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(data){
-    if (data.sent) showToast('Summary sent to your email');
-    else showToast('Could not send email');
-  })
-  .catch(function(e){ console.error('sendSummaryEmail error:', e); showToast('Could not send email'); });
-}
         </div>
       </div>
       <div class="plan-card plan-upgrade-card">
@@ -515,6 +493,29 @@ function sendSummaryEmail() {
   const el = document.createElement('div');
   el.id = 'settings-mount'; el.innerHTML = html;
   document.body.appendChild(el);
+}
+
+function sendSummaryEmail() {
+  var doc = typeof currentDoc !== 'undefined' ? currentDoc : null;
+  if (!doc || !doc.summary) {
+    if (typeof showToast === 'function') showToast('No summary to send');
+    return;
+  }
+  var token = localStorage.getItem('token') || '';
+  fetch('/api/email/send-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({
+      title: doc.summary.title || doc.title,
+      summary: doc.summary,
+    }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.sent) showToast('Summary sent to your email');
+    else showToast('Could not send email');
+  })
+  .catch(function(e){ console.error('sendSummaryEmail error:', e); showToast('Could not send email'); });
 }
 
 /**
