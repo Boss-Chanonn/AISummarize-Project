@@ -113,6 +113,22 @@ async def send_weekly_reports_to_all(users_col, history_col) -> None:
         if ok:
             sent += 1
     print(f"[email] Weekly run complete — {sent}/{len(users)} emails sent")
+    # Record today's run so catch-up doesn't re-trigger on restart
+    try:
+        from zoneinfo import ZoneInfo
+        _nz_now = datetime.now(ZoneInfo("Pacific/Auckland")).strftime("%Y-%m-%d")
+        _result = await users_col.database["system_settings"].update_one(
+            {"_id": "weekly_email_last_run"},
+            {"$set": {"date": _nz_now}},
+            upsert=True,
+        )
+        if _result.acknowledged:
+            print(f"[email] Last-run date saved: {_nz_now}")
+        else:
+            print(f"[email] Last-run save not acknowledged")
+    except Exception as _se:
+        print(f"[email] Could not save last-run date: {_se}")
+        import sys; sys.stdout.flush()
 
 
 async def send_summary_report(user_email: str, user_name: str, doc_title: str, summary: dict) -> bool:

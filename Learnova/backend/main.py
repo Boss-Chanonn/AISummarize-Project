@@ -207,18 +207,27 @@ async def startup_event():
             app.state.scheduler = _sched
             print("[email] ✅ Weekly scheduler started — runs every Monday 08:00 NZST")
 
-            # Catch-up: if we missed Monday 8am NZST this week, run now
+            # Catch-up: run only if no weekly report sent this week
             try:
                 from zoneinfo import ZoneInfo
                 _nz_tz = ZoneInfo("Pacific/Auckland")
                 _nz_now = datetime.now(_nz_tz)
-                _nz_monday_8am = _nz_now.replace(hour=8, minute=0, second=0, microsecond=0)
                 _is_monday = _nz_now.weekday() == 0
                 _past_8am = _nz_now.hour >= 8
-                if (not _is_monday) or (_is_monday and _past_8am):
-                    print("[email] Monday 8am NZST already passed — running catch-up")
-                    import asyncio
-                    asyncio.ensure_future(send_weekly_reports_to_all(_uc, _hc))
+                if (_is_monday and _past_8am) or (not _is_monday):
+                    from backend.database.db import client as _mcli
+                    _sdb = _mcli[os.getenv("DATABASE_NAME", "learnova")]
+                    _last = await _sdb["system_settings"].find_one({"_id": "weekly_email_last_run"})
+                    _last_run = _last.get("date", "") if _last else ""
+                    _today = _nz_now.strftime("%Y-%m-%d")
+                    if _last_run != _today:
+                        print(f"[email] No weekly report sent today ({_today}) — running catch-up")
+                        import asyncio
+                        asyncio.ensure_future(send_weekly_reports_to_all(_uc, _hc))
+                    else:
+                        print(f"[email] Weekly report already sent today ({_today}) — skipping catch-up")
+            except Exception as _sce:
+                print(f"[email] Catch-up check failed: {_sce}")
             except Exception:
                 print("[email] Could not check catch-up (zoneinfo may be unavailable)")
         except Exception as _se:
