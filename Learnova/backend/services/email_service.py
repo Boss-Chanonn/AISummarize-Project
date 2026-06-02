@@ -321,6 +321,63 @@ async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str
     return await _send_email(user_email, subject, html)
 
 
+async def send_reset_password_email(user_email: str, user_name: str, reset_token: str) -> bool:
+    """Send a password reset email with a link containing the reset token.
+
+    Args:
+        user_email:  Recipient's email address.
+        user_name:   Recipient's display name.
+        reset_token: JWT token to embed in the reset link.
+
+    Returns:
+        True if the email was sent successfully.
+    """
+    app_url = os.getenv("APP_URL", "http://localhost:8000")
+    reset_link = f"{app_url}/reset-password.html?token={reset_token}"
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body {{ font-family: Georgia, serif; background: #F7F5F2; margin: 0; padding: 0; color: #1C1917; }}
+  .wrap {{ max-width: 580px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; }}
+  .header {{ background: linear-gradient(135deg,#1C1917,#2D2A27); padding: 40px; text-align: center; }}
+  .header h1 {{ color: #C8B89A; font-size: 28px; margin: 0; }}
+  .body {{ padding: 36px 40px; }}
+  .greeting {{ font-size: 20px; margin-bottom: 16px; }}
+  p {{ font-size: 14px; color: #6B7280; line-height: 1.7; }}
+  .cta {{ display: inline-block; background: #1C1917; color: #C8B89A !important; text-decoration: none;
+          text-align: center; padding: 14px 32px; border-radius: 8px; font-size: 15px; margin: 20px 0; }}
+  .footer {{ padding: 20px 40px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+  .footer a {{ color: #9CA3AF; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header"><h1>Learnova ✦</h1></div>
+  <div class="body">
+    <div class="greeting">Hi {user_name},</div>
+    <p>We received a request to reset your Learnova account password.
+       Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+    <div style="text-align:center">
+      <a class="cta" href="{reset_link}">Reset your password</a>
+    </div>
+    <p style="margin-top:24px">If you didn't request this, you can safely ignore this email.
+       Your current password will stay the same.</p>
+  </div>
+  <div class="footer">
+    Learnova &mdash; AI-powered learning<br>
+    <a href="{app_url}">{app_url}</a>
+  </div>
+</div>
+</body>
+</html>"""
+    subject = "Reset your Learnova password"
+    return await _send_email(user_email, subject, html)
+
+
 def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
     """Build the HTML for a Pro upgrade welcome email.
 

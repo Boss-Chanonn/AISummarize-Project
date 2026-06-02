@@ -55,6 +55,106 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+# ----------------------------- Password Reset -----------------------------
+
+# POST /forgot-password — send reset link to email
+@router.post("/forgot-password")
+async def forgot_password(body: dict):
+    """
+    POST /forgot-password — send a password reset email.
+    Generates a signed JWT (expires in 1 hour), stores it on the user doc,
+    and emails the user a reset link containing the token.
+    Returns success even if email is unknown (prevents email enumeration).
+    """
+    email = body.get("email", "").strip().lower()
+    if not email:
+        return message_error(400, "Email is required")
+
+    user = await users_collection.find_one({"email": email})
+    if not user:
+        return {"message": "If that email is registered, a reset link has been sent."}
+
+    # Generate short-lived JWT for password reset
+    reset_token = create_access_token({
+        "sub": email,
+        "type": "password_reset",
+        "jti": str(uuid.uuid4()),
+    })
+    # Store token + expiry on the user document
+    from datetime import timedelta
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "reset_token": reset_token,
+            "reset_token_expiry": datetime.utcnow() + timedelta(hours=1),
+        }}
+    )
+
+    # Fire-and-forget reset email
+    try:
+        from backend.services.email_service import send_reset_password_email
+        import asyncio
+        asyncio.ensure_future(send_reset_password_email(email, user.get("name", "User"), reset_token))
+    except Exception:
+        pass
+
+    return {"message": "If that email is registered, a reset link has been sent."}
+
+
+# POST /reset-password — verify token and update password
+@router.post("/reset-password")
+async def reset_password(body: dict):
+    """
+    POST /reset-password — reset password using a valid token.
+    Verifies the JWT, checks it matches the stored token on the user doc,
+    and hasn't expired. Then hashes the new password and updates the user record.
+    The reset_token field is cleared after successful reset (single-use).
+    """
+    token = body.get("token", "")
+    new_password = body.get("new_password", "")
+    confirm = body.get("confirm_password", "")
+
+    if not token or not new_password or not confirm:
+        return message_error(400, "Token, new password, and confirmation are required")
+    if len(new_password) < 8:
+        return message_error(400, "Password must be at least 8 characters")
+    if new_password != confirm:
+        return message_error(400, "Passwords do not match")
+
+    # Decode JWT without verification first to get email
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except Exception:
+        return message_error(400, "Invalid or expired reset link")
+
+    email = payload.get("sub", "")
+    token_type = payload.get("type", "")
+    if token_type != "password_reset" or not email:
+        return message_error(400, "Invalid reset link")
+
+    # Look up user and verify stored token matches
+    user = await users_collection.find_one({"email": email})
+    if not user:
+        return message_error(400, "Invalid reset link")
+
+    stored_token = user.get("reset_token", "")
+    stored_expiry = user.get("reset_token_expiry")
+
+    if stored_token != token:
+        return message_error(400, "Reset link has already been used")
+    if not stored_expiry or stored_expiry.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        return message_error(400, "Reset link has expired — please request a new one")
+
+    # Hash new password and update, clearing the token
+    new_hashed = hash_password(new_password)
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password": new_hashed}, "$unset": {"reset_token": "", "reset_token_expiry": ""}}
+    )
+
+    return {"message": "Password reset successfully — please sign in"}
+
+
 # ----------------------------- Public Endpoints -----------------------------
 
 # GET /health — lightweight health check for the auth router
