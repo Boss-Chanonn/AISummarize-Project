@@ -231,7 +231,7 @@ function showToast(msg, typeOrDuration, maybeDuration) {
 
   if (!type) {
     const low = String(msg || '').toLowerCase();
-    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing)/.test(low)
+    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing|must)/.test(low)
       ? 'error'
       : 'success';
   }
