@@ -223,6 +223,7 @@ async def register(user: UserCreate):
         "status": "active",
         "verified": False,
         "verification_code": code,
+        "welcomed": False,
         "createdAt": datetime.utcnow()
     })
     # ── Fire-and-forget verification email ──
@@ -272,6 +273,18 @@ async def login(credentials: UserLogin):
     user = await users_collection.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
+    # ── Send welcome email on first sign-in ──
+    if not user.get("welcomed"):
+        try:
+            from backend.services.email_service import send_welcome_email
+            import asyncio
+            asyncio.ensure_future(send_welcome_email(credentials.email, user.get("name", "User")))
+        except Exception:
+            pass
+        await users_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"welcomed": True}}
+        )
     # ── Build JWT payload with identity claims ──
     token = create_access_token({
         "email": user["email"],
