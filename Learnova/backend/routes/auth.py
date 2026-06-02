@@ -169,10 +169,16 @@ async def reset_password(body: dict):
 
     # Hash new password and update, clearing the token
     new_hashed = hash_password(new_password)
+    pw_result = await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"password": new_hashed}}
+    )
     await users_collection.update_one(
         {"_id": user["_id"]},
-        {"$set": {"password": new_hashed}, "$unset": {"reset_token": "", "reset_token_expiry": ""}}
+        {"$unset": {"reset_token": "", "reset_token_expiry": ""}}
     )
+    if pw_result.modified_count == 0:
+        return message_error(500, "Failed to update password")
 
     return {"message": "Password reset successfully — please sign in"}
 
