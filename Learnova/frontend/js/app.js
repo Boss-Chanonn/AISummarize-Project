@@ -1781,7 +1781,7 @@ async function resetSysUserPassword(userId) {
     await sysAdminFetch('/api/admin/user/' + encodeURIComponent(userId) + '/reset-password', {
       method: 'POST'
     });
-    showToast('Password reset to Learnova@2026', 3000);
+    showToast('Password reset link sent to user email', 3000);
   } catch (_) {
     showToast('Failed to reset password', 3200);
   }

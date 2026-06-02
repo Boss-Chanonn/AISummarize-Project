@@ -43,6 +43,27 @@ def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)
 
 
+def validate_password_strength(password: str) -> str | None:
+    """Validate password meets requirements. Returns error message or None."""
+    if len(password) < 8:
+        return "Password must be at least 8 characters"
+    if not any(c.isupper() for c in password):
+        return "Password must contain at least one uppercase letter"
+    if not any(c.islower() for c in password):
+        return "Password must contain at least one lowercase letter"
+    if not any(c.isdigit() for c in password):
+        return "Password must contain at least one number"
+    if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?~`" for c in password):
+        return "Password must contain at least one symbol"
+    return None
+
+
+def generate_verification_code() -> str:
+    """Generate a random 6-digit verification code."""
+    import random
+    return str(random.randint(100000, 999999))
+
+
 def create_access_token(data: dict) -> str:
     """
     Create a signed JWT token with expiration and unique token ID (JTI).
@@ -116,8 +137,9 @@ async def reset_password(body: dict):
 
     if not token or not new_password or not confirm:
         return message_error(400, "Token, new password, and confirmation are required")
-    if len(new_password) < 8:
-        return message_error(400, "Password must be at least 8 characters")
+    pw_error = validate_password_strength(new_password)
+    if pw_error:
+        return message_error(400, pw_error)
     if new_password != confirm:
         return message_error(400, "Passwords do not match")
 
@@ -169,18 +191,21 @@ async def health_check():
 async def register(user: UserCreate):
     """
     POST /register — create a new user account.
-    Validates password length and DOB presence, checks for duplicate email,
-    hashes the password with bcrypt, inserts into MongoDB, and fires a
-    best-effort welcome email. New accounts default to role="user", tier="free".
+    Validates password strength and DOB presence, checks for duplicate email,
+    hashes the password with bcrypt, inserts into MongoDB with verified=False,
+    and sends a 6-digit verification code to the user's email.
+    The account cannot log in until POST /verify-email is called.
     """
-    if len(user.password) < 8:
-        return message_error(400, "Password must be at least 8 characters")
+    pw_error = validate_password_strength(user.password)
+    if pw_error:
+        return message_error(400, pw_error)
     if not user.dob:
         return message_error(400, "Date of birth is required")
     existing = await users_collection.find_one({"email": user.email})
     if existing:
         return message_error(409, "Email already registered")
     hashed = hash_password(user.password)
+    code = generate_verification_code()
     await users_collection.insert_one({
         "name": user.name,
         "email": user.email,
@@ -190,16 +215,44 @@ async def register(user: UserCreate):
         "role": "user",
         "tier": "free",
         "status": "active",
+        "verified": False,
+        "verification_code": code,
         "createdAt": datetime.utcnow()
     })
-    # ── Fire-and-forget welcome email (silently ignore failures) ──
+    # ── Fire-and-forget verification email ──
     try:
-        from backend.services.email_service import send_welcome_email
+        from backend.services.email_service import send_verification_email
         import asyncio
-        asyncio.ensure_future(send_welcome_email(user.email, user.name))
+        asyncio.ensure_future(send_verification_email(user.email, user.name, code))
     except Exception:
         pass
-    return {"message": "Account created — please sign in"}
+    return {"message": "Account created — check your email for the verification code"}
+
+
+# POST /verify-email — confirm email with 6-digit code
+@router.post("/verify-email")
+async def verify_email(body: dict):
+    """
+    POST /verify-email — verify a user's email address using the 6-digit code
+    sent at registration. Marks the user as verified so they can log in.
+    """
+    email = body.get("email", "").strip().lower()
+    code = body.get("code", "").strip()
+    if not email or not code:
+        return message_error(400, "Email and verification code are required")
+    user = await users_collection.find_one({"email": email})
+    if not user:
+        return message_error(404, "User not found")
+    if user.get("verified"):
+        return {"message": "Email already verified — please sign in"}
+    stored_code = user.get("verification_code", "")
+    if stored_code != code:
+        return message_error(400, "Invalid verification code")
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"verified": True}, "$unset": {"verification_code": ""}}
+    )
+    return {"message": "Email verified — you can now sign in"}
 
 
 # POST /login — authenticate and issue a JWT token
@@ -213,6 +266,9 @@ async def login(credentials: UserLogin):
     user = await users_collection.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
+    # ── Check email verification ──
+    if not user.get("verified"):
+        return message_error(403, "Please verify your email first — check your inbox for the verification code")
     # ── Build JWT payload with identity claims ──
     token = create_access_token({
         "email": user["email"],
@@ -307,6 +363,9 @@ async def change_password(
     """
     if not verify_password(body.current_password, current_user["password"]):
         return message_error(400, "Current password is incorrect")
+    pw_error = validate_password_strength(body.new_password)
+    if pw_error:
+        return message_error(400, pw_error)
     new_hashed = hash_password(body.new_password)
     await users_collection.update_one({"_id": current_user["_id"]}, {"$set": {"password": new_hashed}})
     return {"message": "Password changed successfully"}

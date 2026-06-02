@@ -311,7 +311,7 @@
           <div class="udm-account-left">
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Password</span>
-              <span style="font-size:13px;color:var(--cream-40)">Reset to: Learnova@2026</span>
+              <span style="font-size:13px;color:var(--cream-40)">Sends password reset link to user's email</span>
             </div>
           </div>
           <button class="action-btn" id="udmResetPwBtn" onclick="doResetPassword()" title="Reset password" style="color:var(--red-soft);border-color:rgba(200,120,80,0.3)">
@@ -1147,7 +1147,7 @@ async function doResetPassword() {
     });
     const data = await res.json();
     if (res.ok) {
-      showToast('Password has been reset', 'success');
+      showToast('Password reset link sent to user email', 'success');
     } else {
       showToast(data.message || 'Reset failed', 'error');
     }

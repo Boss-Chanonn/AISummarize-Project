@@ -321,6 +321,53 @@ async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str
     return await _send_email(user_email, subject, html)
 
 
+async def send_verification_email(user_email: str, user_name: str, code: str) -> bool:
+    """Send a 6-digit verification code to a newly registered user.
+
+    Args:
+        user_email: Recipient's email address.
+        user_name:  Recipient's display name.
+        code:       6-digit verification code.
+
+    Returns:
+        True if the email was sent successfully.
+    """
+    html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body {{ font-family: Georgia, serif; background: #F7F5F2; margin: 0; padding: 0; color: #1C1917; }}
+  .wrap {{ max-width: 580px; margin: 0 auto; background: #fff; border-radius: 12px; overflow: hidden; }}
+  .header {{ background: linear-gradient(135deg,#1C1917,#2D2A27); padding: 40px; text-align: center; }}
+  .header h1 {{ color: #C8B89A; font-size: 28px; margin: 0; }}
+  .body {{ padding: 36px 40px; }}
+  .greeting {{ font-size: 20px; margin-bottom: 16px; }}
+  p {{ font-size: 14px; color: #6B7280; line-height: 1.7; }}
+  .code {{ text-align: center; font-size: 36px; font-weight: bold; color: #C8B89A; letter-spacing: 8px;
+           margin: 24px 0; padding: 20px; background: #F7F5F2; border-radius: 8px; }}
+  .footer {{ padding: 20px 40px; font-size: 12px; color: #9CA3AF; text-align: center; }}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header"><h1>Learnova ✦</h1></div>
+  <div class="body">
+    <div class="greeting">Welcome to Learnova, {user_name}!</div>
+    <p>Thanks for creating an account. Use the code below to verify your email address and get started.</p>
+    <div class="code">{code}</div>
+    <p>This code expires in 1 hour. If you didn't create this account, you can ignore this email.</p>
+  </div>
+  <div class="footer">Learnova &mdash; AI-powered learning</div>
+</div>
+</body>
+</html>"""
+    subject = f"Your Learnova verification code: {code}"
+    return await _send_email(user_email, subject, html)
+
+
 async def send_reset_password_email(user_email: str, user_name: str, reset_token: str) -> bool:
     """Send a password reset email with a link containing the reset token.
 

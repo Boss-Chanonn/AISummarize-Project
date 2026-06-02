@@ -248,7 +248,7 @@ async def admin_reset_password(
     user_id: str,
     current_user: dict = Depends(get_admin_user)
 ):
-    """Reset a user password to default value for recovery workflow."""
+    """Send a password reset link to the user's email instead of setting a default password."""
     try:
         oid = ObjectId(user_id)
     except Exception:
@@ -258,6 +258,34 @@ async def admin_reset_password(
     if not user:
         return message_error(404, "User not found")
 
-    hashed = _pwd_context.hash("Learnova@2026")
-    await users_collection.update_one({"_id": oid}, {"$set": {"password": hashed}})
-    return {"success": True, "message": "Password reset to default"}
+    email = user.get("email", "")
+    name = user.get("name", "User")
+
+    # Generate reset token and store it
+    from jose import jwt
+    import uuid
+    from datetime import timedelta
+    reset_token = jwt.encode({
+        "sub": email,
+        "type": "password_reset",
+        "jti": str(uuid.uuid4()),
+        "exp": datetime.utcnow() + timedelta(hours=1),
+    }, os.getenv("SECRET_KEY", "changeme"), algorithm="HS256")
+
+    await users_collection.update_one(
+        {"_id": oid},
+        {"$set": {
+            "reset_token": reset_token,
+            "reset_token_expiry": datetime.utcnow() + timedelta(hours=1),
+        }}
+    )
+
+    # Send reset email
+    try:
+        from backend.services.email_service import send_reset_password_email
+        import asyncio
+        asyncio.ensure_future(send_reset_password_email(email, name, reset_token))
+    except Exception:
+        pass
+
+    return {"success": True, "message": f"Password reset link sent to {email}"}
