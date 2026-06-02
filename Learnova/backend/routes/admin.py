@@ -130,8 +130,25 @@ async def update_user_role(
 
 @router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
-    """Block direct deletion endpoint and instruct safe archive behavior."""
-    return message_error(403, "User deletion is disabled. Use archive by setting status to 'inactive'.")
+    """Permanently delete a user and their associated data."""
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return message_error(400, "Invalid user ID")
+
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return message_error(404, "User not found")
+
+    name = user.get("name", "Unknown")
+
+    # Delete user's history records
+    await history_collection.delete_many({"userId": user_id})
+
+    # Delete the user document
+    await users_collection.delete_one({"_id": oid})
+
+    return {"message": f"User `{name}` has been permanently deleted"}
 
 
 # ----------------------------- Admin History Endpoints -----------------------------
