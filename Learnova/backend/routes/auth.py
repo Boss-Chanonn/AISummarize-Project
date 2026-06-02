@@ -266,9 +266,6 @@ async def login(credentials: UserLogin):
     user = await users_collection.find_one({"email": credentials.email})
     if not user or not verify_password(credentials.password, user["password"]):
         return message_error(401, "Invalid email or password")
-    # ── Check email verification ──
-    if not user.get("verified"):
-        return message_error(403, "Please verify your email first — check your inbox for the verification code")
     # ── Build JWT payload with identity claims ──
     token = create_access_token({
         "email": user["email"],
