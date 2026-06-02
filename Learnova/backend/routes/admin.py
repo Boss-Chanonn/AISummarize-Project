@@ -116,9 +116,9 @@ async def update_user_role(
     body: dict,
     current_user: dict = Depends(get_admin_user)
 ):
-    """Update user role to user/admin/system_admin."""
+    """Update user role to user or admin (system_admin is reserved)."""
     role = body.get("role")
-    if role not in ("user", "admin", "system_admin"):
+    if role not in ("user", "admin"):
         return message_error(400, "Invalid role")
     try:
         oid = ObjectId(user_id)
