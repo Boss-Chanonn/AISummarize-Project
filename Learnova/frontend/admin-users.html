@@ -95,6 +95,10 @@
                 Tier
                 <span class="sort-icon"><span></span><span></span></span>
               </th>
+              <th class="sortable" onclick="sortBy('status')">
+                Status
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
               <th class="sortable" onclick="sortBy('files')">
                 Files
                 <span class="sort-icon"><span></span><span></span></span>
@@ -107,7 +111,7 @@
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr class="loading-row"><td colspan="6">Loading users…</td></tr>
+            <tr class="loading-row"><td colspan="7">Loading users…</td></tr>
           </tbody>
         </table>
         <div class="pagination">
@@ -434,7 +438,7 @@ function applyFilters() {
 /* ── Sort ───────────────────────────────────────────────────────────────────── */
 /**
  * Toggle sorting for a selected column.
- * @param {'name'|'role'|'tier'|'files'|'joined'} col
+ * @param {'name'|'role'|'tier'|'status'|'files'|'joined'} col
  */
 function sortBy(col) {
   document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
@@ -444,7 +448,7 @@ function sortBy(col) {
     sortCol = col;
     sortDir = 'asc';
   }
-  const colMap = { name: 0, role: 1, tier: 2, files: 3, joined: 4 };
+  const colMap = { name: 0, role: 1, tier: 2, status: 3, files: 4, joined: 5 };
   const ths = document.querySelectorAll('.table th.sortable');
   if (colMap[col] !== undefined) {
     ths[colMap[col]].classList.add('sorted', sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -474,7 +478,7 @@ function applySort() {
 function renderTable() {
   const tbody = document.getElementById('tableBody');
   if (!filteredUsers.length) {
-    tbody.innerHTML = '<tr class="loading-row"><td colspan="6">No users match the current filters</td></tr>';
+    tbody.innerHTML = '<tr class="loading-row"><td colspan="7">No users match the current filters</td></tr>';
     return;
   }
   tbody.innerHTML = filteredUsers.map(u => `
@@ -490,6 +494,7 @@ function renderTable() {
       </td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
       <td><span class="badge badge-${u.tier}">${u.tier}</span></td>
+      <td><span class="badge badge-${u.status || 'active'}">${escHtml(u.status || 'active')}</span></td>
       <td style="color:var(--cream-60)">${u.files ?? '—'}</td>
       <td style="color:var(--cream-40);font-size:12px">${u.joinedLabel}</td>
       <td onclick="event.stopPropagation()">
