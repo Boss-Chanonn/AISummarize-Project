@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query, Request
+import os
 from backend.database.db import users_collection, history_collection
 from backend.middleware.auth_middleware import get_admin_user, get_system_admin_user
 from backend.models.user import AdminUpdateProfile, AdminUpdateAccount
@@ -121,9 +122,9 @@ async def update_user_role(
     body: dict,
     current_user: dict = Depends(get_admin_user)
 ):
-    """Update user role to user/admin/system_admin."""
-    role = sanitize_choice(body.get("role"), {"user", "admin", "system_admin"})
-    if role not in ("user", "admin", "system_admin"):
+    """Update user role to user or admin (system_admin is reserved)."""
+    role = sanitize_choice(body.get("role"), {"user", "admin"})
+    if role not in ("user", "admin"):
         return message_error(400, "Invalid role")
     try:
         oid = ObjectId(user_id)
@@ -134,9 +135,29 @@ async def update_user_role(
 
 
 @router.delete("/users/{user_id}")
-async def delete_user(user_id: str, current_user: dict = Depends(get_admin_user)):
-    """Block direct deletion endpoint and instruct safe archive behavior."""
-    return message_error(403, "User deletion is disabled. Use archive by setting status to 'inactive'.")
+async def delete_user(user_id: str, current_user: dict = Depends(get_system_admin_user)):
+    """Permanently delete a user and their associated data. System admins only."""
+    try:
+        oid = ObjectId(user_id)
+    except Exception:
+        return message_error(400, "Invalid user ID")
+
+    if str(current_user.get("_id", "")) == user_id:
+        return message_error(403, "Cannot delete your own account")
+
+    user = await users_collection.find_one({"_id": oid})
+    if not user:
+        return message_error(404, "User not found")
+
+    name = user.get("name", "Unknown")
+
+    # Delete user's history records
+    await history_collection.delete_many({"userId": user_id})
+
+    # Delete the user document
+    await users_collection.delete_one({"_id": oid})
+
+    return {"message": f"User `{name}` has been permanently deleted"}
 
 
 # ----------------------------- Admin History Endpoints -----------------------------
@@ -262,7 +283,7 @@ async def admin_reset_password(
     user_id: str,
     current_user: dict = Depends(get_admin_user)
 ):
-    """Reset a user password to default value for recovery workflow."""
+    """Send a password reset link to the user's email instead of setting a default password."""
     try:
         oid = ObjectId(user_id)
     except Exception:
@@ -272,6 +293,34 @@ async def admin_reset_password(
     if not user:
         return message_error(404, "User not found")
 
-    hashed = _pwd_context.hash("Learnova@2026")
-    await users_collection.update_one({"_id": oid}, {"$set": {"password": hashed}})
-    return {"success": True, "message": "Password reset to default"}
+    email = user.get("email", "")
+    name = user.get("name", "User")
+
+    # Generate reset token and store it
+    from jose import jwt
+    import uuid
+    from datetime import timedelta
+    reset_token = jwt.encode({
+        "sub": email,
+        "type": "password_reset",
+        "jti": str(uuid.uuid4()),
+        "exp": datetime.utcnow() + timedelta(hours=1),
+    }, os.getenv("SECRET_KEY", "changeme"), algorithm="HS256")
+
+    await users_collection.update_one(
+        {"_id": oid},
+        {"$set": {
+            "reset_token": reset_token,
+            "reset_token_expiry": datetime.utcnow() + timedelta(hours=1),
+        }}
+    )
+
+    # Send reset email
+    try:
+        from backend.services.email_service import send_reset_password_email
+        import asyncio
+        asyncio.ensure_future(send_reset_password_email(email, name, reset_token))
+    except Exception:
+        pass
+
+    return {"success": True, "message": f"Password reset link sent to {email}"}

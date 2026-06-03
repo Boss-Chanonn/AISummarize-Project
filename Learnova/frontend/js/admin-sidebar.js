@@ -434,6 +434,33 @@ document.addEventListener('keydown', function(event) {
   if (event.key === 'Escape') { closeAdminAccountMenu(); closeAdminAccessibility(); _adminCloseEditProfile(); }
 });
 
+/* -- Group: Sidebar Toggle -- */
+/**
+ * Open/close admin sidebar (responsive).
+ */
+function toggleSidebar(e) {
+  var sidebar = document.getElementById('adminSidebar');
+  var hamburger = document.querySelector('.sidebar-hamburger');
+  var backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return;
+  if (window.innerWidth <= 760) {
+    sidebar.classList.toggle('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    if (hamburger) hamburger.classList.toggle('is-active');
+    if (backdrop) backdrop.classList.toggle('open');
+  }
+  if (e) e.stopPropagation();
+}
+function closeSidebar() {
+  var sidebar = document.getElementById('adminSidebar');
+  var hamburger = document.querySelector('.sidebar-hamburger');
+  var backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return;
+  sidebar.classList.remove('sidebar-overlay', 'open');
+  if (hamburger) hamburger.classList.remove('is-active');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
 /* -- Group: Sidebar Bootstrap -- */
 document.addEventListener('DOMContentLoaded', function () {
   const sidebar = document.getElementById('adminSidebar');
@@ -452,12 +479,12 @@ document.addEventListener('DOMContentLoaded', function () {
       if (item.onclick) {
         /* action item (e.g. Sign Out) */
         html += '<div class="sidebar-item" onclick="' + item.onclick + '">'
-              + item.icon + ' ' + item.label
+              + item.icon + '<span class="sidebar-label"> ' + item.label + '</span>'
               + '</div>';
       } else {
         /* link item */
         html += '<a href="' + item.href + '" class="sidebar-item' + (isActive ? ' active' : '') + '">'
-              + item.icon + ' ' + item.label;
+              + item.icon + '<span class="sidebar-label"> ' + item.label + '</span>';
         html += '</a>';
       }
     });

@@ -1,28 +1,60 @@
-/* ──────────────────────────────────────────
-  Learnova Frontend App Script
-  Shared client logic for user pages and system admin pages.
-  Organized in sections: state, helpers, UI, and page modules.
-  ────────────────────────────────────────── */
+/* ───────────────────────────────────────────────────────────────
+ * Learnova Frontend App Script (app.js)
+ *
+ * Shared client logic for user-facing pages (dashboard, upload, quiz,
+ * history, module) and the System Admin panel.
+ *
+ * This file is loaded by every .html page in Learnova. It is organised
+ * into sections:
+ *   1. User State & Core Helpers
+ *   2. Theme & Accessibility Preferences
+ *   3. Toast Notifications
+ *   4. UI Sync (avatar, sidebar, profile)
+ *   5. Settings & Profile Modals
+ *   6. Sidebar HTML & Navigation
+ *   7. History Detail / Split Modals
+ *   8. System Admin Panel
+ *
+ * Dependencies:
+ *   - config.js  (window.LEARNOVA_CONFIG)
+ *   - api.js     (window.LEARNOVA_API, used by upload/quiz pages)
+ *   - billing.js (called via upgradeToPro() / billing.html redirect)
+ * ─────────────────────────────────────────────────────────────── */
 
-/* ── Section: User State and Core Helpers ── */
+// ── Section: User State and Core Helpers ──
+
+// Hydrate initial user snapshot from localStorage (set during login/signup).
 const _storedUser = JSON.parse(localStorage.getItem('user') || 'null');
-// Snapshot of the currently signed-in user, hydrated from localStorage.
+
+/**
+ * In-memory representation of the current signed-in user.
+ * Referenced throughout the app for name, email, tier, and role checks.
+ * Synced back to localStorage in saveProfile() and by the DOMContentLoaded handler.
+ *
+ * Related: syncUserUI() — pushes changes from this object to the DOM.
+ */
 const LEARNOVA_USER = {
   name: (_storedUser && _storedUser.name) || 'User',
   initials: '',
   email: (_storedUser && _storedUser.email) || '',
-  pendingEmail: '',
+  pendingEmail: '',   // Temporary store for an unverified new email address
   avatarUrl: '',
   dob: '',
   phone: '',
   password: '',
-  passwordMask: '•••••••',
+  passwordMask: '•••••••',  // Display-only; actual length varies but is never shown
   tier: (_storedUser && _storedUser.tier) || 'free',
   role: (_storedUser && _storedUser.role) || 'user',
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
-/* History is stored in localStorage (ln_history) and starts empty for new users. */
+/**
+ * ── History ──
+ * Persisted across sessions via localStorage under the key "ln_history".
+ * On first visit (new user) the array starts empty.
+ * Each entry is created by upload.js → buildHistoryRecord() in api.js
+ * and then marked complete by quiz.js → applyAnalysisToRecord().
+ */
 
 
 /**
@@ -107,6 +139,11 @@ function renderSummaryMarkup(item, options = {}) {
       <div class="cta-hint">${ctaHint}</div>
       <button class="btn btn-primary" onclick="${ctaBefore}${ctaHandler}">${ctaLabel}</button>
     </div>
+    <div style="text-align:center;margin-top:10px;padding-bottom:2px">
+      <button class="btn btn-outline" onclick="sendSummaryEmail()" style="font-size:13px;padding:6px 16px">
+        ✉ Email Summary
+      </button>
+    </div>
   `;
 }
 
@@ -138,7 +175,7 @@ function applyFontSize(s) {
  * Load persisted theme/font-size preferences and apply to the page.
  */
 function loadPrefs() {
-  const t = localStorage.getItem('ln_theme') || 'dark';
+  const t = localStorage.getItem('ln_theme') || 'light';
   const s = localStorage.getItem('ln_fontsize') || 'default';
   applyTheme(t);
   applyFontSize(s);
@@ -194,7 +231,7 @@ function showToast(msg, typeOrDuration, maybeDuration) {
 
   if (!type) {
     const low = String(msg || '').toLowerCase();
-    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing)/.test(low)
+    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing|must)/.test(low)
       ? 'error'
       : 'success';
   }
@@ -405,7 +442,7 @@ function handleSidebarAccountAction(action) {
  */
 function openSettings(tab='general') {
   const currentTab = tab === 'plan' ? 'plan' : 'accessibility';
-  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const saved_theme = localStorage.getItem('ln_theme') || 'light';
 
   const themeSwatchItems = [
     { id:'dark',          label:'Dark',           dots:['#0A0A0A','#C8B89A','#6B9E6B'] },
@@ -455,7 +492,7 @@ function openSettings(tab='general') {
           ${isPro
             ? 'You are on the Pro plan. Premium uploads, advanced feedback, and full learning tools are unlocked for your account.'
             : 'You are on the Free plan. Upgrade to Pro to unlock unlimited documents, PPTX upload, multi-file uploads, and more.'
-          }
+}
         </div>
       </div>
       <div class="plan-card plan-upgrade-card">
@@ -488,6 +525,38 @@ function openSettings(tab='general') {
   const el = document.createElement('div');
   el.id = 'settings-mount'; el.innerHTML = html;
   document.body.appendChild(el);
+}
+
+/**
+ * Send the current document summary to the user's registered email address.
+ *
+ * Reads `currentDoc` from the nearest enclosing scope (set by upload.html or
+ * history detail views). Falls back silently if no document is available.
+ *
+ * Called from: the "✉ Email Summary" button in renderSummaryMarkup().
+ * Backend endpoint: POST /api/email/send-summary
+ */
+function sendSummaryEmail() {
+  var doc = typeof currentDoc !== 'undefined' ? currentDoc : null;
+  if (!doc || !doc.summary) {
+    if (typeof showToast === 'function') showToast('No summary to send');
+    return;
+  }
+  var token = localStorage.getItem('token') || '';
+  fetch('/api/email/send-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({
+      title: doc.summary.title || doc.title,
+      summary: doc.summary,
+    }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.sent) showToast('Summary sent to your email');
+    else showToast('Could not send email');
+  })
+  .catch(function(e){ console.error('sendSummaryEmail error:', e); showToast('Could not send email'); });
 }
 
 /**
@@ -730,39 +799,54 @@ function closeProfile() {
 function renderSidebar(activePage) {
   const isPro = LEARNOVA_USER.tier === 'pro';
   return `
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar-main">
     <div class="sidebar-logo">Learnova</div>
     <div class="sidebar-section">Main</div>
     <a href="dashboard.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="dashboard.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-      Dashboard
+      <span class="sidebar-label">Dashboard</span>
     </a>
     <a href="upload.html" class="sidebar-item${activePage==='upload'?' active':''}" data-page="upload.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 2h8l2 2v10H3V2z"/><path d="M9 2v3h3"/><path d="M5 7h6M5 10h4"/></svg>
-      Documents
+      <span class="sidebar-label">Documents</span>
     </a>
     <a href="module.html" class="sidebar-item${activePage==='module'?' active':''}" data-page="module.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 12V5l6-3 6 3v7"/><path d="M8 2v10"/><path d="M5 10h6"/></svg>
-      Learning
+      <span class="sidebar-label">Learning</span>
     </a>
     <a href="history.html" class="sidebar-item${activePage==='history'?' active':''}" data-page="history.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v4l2.5 1.5"/></svg>
-      History
+      <span class="sidebar-label">History</span>
     </a>
+    ${isPro ? `
+    <div class="sidebar-section">Pro</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      <span class="sidebar-label">Pro Features ✦</span>
+    </a>
+    <a href="pptx-session.html" class="sidebar-item${activePage==='pptx'?' active':''}" data-page="pptx-session.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="2" width="14" height="11" rx="1.5"/><path d="M5 6h4M5 9h6"/><circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
+      <span class="sidebar-label">PPTX Sessions</span>
+    </a>` : `
+    <div class="sidebar-section">Upgrade</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html" style="color:var(--gold)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      <span class="sidebar-label">Learnova Pro</span>
+    </a>`}
     ${LEARNOVA_USER.role === 'admin' ? `
     <div class="sidebar-section">Admin</div>
     <a href="admin-stats.html" class="sidebar-item${activePage==='admin-stats'?' active':''}" data-page="admin-stats.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 14v-1a3 3 0 0 0-3-3H5a3 3 0 0 0-3 3v1"/><circle cx="6.5" cy="5.5" r="2.5"/><path d="M14 7h-3M14 10h-3"/></svg>
-      Admin Panel
+      <span class="sidebar-label">Admin Panel</span>
     </a>` : ''}
     <div class="sidebar-section">Account</div>
     <button class="sidebar-item" onclick="openProfile()" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
-      Profile
+      <span class="sidebar-label">Profile</span>
     </button>
     <button class="sidebar-item" onclick="openSettings('accessibility')" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>
-      Settings
+      <span class="sidebar-label">Settings</span>
     </button>
     <div class="sidebar-bottom">
       <button class="sidebar-avatar sidebar-account-trigger" id="sidebar-account-trigger" type="button" onclick="toggleSidebarAccountMenu(event)" aria-haspopup="true" aria-expanded="false">
@@ -780,6 +864,56 @@ function renderSidebar(activePage) {
   </aside>`;
 }
 
+/**
+ * Toggle sidebar visibility.
+ * On narrow screens (≤760px) it acts as an overlay; on wider screens
+ * it collapses/expands the sidebar in place.
+ *
+ * Called from: hamburger button click in sidebar HTML.
+ *
+ * @param {Event} [e] - Optional click event (stopPropagation is called if present)
+ */
+function toggleSidebar(e){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  if(window.innerWidth<=760){
+    sidebar.classList.toggle('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    hamburger&&hamburger.classList.toggle('is-active');
+    backdrop&&backdrop.classList.toggle('open');
+  }else{
+    sidebar.classList.toggle('sidebar-collapsed');
+  }
+  e&&e.stopPropagation&&e.stopPropagation();
+}
+
+/**
+ * Force-close the sidebar overlay (mobile mode).
+ * Resets all overlay-related classes on sidebar, hamburger, and backdrop.
+ *
+ * Called from: sidebar backdrop click, or navigation events.
+ */
+function closeSidebar(){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  sidebar.classList.remove('sidebar-overlay','open');
+  hamburger&&hamburger.classList.remove('is-active');
+  backdrop&&backdrop.classList.remove('open');
+}
+
+// ── Document Ready & Global Event Listeners (User-Facing Pages) ──
+
+/**
+ * Bootstrap logic run once the DOM is ready on user-facing pages:
+ *   1. Load persisted theme/font preferences.
+ *   2. Highlight the current page's nav item in the sidebar.
+ *   3. Silently re-validate the user's tier from the backend so the UI
+ *      stays in sync even if the tier changed in the database.
+ */
 document.addEventListener('DOMContentLoaded', () => {
   loadPrefs();
   const page = location.pathname.split('/').pop() || 'dashboard.html';
@@ -807,11 +941,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Close the sidebar account menu when clicking outside the .sidebar-bottom area.
 document.addEventListener('click', (event) => {
   const bottom = event.target.closest('.sidebar-bottom');
   if (!bottom) closeSidebarAccountMenu();
 });
 
+// Close the sidebar account menu when pressing the Escape key.
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeSidebarAccountMenu();
 });
@@ -839,7 +975,17 @@ function renderQuestionListMarkup(questions) {
 }
 
 /**
- * Ensure modal mounts for history detail and split views exist.
+ * Lazily create the modal container elements for history detail and split views.
+ *
+ * Each modal is created once (guarded by an existence check) and reused on
+ * subsequent opens. This avoids accumulating duplicate DOM nodes when the user
+ * opens/closes history items repeatedly.
+ *
+ * Created modals:
+ *   - #detail-modal  → single-panel quiz result detail
+ *   - #split-modal   → side-by-side summary + results view
+ *
+ * Called from: openHistoryDetail() and openHistorySplit()
  */
 function ensureHistoryModalMounts() {
   if (!document.getElementById('detail-modal')) {
@@ -1019,8 +1165,14 @@ function closeHistorySplit() {
 }
 
 /* ── Section: System Admin Page ── */
+// The entire System Admin panel is only active on admin-users.html.
+// It is bootstrapped via a separate DOMContentLoaded listener at the bottom of this file.
 
-// UI metadata used to keep title/subtitle and nav behavior in sync per section.
+/**
+ * UI metadata for each System Admin section.
+ * Controls the page title and subtitle text shown in the admin header,
+ * and drives the nav-button active-state logic in switchSysSection().
+ */
 const SYS_SECTIONS = {
   overview: {
     title: 'System Overview',
@@ -1040,7 +1192,19 @@ const SYS_SECTIONS = {
   }
 };
 
-// In-memory state for System Admin interactions and temporary UI selections.
+/**
+ * Central in-memory state object for all System Admin interactions.
+ *
+ * Holds:
+ *   - The authenticated admin user
+ *   - The full and filtered user list
+ *   - Current active section
+ *   - Target user IDs for role/delete operations
+ *   - Database collection data
+ *   - Security logs and filter state
+ *
+ * This object is mutated directly by admin UI event handlers.
+ */
 const SYS_STATE = {
   user: null,
   users: [],
@@ -1114,7 +1278,11 @@ function renderSystemAdminSidebar(activeSection) {
 }
 
 /**
- * Open the System Admin account menu in sidebar.
+ * Open the System Admin account menu in the admin sidebar.
+ * Toggles visibility: if the menu is already open, it closes instead.
+ *
+ * The menu displays the admin's name, email, and a sign-out button.
+ * Bound in bindSystemAdminEvents() to clicks on #sys-sidebar-account-trigger.
  */
 function openSysAccountMenu() {
   const trigger = document.getElementById('sys-sidebar-account-trigger');
@@ -1162,7 +1330,10 @@ function openSysAccountMenu() {
 }
 
 /**
- * Close the System Admin account menu and reset trigger state.
+ * Close the System Admin account menu, reset trigger aria-expanded,
+ * and remove the 'open' class from .sidebar-bottom.
+ *
+ * Called from: document click outside menu, Escape key handler, and logoutSystemAdmin().
  */
 function closeSysAccountMenu() {
   const mount = document.getElementById('sys-sidebar-account-mount');
@@ -1174,7 +1345,13 @@ function closeSysAccountMenu() {
 }
 
 /**
- * Sign out System Admin account and clear local auth state.
+ * Sign out the System Admin, clearing local auth state and redirecting to index.
+ *
+ * Delegates to the shared logoutUser() when available (covers token invalidation);
+ * otherwise performs a manual localStorage cleanup.
+ *
+ * Called from: the "Sign out" button in the System Admin account menu.
+ *
  * @returns {Promise<void>}
  */
 async function logoutSystemAdmin() {
@@ -1687,7 +1864,7 @@ async function resetSysUserPassword(userId) {
     await sysAdminFetch('/api/admin/user/' + encodeURIComponent(userId) + '/reset-password', {
       method: 'POST'
     });
-    showToast('Password reset to Learnova@2026', 3000);
+    showToast('Password reset link sent to user email', 3000);
   } catch (_) {
     showToast('Failed to reset password', 3200);
   }
@@ -2411,8 +2588,11 @@ function renderAuditTrail(logs) {
 }
 
 /**
- * Get counts used by security view summaries.
- * @returns {{failed:number,activity:number,audit:number}}
+ * Aggregate counts for the three security sub-views.
+ * Used by the header summary badges (not currently rendered in the UI,
+ * but available for future status indicators).
+ *
+ * @returns {{failed:number, activity:number, audit:number}}
  */
 function getSecurityViewsMeta() {
   const failedCount = SYS_STATE.logs.filter(log => classifyLogType(log) === 'failed').length;
@@ -2612,8 +2792,22 @@ function exportSysLogsCsv() {
 }
 
 /* -- System Admin: Events and Bootstrapping -- */
+
 /**
- * Bind all event listeners for System Admin interactions.
+ * Wire up all DOM event listeners for the System Admin panel.
+ *
+ * Handles:
+ *   - Window resize (re-sync detail panel heights)
+ *   - Sidebar navigation clicks (switchSysSection)
+ *   - Sidebar account menu toggle
+ *   - User table actions (role, reset password, delete)
+ *   - Database collection expand/collapse, document selection & deletion
+ *   - Security view switching, log filtering, CSV export
+ *   - Escape key to close all modals
+ *
+ * Called once during the System Admin bootstrap (DOMContentLoaded).
+ * Uses optional chaining (?.) so listeners are only attached when the
+ * corresponding DOM elements exist (safe for partial page loads).
  */
 function bindSystemAdminEvents() {
   window.addEventListener('resize', () => {
@@ -2834,12 +3028,14 @@ function bindSystemAdminEvents() {
   });
 }
 
-// System Admin bootstrap flow: verify role, render sidebar, bind events, load default section.
+// ── System Admin Bootstrap ──
+// Runs only on the System Admin page (detected by #system-admin-page).
+// Flow: verify role → render sidebar → bind all event listeners → load default section.
 document.addEventListener('DOMContentLoaded', async () => {
-  if (!isSystemAdminPage()) return;
+  if (!isSystemAdminPage()) return; // Bail out if not on the admin page.
 
   const user = await verifySysAdmin();
-  if (!user) return;
+  if (!user) return; // Redirect to index already happened inside verifySysAdmin().
 
   SYS_STATE.user = user;
 
@@ -2854,5 +3050,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (initialsSlot) initialsSlot.textContent = getInitials(user.name || 'System Admin');
 
   bindSystemAdminEvents();
-  switchSysSection('overview');
+  switchSysSection('overview'); // Start on the overview (default) section.
 });

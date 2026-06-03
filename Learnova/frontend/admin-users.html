@@ -63,9 +63,8 @@
         </div>
         <select class="filter-select" id="roleFilter" onchange="applyFilters()">
           <option value="">All Roles</option>
-          <option value="system_admin">System Admin</option>
-          <option value="admin">Admin</option>
           <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
         <select class="filter-select" id="tierFilter" onchange="applyFilters()">
           <option value="">All Tiers</option>
@@ -119,6 +118,8 @@
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <!-- User Detail Modal -->
 <div class="overlay" id="userDetailOverlay">
@@ -294,7 +295,7 @@
           <div class="udm-account-left">
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Password</span>
-              <span style="font-size:13px;color:var(--cream-40)">Reset to: Learnova@2026</span>
+              <span style="font-size:13px;color:var(--cream-40)">Sends password reset link to user's email</span>
             </div>
           </div>
           <button class="action-btn" id="udmResetPwBtn" onclick="doResetPassword()" title="Reset password" style="color:var(--red-soft);border-color:rgba(200,120,80,0.3)">
@@ -596,7 +597,6 @@ function openActionModal(action, userId, userName, currentStatus) {
       <select class="role-select" id="rolePickerSelect">
         <option value="user">user</option>
         <option value="admin">admin</option>
-        <option value="system_admin">system_admin</option>
       </select>`;
     document.getElementById('confirmInput').placeholder = `Type "${userName}" to confirm`;
     document.getElementById('modalInputLabel').textContent = `Type "${userName}" to confirm`;
@@ -1011,7 +1011,7 @@ async function doResetPassword() {
     });
     const data = await res.json();
     if (res.ok) {
-      showToast('Password has been reset', 'success');
+      showToast('Password reset link sent to user email', 'success');
     } else {
       showToast(data.message || 'Reset failed', 'error');
     }

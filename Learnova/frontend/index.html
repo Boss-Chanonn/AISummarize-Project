@@ -174,6 +174,14 @@
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
 <script>
+  // Apply theme immediately — default to light if not set
+  (function() {
+    const t = localStorage.getItem('ln_theme') || 'light';
+    document.documentElement.setAttribute('data-theme', t);
+    if (typeof loadPreferences === 'function') loadPreferences();
+  })();
+</script>
+<script>
 /* -- Group: Auth Modal Templates -- */
 // Login modal template used by openModal('login').
 const loginHTML = `
@@ -186,6 +194,9 @@ const loginHTML = `
   <div class="form-field">
     <label class="field-label">Password</label>
     <input class="input" type="password" placeholder="••••••••" id="login-password"/>
+  </div>
+  <div style="text-align:right;margin-top:-8px;margin-bottom:4px">
+    <a href="forgot-password.html" style="font-size:12px;color:var(--cream-25);text-decoration:none">Forgot password?</a>
   </div>
   <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="login-btn" onclick="loginUser()">Sign in</button>
   <div class="modal-footer">No account? <a href="#" onclick="openModal('register')">Register free</a></div>`;
@@ -209,6 +220,9 @@ const registerHTML = `
   <div class="form-field">
     <label class="field-label">Password</label>
     <input class="input" type="password" placeholder="Min. 8 characters" id="register-password"/>
+  </div>
+  <div style="font-size:11px;color:var(--cream-25);margin:-4px 0 12px;line-height:1.6">
+    Must have at least 8 characters, one uppercase letter, one number, and one symbol.
   </div>
   <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="register-btn" onclick="registerUser()">Create account</button>
   <div class="modal-footer">Already have an account? <a href="#" onclick="openModal('login')">Sign in</a></div>`;
@@ -312,14 +326,72 @@ async function registerUser() {
     });
     const data = await response.json();
     if (!response.ok) { showToast(data.message || 'Registration failed'); return; }
-    showToast(data.message || 'Account created — please sign in');
-    openModal('login');
+    // Store email for verification step and show verification modal
+    window._pendingVerifyEmail = email;
+    showEmailVerification(email);
   } catch (error) {
     console.error('Error:', error);
     showToast('Unable to connect to server');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Create account';
+  }
+}
+
+function showEmailVerification(email) {
+  const modalContent = document.getElementById('modal-content');
+  modalContent.innerHTML = `
+    <h2>Verify your email</h2>
+    <p class="modal-sub">Enter the 6-digit code sent to <strong>${email}</strong>.</p>
+    <div class="form-field">
+      <label class="field-label">Verification code</label>
+      <input class="input" type="text" placeholder="000000" id="verify-code" maxlength="6" style="text-align:center;font-size:24px;letter-spacing:8px"/>
+    </div>
+    <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="verify-btn" onclick="verifyEmail()">Verify email</button>
+    <div class="modal-footer">Didn't receive it? <a href="#" onclick="resendVerification()">Resend code</a></div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+  // Auto-focus the code input
+  setTimeout(function(){ document.getElementById('verify-code').focus(); }, 100);
+}
+
+async function verifyEmail() {
+  const code = document.getElementById('verify-code').value.trim();
+  const email = window._pendingVerifyEmail;
+  if (!code || code.length !== 6) { showToast('Enter the 6-digit code from your email'); return; }
+  const btn = document.getElementById('verify-btn');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    const response = await fetch('/api/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email, code: code })
+    });
+    const data = await response.json();
+    if (!response.ok) { showToast(data.message || 'Verification failed'); btn.disabled = false; btn.textContent = 'Verify email'; return; }
+    showToast('Email verified — you can now sign in');
+    openModal('login');
+  } catch (error) {
+    console.error('Error:', error);
+    showToast('Unable to connect to server');
+    btn.disabled = false; btn.textContent = 'Verify email';
+  }
+}
+
+async function resendVerification() {
+  const email = window._pendingVerifyEmail;
+  if (!email) return;
+  showToast('Sending a new code…');
+  try {
+    // Reuse forgot-password style approach — resend uses the same register endpoint
+    // but we call a lightweight resend endpoint
+    await fetch('/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    });
+    showToast('New code sent — check your email');
+  } catch (_) {
+    showToast('Could not resend code');
   }
 }
 </script>

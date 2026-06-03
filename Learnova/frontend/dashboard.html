@@ -62,6 +62,8 @@
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/animations.js"></script>
 <script src="js/app.js"></script>
@@ -169,7 +171,13 @@ function renderRecentPreview(item) {
   if (!item.done) {
     return `
     <div class="mini-result" style="padding:14px 18px">
-      <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${escapeHtml((item.summary && item.summary.body) ? (Array.isArray(item.summary.body) ? item.summary.body[0] : item.summary.body).slice(0,200)+'\u2026' : 'No summary yet')}</div>
+      <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${(function() {
+        try {
+          const b = item.summary && item.summary.body;
+          const text = Array.isArray(b) ? (b[0] || '') : (b || '');
+          return escapeHtml(text.slice(0, 200) + (text.length > 200 ? '\u2026' : ''));
+        } catch(e) { return 'No summary yet'; }
+      })()}</div>
       <div class="mr-actions" onclick="event.stopPropagation()">
         <button class="btn" onclick="event.stopPropagation();openSummaryModal('${hid}')">Summary</button>
         <a href="upload.html?resume=${hid}&mode=quiz" class="btn">Take quiz &rarr;</a>
@@ -220,7 +228,7 @@ function renderRecentActivityItem(item) {
             </div>
           </div>
           <div class="hi-right">
-            <div class="hi-score${!item.done?' na':''}">${item.done ? item.score+'%' : 'No quiz yet'}</div>
+            <div class="hi-score${!item.done?' na':''}">${item.done ? ((item.score != null ? item.score : '—') + '%') : 'No quiz yet'}</div>
             <span class="hi-chevron">▾</span>
           </div>
         </div>

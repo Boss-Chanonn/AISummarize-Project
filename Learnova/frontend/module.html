@@ -5,6 +5,181 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Learnova — Learning Module</title>
   <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    /* ── Module hero layout ── */
+    .mod-hero{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,0.9fr);gap:18px;margin-bottom:28px}
+    .mod-hero-main,.mod-hero-side{
+      border:0.5px solid var(--border);border-radius:var(--radius-lg);
+      background:radial-gradient(120% 120% at 0% 0%,rgba(200,184,154,0.09),transparent 46%),
+                 linear-gradient(180deg,rgba(240,237,232,0.04),rgba(240,237,232,0.02));
+      padding:28px;position:relative;overflow:hidden;
+    }
+    .mod-hero-main::after,.mod-hero-side::after{
+      content:'';position:absolute;inset:auto -8% -30% auto;
+      width:180px;height:180px;border-radius:50%;
+      background:radial-gradient(circle,rgba(200,184,154,0.08),transparent 70%);
+      pointer-events:none;
+    }
+    .mod-tag-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
+    .mod-kicker{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--cream-25);margin-bottom:12px}
+    .mod-title{font-family:var(--serif);font-size:34px;font-weight:400;letter-spacing:-0.9px;line-height:1.04;margin-bottom:12px;max-width:10ch}
+    .mod-title em{font-style:italic;color:var(--gold)}
+    .mod-desc{font-size:13px;color:var(--cream-40);line-height:1.82;max-width:600px;font-weight:300;margin-bottom:24px}
+    .mod-meta{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+    .meta-item{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--cream-25);padding:14px 15px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--cream-05)}
+    .meta-item svg{width:13px;height:13px;opacity:0.45;flex-shrink:0}
+    .meta-val{color:var(--cream-60)}
+    .mod-side-label{font-size:10px;letter-spacing:1.2px;text-transform:uppercase;color:var(--cream-25);margin-bottom:12px}
+    .mod-focus-title{font-family:var(--serif);font-size:22px;line-height:1.12;letter-spacing:-0.5px;margin-bottom:10px}
+    .mod-focus-copy{font-size:12px;line-height:1.75;color:var(--cream-40);margin-bottom:18px}
+    /* ── State grid ── */
+    .module-state-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:0 0 26px}
+    .module-state-card{border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:18px 20px;background:linear-gradient(180deg,rgba(240,237,232,0.04),rgba(240,237,232,0.02))}
+    .ms-label{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px}
+    .ms-value{font-family:var(--serif);font-size:28px;line-height:1;letter-spacing:-0.6px;margin-bottom:6px}
+    .ms-value.done{color:var(--green)}
+    .ms-value.scheduled{color:var(--gold)}
+    .ms-value.remaining{color:var(--cream)}
+    .ms-sub{font-size:12px;color:var(--cream-40);line-height:1.6}
+    /* ── Focus list ── */
+    .focus-list{display:flex;flex-direction:column;gap:10px;margin-bottom:20px}
+    .focus-item{display:flex;gap:10px;padding:12px 0;border-top:0.5px solid var(--border)}
+    .focus-item:first-child{border-top:none;padding-top:0}
+    .focus-index{width:22px;height:22px;border-radius:50%;background:rgba(200,184,154,0.12);color:var(--gold);display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0}
+    .focus-item div:last-child{font-size:12px;color:var(--cream-40);line-height:1.65}
+    .focus-item strong{display:block;color:var(--cream-60);font-weight:500;margin-bottom:2px}
+    /* ── Resource cards ── */
+    .res-list{display:flex;flex-direction:column;gap:14px}
+    .res-card{
+      display:grid;grid-template-columns:116px minmax(0,1fr);
+      align-items:stretch;
+      border:0.5px solid var(--border);border-radius:var(--radius-lg);
+      overflow:hidden;cursor:default;
+      background:linear-gradient(180deg,rgba(240,237,232,0.035),rgba(240,237,232,0.02));
+      transition:border-color 0.15s;
+    }
+    .res-card:hover{border-color:rgba(200,184,154,0.24)}
+    .res-card.scheduled{border-color:rgba(107,158,107,0.28);background:linear-gradient(180deg,rgba(107,158,107,0.055),rgba(240,237,232,0.02))}
+    .res-card.completed{border-color:rgba(107,158,107,0.34);background:linear-gradient(180deg,rgba(107,158,107,0.09),rgba(240,237,232,0.02))}
+    .res-thumb{
+      min-height:132px;background:var(--cream-05);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+      border-right:0.5px solid var(--border);text-decoration:none;
+      transition:opacity 0.15s;
+    }
+    .res-thumb:hover{opacity:0.8}
+    .res-thumb.t-video{background:linear-gradient(180deg,rgba(200,184,154,0.14),rgba(200,184,154,0.04))}
+    .res-thumb.t-article{background:linear-gradient(180deg,rgba(107,158,107,0.14),rgba(107,158,107,0.04))}
+    .res-thumb.t-podcast{background:linear-gradient(180deg,rgba(150,120,200,0.14),rgba(150,120,200,0.04))}
+    .thumb-icon{opacity:0.72}
+    .thumb-label{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--cream-25)}
+    .res-body{padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between;gap:14px}
+    .res-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+    .res-title{font-size:16px;color:rgba(240,237,232,0.9);line-height:1.42;letter-spacing:-0.2px;max-width:42ch}
+    .res-title-link{color:inherit;text-decoration:none}
+    .res-title-link:hover{color:var(--gold)}
+    .res-source{font-size:11px;color:var(--cream-25);margin-top:6px}
+    .res-bottom{display:flex;align-items:center;justify-content:space-between;gap:14px}
+    .res-meta{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+    .rm-item{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--cream-25);padding:7px 10px;border:0.5px solid var(--border);border-radius:999px;background:rgba(240,237,232,0.03)}
+    .rm-item svg{width:12px;height:12px;opacity:0.4}
+    .res-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+    /* ── Buttons ── */
+    .sched-btn{
+      display:flex;align-items:center;gap:6px;
+      font-size:11px;padding:8px 14px;border-radius:999px;
+      border:0.5px solid var(--border-md);background:var(--cream-05);
+      color:var(--cream-40);font-family:var(--sans);white-space:nowrap;
+      cursor:pointer;transition:all 0.15s;
+    }
+    .sched-btn:hover{border-color:rgba(200,184,154,0.35);color:var(--gold);background:rgba(200,184,154,0.06)}
+    .sched-btn.scheduled{border-color:rgba(107,158,107,0.35);color:var(--green);background:rgba(107,158,107,0.06)}
+    .sched-btn.completed{border-color:rgba(107,158,107,0.35);color:#fff;background:rgba(107,158,107,0.22);cursor:default}
+    .sched-btn svg{width:12px;height:12px}
+    .link-btn{border-color:rgba(200,184,154,0.28);color:var(--gold);background:rgba(200,184,154,0.08)}
+    .link-btn:hover{border-color:rgba(200,184,154,0.4);background:rgba(200,184,154,0.14)}
+    /* ── Calendar modal ── */
+    .modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;align-items:center;justify-content:center}
+    .modal-backdrop.open{display:flex}
+    .cal-modal{background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-lg);padding:30px;width:400px;animation:fadeUp 0.22s ease}
+    .cm-head{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px}
+    .cm-title{font-family:var(--serif);font-size:20px;font-weight:400;letter-spacing:-0.3px}
+    .cm-close{background:none;border:none;color:var(--cream-25);font-size:18px;cursor:pointer}
+    .cm-resource{display:flex;align-items:center;gap:10px;padding:11px 13px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:20px}
+    .cm-res-ico{width:28px;height:28px;border-radius:5px;background:rgba(200,184,154,0.1);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .cm-res-name{font-size:13px;color:var(--cream-60)}
+    .cm-res-dur{font-size:11px;color:var(--cream-25);margin-top:2px}
+    .cm-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .cm-field{margin-bottom:16px}
+    .cal-opt-list{display:flex;flex-direction:column;gap:6px}
+    .cal-opt{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--cream-05);border:0.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color 0.12s}
+    .cal-opt:hover{border-color:var(--border-md)}
+    .cal-opt.sel{border-color:rgba(200,184,154,0.3);background:rgba(200,184,154,0.05)}
+    .cal-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+    .cal-name{font-size:13px;color:var(--cream-60);flex:1}
+    .cal-tick{width:14px;height:14px;border-radius:3px;border:0.5px solid var(--border-md);display:flex;align-items:center;justify-content:center}
+    .cal-tick.on{background:var(--gold);border-color:var(--gold)}
+    .cm-actions{display:flex;gap:8px;margin-top:20px}
+    .cm-cancel{flex:1;background:var(--cream-05);border:0.5px solid var(--border-md);color:var(--cream-40);font-size:13px;padding:10px;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--sans)}
+    .cm-confirm{flex:2;background:var(--cream);border:none;color:var(--bg);font-size:13px;font-weight:500;padding:10px;border-radius:var(--radius-sm);cursor:pointer;font-family:var(--sans)}
+    /* ── Follow-up quiz styles ── */
+    .module-action-bar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:22px 0 18px;flex-wrap:wrap}
+    .module-inline-copy{font-size:12px;color:var(--cream-25);line-height:1.6;max-width:54ch}
+    .fu-shell{border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:24px;background:linear-gradient(180deg,rgba(240,237,232,0.04),rgba(240,237,232,0.02))}
+    .fu-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:18px}
+    .fu-card{padding:18px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--cream-05)}
+    .fu-label{font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px}
+    .fu-value{font-family:var(--serif);font-size:24px;line-height:1.1}
+    .fu-copy{font-size:12px;color:var(--cream-40);line-height:1.6}
+    .fu-quiz{display:flex;flex-direction:column;gap:16px}
+    .fu-q{font-family:var(--serif);font-size:20px;line-height:1.3}
+    .fu-options{display:flex;flex-direction:column;gap:8px}
+    .fu-opt{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:0.5px solid var(--border);border-radius:var(--radius-md);background:var(--cream-05);cursor:pointer;color:var(--cream-60);text-align:left;font-family:var(--sans);font-size:13px;width:100%;transition:border-color 0.12s}
+    .fu-opt:hover{border-color:var(--gold)}
+    .fu-opt.selected{border-color:var(--gold);background:rgba(200,184,154,0.08);color:var(--cream)}
+    .fu-opt.correct{border-color:rgba(107,158,107,0.35);background:rgba(107,158,107,0.08)}
+    .fu-opt.wrong{border-color:rgba(200,120,80,0.3);background:rgba(200,120,80,0.06)}
+    .fu-opt-mark{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--border);font-size:11px;flex-shrink:0}
+    .fu-opt.selected .fu-opt-mark{background:var(--gold);color:var(--bg)}
+    .fu-opt.correct .fu-opt-mark{background:var(--green);color:#fff}
+    .fu-opt.wrong .fu-opt-mark{background:var(--red-soft);color:#fff}
+    .fu-feedback{display:none;padding:12px 14px;border-radius:var(--radius-md);font-size:12px;line-height:1.6}
+    .fu-feedback.show{display:block}
+    .fu-feedback.correct{background:rgba(107,158,107,0.08);border:0.5px solid rgba(107,158,107,0.22);color:var(--green)}
+    .fu-feedback.wrong{background:rgba(200,120,80,0.06);border:0.5px solid rgba(200,120,80,0.22);color:var(--red-soft)}
+    .fu-nav{display:flex;justify-content:space-between;gap:10px}
+    .fu-empty{padding:24px;border:0.5px solid var(--border);border-radius:var(--radius-lg);background:var(--cream-05);font-size:13px;color:var(--cream-40);line-height:1.7}
+    /* ── Undo toast ── */
+    .undo-toast{position:fixed;right:28px;bottom:28px;z-index:1200;display:none;align-items:center;gap:12px;background:var(--surface);border:0.5px solid var(--border-md);border-radius:var(--radius-md);padding:14px 16px;color:var(--cream-60);font-size:13px;box-shadow:0 18px 40px rgba(0,0,0,0.28)}
+    .undo-toast.show{display:flex}
+    .undo-toast-copy{display:flex;flex-direction:column;gap:2px}
+    .undo-toast-sub{font-size:11px;color:var(--cream-25)}
+    .undo-toast .btn{padding:7px 12px}
+    /* ── Loading state ── */
+    .module-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px}
+    .module-loading-spinner{width:24px;height:24px;border:1.5px solid var(--border-md);border-top-color:var(--gold);border-radius:50%;animation:spin 0.8s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .module-loading-text{font-size:13px;color:var(--cream-40);font-family:var(--serif);font-style:italic}
+    /* ── YouTube player modal ── */
+    .yt-modal-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:400;align-items:center;justify-content:center;padding:20px}
+    .yt-modal-backdrop.open{display:flex}
+    .yt-modal-box{width:100%;max-width:860px;animation:fadeUp 0.2s ease}
+    .yt-modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+    .yt-modal-title{font-family:var(--serif);font-size:18px;letter-spacing:-0.3px;line-height:1.3;max-width:56ch;color:var(--cream)}
+    .yt-modal-topic{font-size:11px;color:var(--cream-25);margin-top:4px}
+    .yt-close{background:none;border:none;color:var(--cream-25);font-size:22px;cursor:pointer;padding:0;line-height:1;flex-shrink:0}
+    .yt-close:hover{color:var(--cream)}
+    .yt-player-wrap{position:relative;padding-bottom:56.25%;height:0;border-radius:var(--radius-lg);overflow:hidden;background:#000;border:0.5px solid var(--border-md)}
+    .yt-player-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:none}
+    .yt-modal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:12px;flex-wrap:wrap;gap:10px}
+    .yt-footer-meta{font-size:11px;color:var(--cream-25)}
+    .yt-open-yt{font-size:11px;color:var(--gold);text-decoration:none;display:flex;align-items:center;gap:5px}
+    .yt-open-yt:hover{color:var(--cream)}
+    /* ── Responsive ── */
+    @media(max-width:980px){.mod-hero{grid-template-columns:1fr}.mod-title{max-width:none;font-size:30px}}
+    @media(max-width:760px){.mod-meta{grid-template-columns:1fr}.res-card{grid-template-columns:1fr}.res-thumb{min-height:86px;border-right:none;border-bottom:0.5px solid var(--border)}.res-bottom{flex-direction:column;align-items:flex-start}}
+    @media(max-width:860px){.fu-grid{grid-template-columns:1fr}}
+  </style>
 </head>
 <body>
 <div class="app-shell">
@@ -15,7 +190,7 @@
     <div style="font-size:12px;color:var(--cream-25);margin-bottom:20px;display:flex;gap:8px;align-items:center" class="fade-up">
       <a href="dashboard.html" style="color:var(--cream-25)">Dashboard</a>
       <span style="color:var(--border-md)">/</span>
-      <a href="results.html" style="color:var(--cream-25)" id="breadcrumb-doc">Loading…</a>
+      <a href="upload.html" style="color:var(--cream-25)" id="module-breadcrumb-result">Latest result</a>
       <span style="color:var(--border-md)">/</span>
       <span style="color:var(--cream-60)">Learning module</span>
     </div>
@@ -25,55 +200,56 @@
       <div class="mod-hero-main">
         <div class="mod-kicker">Learning module</div>
         <div class="mod-tag-row">
-          <span class="badge badge-red">Needs work</span>
+          <span class="badge badge-red" id="module-needs-work-badge">Needs work</span>
           <span class="badge badge-gold">AI-recommended</span>
         </div>
-        <div class="mod-title">Deepen your understanding of <em id="mod-title-focus">…</em></div>
-        <div class="mod-desc" id="mod-desc"></div>
+        <div class="mod-title" id="module-title">Learning module</div>
+        <div class="mod-desc" id="module-desc">Module description</div>
         <div class="mod-meta">
           <div class="meta-item">
             <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6.5" cy="6.5" r="5"/><path d="M6.5 4v3l2 1.5"/></svg>
-            <span>Total time <span class="meta-val" id="mod-meta-time">—</span></span>
+            <span>Total time <span class="meta-val" id="module-total-time">0 min</span></span>
           </div>
           <div class="meta-item">
             <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1.5" y="2.5" width="10" height="9" rx="1.5"/><path d="M1.5 5.5h10M4.5 1v3M8.5 1v3"/></svg>
-            <span>Resources <span class="meta-val" id="mod-meta-count">—</span></span>
+            <span>Resources <span class="meta-val" id="module-resource-count">0 selected</span></span>
           </div>
           <div class="meta-item">
             <svg viewBox="0 0 13 13" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M1.5 10L5 6.5l3 3 4-5.5"/></svg>
-            <span>Progress <span class="meta-val" id="progress-text">—</span></span>
+            <span>Progress <span class="meta-val" id="progress-text">0 of 0 done</span></span>
           </div>
         </div>
       </div>
       <aside class="mod-hero-side fade-up fade-up-1">
         <div class="mod-side-label">Focus areas</div>
-        <div class="mod-focus-title">What this module will strengthen next.</div>
-        <div class="mod-focus-copy">Each recommendation is tuned to the concepts you need to strengthen most.</div>
-        <div class="focus-list" id="mod-focus-list"></div>
+        <div class="mod-focus-title" id="module-focus-title">What this module will strengthen next.</div>
+        <div class="mod-focus-copy" id="module-focus-copy">Recommendations are loaded from your quiz analysis.</div>
+        <div class="focus-list" id="module-focus-list"></div>
         <div class="prog-wrap" style="margin-bottom:0">
           <div class="prog-header">
             <div class="prog-label">Module progress</div>
-            <div class="prog-pct" id="prog-pct">—</div>
+            <div class="prog-pct" id="prog-pct">0%</div>
           </div>
           <div class="prog-track"><div class="prog-fill prog-fill-animated" id="prog-fill" data-width="0%" style="width:0"></div></div>
         </div>
       </aside>
     </div>
 
+    <!-- State cards -->
     <div class="module-state-grid fade-up fade-up-2">
       <div class="module-state-card">
         <div class="ms-label">Completed</div>
-        <div class="ms-value done" id="ms-completed">—</div>
+        <div class="ms-value done" id="ms-completed">0</div>
         <div class="ms-sub">Resources already finished in this module.</div>
       </div>
       <div class="module-state-card">
         <div class="ms-label">Scheduled</div>
-        <div class="ms-value scheduled" id="ms-scheduled">—</div>
+        <div class="ms-value scheduled" id="ms-scheduled">0</div>
         <div class="ms-sub">Items locked into your study plan.</div>
       </div>
       <div class="module-state-card">
         <div class="ms-label">Remaining</div>
-        <div class="ms-value remaining" id="ms-remaining">—</div>
+        <div class="ms-value remaining" id="ms-remaining">0</div>
         <div class="ms-sub">Resources still waiting for action.</div>
       </div>
     </div>
@@ -82,8 +258,14 @@
     <div class="section-label fade-up fade-up-2">Recommended resources</div>
     <div class="res-list fade-up fade-up-2 reveal reveal-delay-2" id="res-list"></div>
 
+    <!-- Follow-up quiz -->
+    <div class="section-label fade-up fade-up-3" style="margin-top:30px">Follow-up quiz</div>
+    <div id="follow-up-shell" class="fade-up fade-up-3"></div>
+
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <!-- Calendar modal -->
 <div class="modal-backdrop" id="cal-backdrop" onclick="closeOnBackdrop(event)">
@@ -118,9 +300,53 @@
 </div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+
+<!-- YouTube player modal -->
+<div class="yt-modal-backdrop" id="yt-backdrop" onclick="closeYtOnBackdrop(event)">
+  <div class="yt-modal-box" id="yt-modal-box">
+    <div class="yt-modal-header">
+      <div>
+        <div class="yt-modal-title" id="yt-modal-title"></div>
+        <div class="yt-modal-topic" id="yt-modal-topic"></div>
+      </div>
+      <button class="yt-close" onclick="closeYtModal()">✕</button>
+    </div>
+    <div class="yt-player-wrap">
+      <iframe id="yt-iframe"
+        src=""
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen>
+      </iframe>
+    </div>
+    <div class="yt-modal-footer">
+      <div class="yt-footer-meta" id="yt-footer-meta"></div>
+      <a class="yt-open-yt" id="yt-open-yt" href="#" target="_blank" rel="noopener noreferrer">
+        <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M3.5 1.5h5.5v5.5"/><path d="M9 1.5L4 6.5"/><path d="M8 7.5V9.5H1.5V3h2"/></svg>
+        Open on YouTube
+      </a>
+    </div>
+  </div>
+</div>
+<div class="undo-toast" id="undo-toast">
+  <div class="undo-toast-copy">
+    <span id="undo-toast-msg">Marked as completed.</span>
+    <span class="undo-toast-sub" id="undo-toast-sub">Undo available for 5s.</span>
+  </div>
+  <button class="btn" type="button" onclick="undoComplete()">Undo</button>
+</div>
+
+<script src="js/config.js"></script>
 <script src="js/app.js"></script>
+<script src="js/api.js"></script>
 <script>
-// Auth guard — redirect to login if no token
+// ── module.html ───────────────────────────────────────────────────────────────
+// This page renders a personalised AI-generated learning module after the user
+// completes an initial quiz. It shows recommended resources (articles, videos,
+// podcasts), a follow-up quiz targeting weak topics, calendar scheduling, and
+// a YouTube player modal. Module data is fetched from the backend via URL
+// params (?historyId=) and persisted through calls to LEARNOVA_API from api.js.
+
+// ── Auth guard ──────────────────────────────────────────────────────────────
 (function() {
   const token = localStorage.getItem('token');
   if (!token) { window.location.replace('index.html'); }
@@ -128,276 +354,1283 @@
 
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('module');
 
-const calendars = [
-  { name:'Google Calendar', color:'#4A90D9' },
-  { name:'Apple Calendar',  color:'#888888' },
-  { name:'Outlook',         color:'#0F6E56' }
+// ── State ────────────────────────────────────────────────────────────────────
+// Core data structures that drive the module page — loaded and hydrated
+// on page initialisation (initModulePage).
+
+let activeResult = null;  // Full result object loaded from backend via historyId URL param
+const _cfg = window.LEARNOVA_CONFIG || window.APP_CONFIG || {};
+const moduleConfig = (typeof getModuleConfig === 'function') ? getModuleConfig() : (_cfg.module || {});
+const calendars = moduleConfig.calendars || [
+  { name: 'Google Calendar', color: '#4A90D9' },
+  { name: 'Apple Calendar',  color: '#888888' },
+  { name: 'Outlook',         color: '#0F6E56' }
 ];
-let selectedCal = 0;
-let currentCardId = null;
-let totalResCount = 4;
+let resources = [];       // Array of resource objects { id, title, type, url, duration, scheduled, completed, … }
+let selectedCal = 0;      // Index of the currently selected calendar provider
+let currentCardId = null;     // ID of the resource currently being scheduled via calendar modal
+let scheduledCount = 0;       // Count of resources marked as scheduled
+let completedCount = 0;       // Count of resources marked as completed
+let followUpQuestions = activeResult?.followUpQuiz?.questions
+  ? activeResult.followUpQuiz.questions.map(e => ({ ...e }))
+  : [];
+let followUpAnswers = [];     // Recorded answers for the follow-up quiz
+let followUpIndex = 0;        // Current question index within the follow-up quiz
+let followUpAnswered = false; // Whether the current question has been answered
+let undoTimer = null;         // Interval handle for the undo-countdown timer
+let undoCountdown = 0;        // Seconds remaining for undo action
+let pendingCompletedResourceId = null;  // Most recently completed resource ID (for undo)
 
 const iconSVG = {
+  // Inline SVG icons for each resource type — used inside the resource cards
   video:   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#C8B89A" stroke-width="1.3"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="#C8B89A" stroke="none"/></svg>',
   article: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B9E6B" stroke-width="1.3"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>',
   podcast: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9678C8" stroke-width="1.3"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>'
 };
 
-/* -- Group: Calendar Modal -- */
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 /**
- * Open schedule modal for a selected resource card.
- * @param {number} cardId
- * @param {string} title
- * @param {string} dur
- * @param {'video'|'article'|'podcast'} type
+ * Map a resource type string to its corresponding CSS thumbnail class.
+ *
+ * @param {string} type  'article' | 'video' | 'podcast'
+ * @returns {string}     CSS class name (e.g. 't-article')
  */
-function openCalModal(cardId, title, dur, type) {
+function getThumbClass(type) {
+  return type === 'article' ? 't-article' : (type === 'podcast' ? 't-podcast' : 't-video');
+}
+/**
+ * Human-readable label for a resource type.
+ *
+ * @param {string} type  'article' | 'video' | 'podcast'
+ * @returns {string}     Capitalised label (e.g. 'Article')
+ */
+function getTypeLabel(type) {
+  return type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Resource';
+}
+
+/**
+ * Check whether the active result has identified weak topics or weaknesses.
+ *
+ * @returns {boolean}
+ */
+function hasWeakTopics() {
+  return Boolean(activeResult?.weakTopics?.length || activeResult?.weaknesses?.length);
+}
+/**
+ * Check whether a URL is effectively unusable (empty, fragment-only, or
+ * a bare domain homepage). Search-result URLs are considered valid.
+ *
+ * @param {string} url  The URL to validate
+ * @returns {boolean}   True if the URL is invalid / unusable
+ */
+function hasInvalidUrl(url) {
+  const v = String(url || '').trim();
+  if (!v || v === '#' || v === 'http://' || v === 'https://') return true;
+  // Accept search/listing pages as valid fallbacks; only block bare homepages
+  return /^https?:\/\/(?:www\.)?(?:youtube\.com|youtu\.be|open\.spotify\.com)\/?$/.test(v);
+}
+
+/**
+ * Check if a resource's URL is stale (invalid or mismatched with source).
+ * Used during hydration to decide whether to refresh from the API.
+ *
+ * @param {object} resource  Resource object with .url, .type, .source
+ * @returns {boolean}        True if the URL should be refreshed
+ */
+function hasStaleResourceUrl(resource) {
+  const url = String(resource?.url || '');
+  return hasInvalidUrl(url)
+    || (resource?.type === 'article' && /wikipedia\.org\/wiki\//.test(url) && resource?.source !== 'wikipedia.org');
+}
+/**
+ * Extract a YouTube video ID from a watch or short-url.
+ *
+ * @param {string} url  Full YouTube URL
+ * @returns {string|null}  11-character video ID, or null if no match
+ */
+function extractYouTubeId(url) {
+  if (!url) return null;
+  const m = String(url).match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  return m ? m[1] : null;
+}
+/**
+ * Quick check whether a URL points to YouTube.
+ *
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isYouTubeUrl(url) {
+  return Boolean(extractYouTubeId(url));
+}
+/**
+ * Generate a human-readable resource title from a topic and type.
+ * Used as a fallback when the API doesn't return a specific title.
+ *
+ * @param {string} topic  The topic/keyword for the resource
+ * @param {string} type   'video' | 'article' | 'podcast'
+ * @returns {string}      Formatted title string
+ */
+function buildResourceTitle(topic, type) {
+  if (type === 'video') return `${topic}: explainer walkthrough`;
+  if (type === 'podcast') return `${topic}: discussion and revision audio`;
+  return `${topic}: article and key-point review`;
+}
+/**
+ * Build a search-engine URL for a resource topic. Falls back to generic
+ * search queries when no curated URL is available from the API.
+ *
+ * @param {string} topic  Search keyword
+ * @param {string} type   'video' → YouTube search, 'podcast' → ListenNotes, else → Wikipedia
+ * @returns {string}      Fully qualified search URL
+ */
+function buildResourceUrl(topic, type) {
+  const query = String(topic || 'study topic').trim();
+  if (type === 'video') return 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query + ' explained');
+  if (type === 'podcast') return 'https://www.listennotes.com/search/?q=' + encodeURIComponent(query) + '&type=episode';
+  // Wikipedia Special:Search redirects to the article directly if exact match exists
+  return 'https://en.wikipedia.org/wiki/Special:Search?search=' + encodeURIComponent(query) + '&ns0=1&go=Go';
+}
+/**
+ * Persist the current module resources, learning module, follow-up quiz,
+ * and progress to the backend via POST /api/history/:id/module-resources.
+ * Silently fails on network errors (non-critical).
+ */
+function persistModuleResources() {
+  if (!activeResult) return;
+  activeResult.moduleResources = resources.map(r => ({ ...r }));
+  // Save to backend
+  const token = localStorage.getItem('token') || '';
+  const historyId = activeResult.id;
+  if (historyId) {
+    fetch('/api/history/' + historyId + '/module-resources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        learningModule: activeResult.learningModule,
+        moduleResources: activeResult.moduleResources,
+        followUpQuiz: activeResult.followUpQuiz,
+        progress: activeResult.progress
+      })
+    }).catch(() => {}); // silent fail — not critical
+  }
+}
+
+// ── Resource rendering ────────────────────────────────────────────────────────
+
+/**
+ * Render the recommended resources grid. Each resource card shows a
+ * thumbnail (clickable for YouTube videos via modal), title, source,
+ * duration, meta badge, and action buttons (watch/open, schedule,
+ * mark complete). YouTube resources get an inline player modal trigger.
+ */
+function renderResources() {
+  if (!resources.length) {
+    document.getElementById('res-list').innerHTML = `
+      <div class="res-card"><div class="res-body" style="grid-column:1/-1">
+        <div class="res-title">No module resources yet</div>
+        <div class="res-source">Complete the initial quiz first so the AI can build a weakness-focused learning module.</div>
+      </div></div>`;
+    return;
+  }
+  document.getElementById('res-list').innerHTML = resources.map(r => `
+    <div class="res-card${r.completed ? ' completed' : r.scheduled ? ' scheduled' : ''}" data-id="${r.id}">
+      ${isYouTubeUrl(r.url)
+        ? `<div class="res-thumb t-video" style="cursor:pointer" onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')" title="Play video">
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13.5" fill="rgba(200,184,154,0.18)" stroke="rgba(200,184,154,0.3)"/><path d="M11.5 9.5l9 4.5-9 4.5V9.5z" fill="#C8B89A"/></svg>
+            <div class="thumb-label">Play video</div>
+           </div>`
+        : `<a class="res-thumb ${getThumbClass(r.type)}"
+             href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer"
+             title="Open ${getTypeLabel(r.type)} in new tab">
+            ${iconSVG[r.type] || iconSVG.video}
+            <div class="thumb-label">${getTypeLabel(r.type)}</div>
+           </a>`
+      }
+      <div class="res-body">
+        <div class="res-top">
+          <div>
+            <div class="res-title">
+              ${isYouTubeUrl(r.url)
+                ? `<span class="res-title-link" style="cursor:pointer"
+                     onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">${escapeHtml(r.title)}</span>`
+                : `<a class="res-title-link" href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>`
+              }
+            </div>
+            <div class="res-source">For ${escapeHtml(r.topicKey || 'this topic')} · ${escapeHtml(r.source || '')}</div>
+          </div>
+          <span class="badge ${r.badgeClass || 'badge-gold'}">${escapeHtml(r.badge || 'Recommended')}</span>
+        </div>
+        <div class="res-bottom">
+          <div class="res-meta">
+            <div class="rm-item">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l1.5 1"/></svg>
+              ${escapeHtml(r.duration || '~10 min')}
+            </div>
+            <div class="rm-item">
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 8.5L4.5 6l2 2 3.5-4.5"/></svg>
+              ${escapeHtml(r.meta || 'Study resource')}
+            </div>
+          </div>
+          <div class="res-actions">
+            ${isYouTubeUrl(r.url)
+              ? `<button class="sched-btn link-btn" type="button"
+                   onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">
+                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M4.5 4l4 2-4 2V4z" fill="currentColor" stroke="none"/></svg>
+                   Watch video
+                 </button>`
+              : `<a class="sched-btn link-btn"
+                   href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer">
+                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M4.5 2h5.5v5.5"/><path d="M10 2L5 7"/><path d="M9 7.5V10H2V3h2.5"/></svg>
+                   Open ${escapeHtml(getTypeLabel(r.type))}
+                 </a>`
+            }
+            ${r.scheduled
+              ? `<button class="sched-btn scheduled" type="button" disabled>
+                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>
+                   Scheduled
+                 </button>`
+              : `<button class="sched-btn" type="button" data-sched-id="${r.id}">
+                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>
+                   Schedule
+                 </button>`
+            }
+            <button class="sched-btn ${r.completed ? 'completed' : ''}" type="button"
+                    data-complete-id="${r.id}" ${r.completed ? 'disabled' : ''}>
+              <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 6.5l2.2 2.2L10 3.5"/></svg>
+              ${r.completed ? 'Completed' : 'Mark complete'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+
+  // Wire schedule buttons
+  document.querySelectorAll('[data-sched-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = resources.find(x => x.id === Number(btn.dataset.schedId));
+      if (r) openCalModal(r.id, r.title, r.duration, r.type);
+    });
+  });
+  // Wire complete buttons
+  document.querySelectorAll('[data-complete-id]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = Number(btn.dataset.completeId);
+      const r = resources.find(x => x.id === id);
+      if (r && !r.completed) markResourceComplete(id);
+    });
+  });
+}
+
+// ── Module header ─────────────────────────────────────────────────────────────
+
+/**
+ * Render the hero header area: breadcrumb, badge, title, description,
+ * focus list, and meta stats (total time, resources, progress). Falls
+ * back gracefully when the learning module or weak topics are absent.
+ */
+function renderModuleHeader() {
+  const hasWeak = hasWeakTopics();
+  const weakestTopic = activeResult?.weaknesses?.[0] || '';
+  document.getElementById('module-breadcrumb-result').textContent = activeResult ? activeResult.title : 'Latest result';
+  const badge = document.getElementById('module-needs-work-badge');
+  badge.textContent = hasWeak ? weakestTopic : 'No weak areas';
+  badge.style.display = hasWeak ? 'inline-flex' : 'none';
+
+  const lm = activeResult?.learningModule;
+  document.getElementById('module-title').innerHTML = lm
+    ? escapeHtml(lm.title)
+    : (hasWeak ? 'Learning module' : 'You are ready to move on.');
+  document.getElementById('module-desc').textContent = lm
+    ? lm.description
+    : (hasWeak
+      ? 'Finish your first AI quiz to generate a targeted revision module.'
+      : 'You answered every question correctly. Use these reinforcement resources if you want a light review.');
+  document.getElementById('module-focus-title').textContent = lm
+    ? 'What this module will strengthen next.'
+    : (hasWeak ? 'No module generated yet.' : 'No weak areas detected.');
+  document.getElementById('module-focus-copy').textContent = lm
+    ? 'These focus areas are generated from the topics you missed in the first quiz.'
+    : (hasWeak
+      ? 'The module will appear here once there is an analyzed quiz result.'
+      : 'The recommendations below are optional reinforcement resources.');
+
+  const focusAreas = (lm?.focus_areas?.length)
+    ? lm.focus_areas
+    : (activeResult?.weakTopics || activeResult?.weaknesses || activeResult?.topicTags || []).slice(0, 4);
+  document.getElementById('module-focus-list').innerHTML = focusAreas.map((area, i) => `
+    <div class="focus-item">
+      <div class="focus-index">${i + 1}</div>
+      <div><strong>${escapeHtml(area)}</strong>
+      ${escapeHtml(hasWeak ? 'Review this concept before the follow-up quiz.' : 'Optional reinforcement topic.')}
+      </div>
+    </div>
+  `).join('');
+
+  const totalMins = resources.reduce((s, r) => s + (parseInt(r.duration, 10) || 0), 0);
+  document.getElementById('module-total-time').textContent = `${totalMins} min`;
+  document.getElementById('module-resource-count').textContent = `${resources.length} selected`;
+}
+
+// ── Calendar modal ────────────────────────────────────────────────────────────
+// Calendar connection status — refreshed every time the modal opens.
+let calendarStatus = { google: false, outlook: false, apple: false };
+
+/**
+ * Open the calendar-scheduling modal for a given resource. Pre-fills
+ * the date with tomorrow's date and loads calendar connection status.
+ *
+ * @param {number} cardId  Resource ID
+ * @param {string} title   Display title for the event
+ * @param {string} dur     Duration description (e.g. "10 min")
+ * @param {string} type    Resource type for the icon
+ */
+async function openCalModal(cardId, title, dur, type) {
   currentCardId = cardId;
   document.getElementById('cm-res-name').textContent = title;
   document.getElementById('cm-res-dur').textContent = dur;
   document.getElementById('cm-ico').innerHTML = iconSVG[type] || iconSVG.video;
-  const d = new Date(); d.setDate(d.getDate()+1);
-  document.getElementById('cm-date').value = d.toISOString().slice(0,10);
+  const d = new Date(); d.setDate(d.getDate() + 1);
+  document.getElementById('cm-date').value = d.toISOString().slice(0, 10);
+  await loadCalendarStatus();
   renderCalOpts();
   document.getElementById('cal-backdrop').classList.add('open');
 }
 
 /**
- * Render available calendar providers and current selection state.
- */
-function renderCalOpts() {
-  document.getElementById('cal-opts').innerHTML = calendars.map((c,i) => `
-    <div class="cal-opt ${i===selectedCal?'sel':''}" onclick="selectCal(${i})">
-      <div class="cal-dot" style="background:${c.color}"></div>
-      <div class="cal-name">${c.name}</div>
-      <div class="cal-tick ${i===selectedCal?'on':''}">
-        ${i===selectedCal?'<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0A0A0A" stroke-width="1.8"><path d="M1.5 4.5L3.5 6.5L7.5 2.5"/></svg>':''}
-      </div>
-    </div>`).join('');
-}
-
-/**
- * Set selected calendar provider by index and re-render options.
- * @param {number} calendarIndex
- */
-function selectCal(calendarIndex) {
-  selectedCal = calendarIndex;
-  renderCalOpts();
-}
-
-/**
- * Close schedule modal.
- */
-function closeCalModal() {
-  document.getElementById('cal-backdrop').classList.remove('open');
-}
-
-/**
- * Close modal when clicking the backdrop area.
- * @param {MouseEvent} e
- */
-function closeOnBackdrop(e) {
-  if (e.target === document.getElementById('cal-backdrop')) closeCalModal();
-}
-
-/**
- * Mark selected resource as scheduled and update module progress stats.
- */
-function confirmSchedule() {
-  closeCalModal();
-  const card = document.querySelector(`.res-card[data-id="${currentCardId}"]`);
-  if (!card) return;
-  card.classList.add('scheduled');
-  const btn = card.querySelector('.sched-btn');
-  btn.className = 'sched-btn scheduled';
-  btn.innerHTML = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg> Scheduled';
-  btn.onclick = null;
-
-  const scheduledCards = document.querySelectorAll('.res-card.scheduled').length;
-  const pct = Math.round((scheduledCards / totalResCount) * 100);
-  document.getElementById('prog-fill').style.width = pct + '%';
-  document.getElementById('prog-pct').textContent = pct + '%';
-  document.getElementById('progress-text').textContent = scheduledCards + ' of ' + totalResCount + ' done';
-  const completedCount = document.querySelectorAll('.badge.badge-dim').length;
-  document.getElementById('ms-completed').textContent = completedCount;
-  document.getElementById('ms-scheduled').textContent = scheduledCards;
-  document.getElementById('ms-remaining').textContent = Math.max(totalResCount - scheduledCards, 0);
-  showToast('Added to ' + calendars[selectedCal].name);
-}
-
-/* -- Group: Resource Card Renderers -- */
-/**
- * Build placeholder/demo resource card markup.
- * Note: This renderer supports static placeholder cards.
- * Live API cards are rendered by buildResCardReal.
- * @param {object} res
- * @returns {string}
- */
-function buildResCard(res) {
-  const thumbClass = { video: 't-video', article: 't-article', podcast: 't-podcast' }[res.type] || 't-video';
-  const color = { video: '#C8B89A', article: '#6B9E6B', podcast: '#9678C8' }[res.type] || '#C8B89A';
-  const thumbIcon = {
-    video:   `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="${color}" stroke="none"/></svg>`,
-    article: `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>`,
-    podcast: `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><circle cx="12" cy="9" r="4"/><path d="M6 9c0 3.3 2.7 6 6 6s6-2.7 6-6"/><line x1="12" y1="15" x2="12" y2="20"/><line x1="8" y1="20" x2="16" y2="20"/></svg>`
-  }[res.type] || '';
-  const typeLabel = res.type.charAt(0).toUpperCase() + res.type.slice(1);
-  const isDone = res.status === 'done';
-  const isScheduled = res.status === 'scheduled' || isDone;
-  const tagIcon = {
-    video:   `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="5" r="2.5"/><path d="M2 11c0-2.2 1.8-4 4-4s4 1.8 4 4"/></svg>`,
-    article: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 8.5L4.5 6l2 2 3.5-4.5"/></svg>`,
-    podcast: `<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M2 3h8M2 6h8M2 9h5"/></svg>`
-  }[res.type] || '';
-  const schedBtn = isScheduled
-    ? `<button class="sched-btn scheduled"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>Scheduled</button>`
-    : `<button class="sched-btn" onclick="openCalModal(${res.id}, ${JSON.stringify(res.title)}, ${JSON.stringify(res.duration)}, '${res.type}')"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><rect x="1" y="2" width="10" height="9" rx="1.5"/><path d="M1 5h10M4 1v2M8 1v2"/></svg>Schedule</button>`;
-  return `
-    <div class="res-card${isScheduled ? ' scheduled' : ''}" data-id="${res.id}">
-      <div class="res-thumb ${thumbClass}">
-        ${thumbIcon}
-        <div class="thumb-label">${typeLabel}</div>
-      </div>
-      <div class="res-body">
-        <div class="res-top">
-          <div>
-            <div class="res-title">${escapeHtml(res.title)}</div>
-            <div class="res-source">${escapeHtml(res.source)}</div>
-          </div>
-          ${isDone ? '<span class="badge badge-dim">Done</span>' : `<span class="badge ${res.badge.class}">${escapeHtml(res.badge.label)}</span>`}
-        </div>
-        <div class="res-bottom">
-          <div class="res-meta">
-            <div class="rm-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l1.5 1"/></svg>${escapeHtml(res.duration)}</div>
-            ${res.tag ? `<div class="rm-item">${tagIcon}${escapeHtml(res.tag)}</div>` : ''}
-          </div>
-          ${schedBtn}
-        </div>
-      </div>
-    </div>`;
-}
-
-/* -- Group: Module Loading -- */
-/**
- * Load module resources for selected history item and render UI state.
+ * Fetch the user's connected calendar providers from the backend.
+ * Updates the global calendarStatus object.
+ *
  * @returns {Promise<void>}
  */
-async function loadModule() {
-  // Phase 1: Resolve history ID from query string or stored session.
-  const params = new URLSearchParams(window.location.search);
-  const historyId = params.get('historyId') || params.get('id') || localStorage.getItem('currentHistoryId') || '';
+async function loadCalendarStatus() {
+  try {
+    const token = localStorage.getItem('token') || '';
+    const res = await fetch('/api/calendar/status', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    if (res.ok) {
+      calendarStatus = await res.json();
+    }
+  } catch (_) {}
+}
+
+/**
+ * Render the calendar-provider selection list inside the modal.
+ * Connected providers show a radio-tick; disconnected providers show
+ * a connect/configure button.
+ */
+function renderCalOpts() {
+  const providers = [
+    { id: 'google', name: 'Google Calendar', color: '#4A90D9', connected: calendarStatus.google, email: calendarStatus.google_email },
+    { id: 'apple', name: 'Apple Calendar', color: '#888888', connected: calendarStatus.apple, email: calendarStatus.apple_email },
+    { id: 'outlook', name: 'Outlook', color: '#0F6E56', connected: calendarStatus.outlook, email: calendarStatus.outlook_email },
+  ];
+  document.getElementById('cal-opts').innerHTML = providers.map((p, i) => {
+    if (p.connected) {
+      return `<div class="cal-opt ${i === selectedCal ? 'sel' : ''}" onclick="selectCal(${i})">
+        <div class="cal-dot" style="background:${p.color}"></div>
+        <div class="cal-name">${p.name} <span style="font-size:10px;color:var(--green);opacity:0.7">· ${p.email}</span></div>
+        <button class="sched-btn" style="font-size:10px;padding:4px 8px" onclick="event.stopPropagation();disconnectCalendar('${p.id}')" title="Disconnect">✕</button>
+        <div class="cal-tick ${i === selectedCal ? 'on' : ''}">
+          ${i === selectedCal ? '<svg width="9" height="9" viewBox="0 0 9 9" fill="none" stroke="#0A0A0A" stroke-width="1.8"><path d="M1.5 4.5L3.5 6.5L7.5 2.5"/></svg>' : ''}
+        </div>
+      </div>`;
+    }
+    const connectLabel = p.id === 'apple' ? 'Configure' : 'Connect';
+    return `<div class="cal-opt" style="opacity:0.55">
+      <div class="cal-dot" style="background:${p.color}"></div>
+      <div class="cal-name">${p.name}</div>
+      <button class="sched-btn" style="font-size:10px;padding:4px 8px" onclick="event.stopPropagation();connectCalendar('${p.id}')">${connectLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+/**
+ * Select a calendar provider by index. If the provider is not yet
+ * connected, triggers the connection flow instead.
+ *
+ * @param {number} i  Index into the providers array (0=google, 1=apple, 2=outlook)
+ */
+function selectCal(i) {
+  const providers = ['google', 'apple', 'outlook'];
+  if (calendarStatus[providers[i]]) {
+    selectedCal = i;
+    renderCalOpts();
+  } else {
+    connectCalendar(providers[i]);
+  }
+}
+
+function closeCalModal() { document.getElementById('cal-backdrop').classList.remove('open'); }
+
+/**
+ * Close the calendar modal when the user clicks on the backdrop (outside
+ * the modal box).
+ *
+ * @param {Event} e  Click event
+ */
+function closeOnBackdrop(e) { if (e.target === document.getElementById('cal-backdrop')) closeCalModal(); }
+
+/**
+ * Confirm the calendar-scheduling action: create a calendar event via
+ * POST /api/calendar/events, optionally download an .ics file for local
+ * import, and update the resource's scheduled state locally.
+ *
+ * @returns {Promise<void>}
+ */
+async function confirmSchedule() {
+  const resource = resources.find(r => r.id === currentCardId);
+  if (!resource) return;
+  const providers = ['google', 'apple', 'outlook'];
+  const provider = providers[selectedCal];
+  const date = document.getElementById('cm-date').value;
+  const time = document.getElementById('cm-time').value;
+  const start_time = new Date(date + 'T' + time + ':00').toISOString();
+  const end_time = new Date(new Date(start_time).getTime() + 30 * 60000).toISOString();
 
   try {
-    // Phase 2: Request module payload from backend.
     const token = localStorage.getItem('token') || '';
-    const res = await fetch('/api/modules?historyId=' + encodeURIComponent(historyId), {
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+    const res = await fetch('/api/calendar/events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        provider,
+        title: resource.title,
+        description: 'Study session: ' + (resource.topicKey || resource.title) + ' - Learnova',
+        start_time,
+        end_time,
+      }),
     });
     const data = await res.json();
-    if (!res.ok) { showEmptyModule(); return; }
+    if (!res.ok) {
+      showToast(data.detail || data.message || 'Could not create event');
+      return;
+    }
+    if (data.ics_url) {
+      token = localStorage.getItem('token') || '';
+      fetch(data.ics_url, { headers: { 'Authorization': 'Bearer ' + token } })
+        .then(function(r){ return r.blob(); })
+        .then(function(blob){
+          var url = URL.createObjectURL(blob);
+          var a = document.createElement('a');
+          a.href = url;
+          a.download = 'study-event.ics';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        })
+        .catch(function(){ showToast('Could not download calendar file'); });
+    }
+  } catch (err) {
+    showToast('Could not connect to calendar service');
+    return;
+  }
 
-    // Phase 3: Normalize response and update header/focus UI blocks.
-    const modules = data.modules || [];
-    const studyNext = data.studyNext || [];
-    totalResCount = modules.length;
+  closeCalModal();
+  resources = resources.map(r => r.id === currentCardId ? { ...r, scheduled: true } : r);
+  persistModuleResources();
+  renderResources();
+  updateModuleStates();
+  showToast('Added to ' + PROVIDER_NAMES[provider]);
+}
 
-    document.getElementById('breadcrumb-doc').textContent = data.title || 'Document';
-    document.getElementById('mod-title-focus').textContent = (studyNext[0] || data.title || 'key concepts') + '.';
-    document.getElementById('mod-desc').textContent = 'Curated resources to strengthen your understanding based on your quiz performance.';
-    document.getElementById('mod-meta-time').textContent = (modules.length * 15) + ' min';
-    document.getElementById('mod-meta-count').textContent = modules.length + ' selected';
-
-    // Phase 4: Render focus areas from studyNext data.
-    document.getElementById('mod-focus-list').innerHTML = studyNext.slice(0,3).map((f, i) => `
-      <div class="focus-item">
-        <div class="focus-index">${i + 1}</div>
-        <div><strong>${escapeHtml(f)}</strong></div>
-      </div>`).join('') || '<div style="font-size:12px;color:var(--cream-25)">Review all module resources below.</div>';
-
-    document.getElementById('prog-pct').textContent = '0%';
-    document.getElementById('prog-fill').setAttribute('data-width', '0%');
-    document.getElementById('progress-text').textContent = '0 of ' + totalResCount + ' done';
-    document.getElementById('ms-completed').textContent = 0;
-    document.getElementById('ms-scheduled').textContent = 0;
-    document.getElementById('ms-remaining').textContent = totalResCount;
-
-    // Phase 5: Map raw modules to resource-card view model.
-    const resources = modules.map((m, i) => {
-      // Detect type from URL or explicit type field.
-      const rawType = (m.type || '').toLowerCase();
-      let type = 'article';
-      if (rawType.includes('youtube') || rawType.includes('video') || (m.url && m.url.includes('youtube'))) type = 'video';
-      else if (rawType.includes('google') || rawType.includes('article') || rawType.includes('search')) type = 'article';
-      return {
-        id: i,
-        title: m.title || 'Resource ' + (i+1),
-        source: m.url || '',
-        description: m.description || '',
-        type,
-        duration: '~15 min',
-        tag: type === 'video' ? 'YouTube' : 'Google',
-        badge: { class: 'badge-gold', label: 'Recommended' },
-        status: 'new',
-        url: m.url || '#'
-      };
+/**
+ * Initiate a calendar connection. Apple and Outlook use email-based
+ * configuration (prompts the user); Google redirects to OAuth.
+ *
+ * @param {string} provider  'google' | 'apple' | 'outlook'
+ * @returns {Promise<void>}
+ */
+async function connectCalendar(provider) {
+  const token = localStorage.getItem('token') || '';
+  if (provider === 'apple' || provider === 'outlook') {
+    const label = provider === 'apple' ? 'Apple ID' : 'Microsoft account';
+    const email = prompt('Enter your ' + label + ' email for calendar:');
+    if (!email) return;
+    const res = await fetch('/api/calendar/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ email, provider }),
     });
-
-    // Phase 6: Render live resource cards.
-    document.getElementById('res-list').innerHTML = resources.map(r => buildResCardReal(r)).join('');
-  } catch (e) {
-    console.error(e);
-    showEmptyModule();
+    if (res.ok) {
+      await loadCalendarStatus();
+      renderCalOpts();
+      showToast(PROVIDER_NAMES[provider] + ' configured');
+    }
+    return;
+  }
+  try {
+    const res = await fetch('/api/calendar/' + provider + '/auth', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json();
+    if (data.auth_url) {
+      window.location.href = data.auth_url;
+    }
+  } catch (err) {
+    showToast('Could not start connection');
   }
 }
 
 /**
- * Build live API resource card markup.
- * This renderer is used for real module data from backend endpoints.
- * @param {object} res
- * @returns {string}
+ * Disconnect a calendar provider by revoking the API token on the
+ * backend via POST /api/calendar/disconnect.
+ *
+ * @param {string} provider  'google' | 'apple' | 'outlook'
+ * @returns {Promise<void>}
  */
-function buildResCardReal(res) {
-  const thumbClass = { video: 't-video', article: 't-article' }[res.type] || 't-article';
-  const color = { video: '#C8B89A', article: '#6B9E6B' }[res.type] || '#6B9E6B';
-  const thumbIcon = res.type === 'video'
-    ? `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><rect x="2" y="4" width="20" height="16" rx="2.5"/><path d="M9 8.5l7 3.5-7 3.5V8.5z" fill="${color}" stroke="none"/></svg>`
-    : `<svg class="thumb-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="1.2"><path d="M6 4h12a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>`;
-  const typeLabel = res.type.charAt(0).toUpperCase() + res.type.slice(1);
-  return `
-    <div class="res-card" data-id="${res.id}">
-      <div class="res-thumb ${thumbClass}">
-        ${thumbIcon}
-        <div class="thumb-label">${typeLabel}</div>
-      </div>
-      <div class="res-body">
-        <div class="res-top">
+async function disconnectCalendar(provider) {
+  const token = localStorage.getItem('token') || '';
+  try {
+    await fetch('/api/calendar/disconnect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ provider }),
+    });
+    await loadCalendarStatus();
+    renderCalOpts();
+    showToast('Disconnected');
+  } catch (_) {}
+}
+
+const PROVIDER_NAMES = { google: 'Google Calendar', apple: 'Apple Calendar', outlook: 'Outlook' };
+
+// ── Progress / state ──────────────────────────────────────────────────────────
+
+/**
+ * Recalculate and render the module state cards (completed, scheduled,
+ * remaining counts), the overall progress bar, and the follow-up quiz shell.
+ */
+function updateModuleStates() {
+  completedCount = resources.filter(r => r.completed).length;
+  scheduledCount = resources.filter(r => r.scheduled).length;
+  const pct = Math.round((completedCount / Math.max(resources.length, 1)) * 100);
+  document.getElementById('ms-completed').textContent = completedCount;
+  document.getElementById('ms-scheduled').textContent = scheduledCount;
+  document.getElementById('ms-remaining').textContent = Math.max(resources.length - completedCount, 0);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-fill').dataset.width = pct + '%';
+  document.getElementById('prog-pct').textContent = pct + '%';
+  document.getElementById('progress-text').textContent = completedCount + ' of ' + resources.length + ' done';
+  renderFollowUpShell();
+}
+
+// ── Mark complete + undo ──────────────────────────────────────────────────────
+
+/**
+ * Mark a resource as completed, persist to backend, show the undo toast.
+ *
+ * @param {number} resourceId  ID of the resource to mark complete
+ */
+function markResourceComplete(resourceId) {
+  resources = resources.map(r => r.id === resourceId ? { ...r, completed: true } : r);
+  persistModuleResources();
+  pendingCompletedResourceId = resourceId;
+  renderResources();
+  updateModuleStates();
+  showUndoToast();
+}
+/**
+ * Show the undo toast bar with a 5-second countdown. If the user clicks
+ * "Undo" within the window, the completion is reverted.
+ */
+function showUndoToast() {
+  clearUndoToast();
+  undoCountdown = 5;
+  const toast = document.getElementById('undo-toast');
+  document.getElementById('undo-toast-msg').textContent = 'Marked resource as completed.';
+  document.getElementById('undo-toast-sub').textContent = `Undo available for ${undoCountdown}s.`;
+  toast.classList.add('show');
+  undoTimer = setInterval(() => {
+    undoCountdown -= 1;
+    if (undoCountdown <= 0) { clearUndoToast(); pendingCompletedResourceId = null; return; }
+    document.getElementById('undo-toast-sub').textContent = `Undo available for ${undoCountdown}s.`;
+  }, 1000);
+}
+/**
+ * Clear any active undo timer and hide the undo toast bar.
+ */
+function clearUndoToast() {
+  if (undoTimer) { clearInterval(undoTimer); undoTimer = null; }
+  document.getElementById('undo-toast')?.classList.remove('show');
+}
+/**
+ * Revert the most recent "mark complete" action, restoring the resource
+ * to an uncompleted state.
+ */
+function undoComplete() {
+  if (pendingCompletedResourceId == null) return;
+  resources = resources.map(r => r.id === pendingCompletedResourceId ? { ...r, completed: false } : r);
+  persistModuleResources();
+  pendingCompletedResourceId = null;
+  clearUndoToast();
+  renderResources();
+  updateModuleStates();
+  showToast('Completion undone');
+}
+
+// ── Follow-up quiz shell ──────────────────────────────────────────────────────
+
+/**
+ * Render the follow-up quiz section based on current state:
+ * - No result / not done → locked message requiring initial quiz
+ * - Resources incomplete  → "Complete all cards first" message
+ * - Progress already recorded → comparison grid (score delta, improved topics, next steps)
+ * - Questions available    → active quiz render via renderFollowUpQuestion()
+ * - Default               → "Start follow-up quiz" CTA
+ */
+function renderFollowUpShell() {
+  const mount = document.getElementById('follow-up-shell');
+  if (!activeResult || !activeResult.done) {
+    mount.innerHTML = `<div class="fu-empty">Complete the first quiz on the upload page before attempting the follow-up quiz.</div>`;
+    return;
+  }
+  if (resources.length && completedCount < resources.length) {
+    mount.innerHTML = `
+      <div class="fu-shell">
+        <div class="module-action-bar">
           <div>
-            <div class="res-title">${escapeHtml(res.title)}</div>
-            <div class="res-source">${escapeHtml(res.description)}</div>
+            <div class="mod-kicker" style="margin-bottom:6px">Follow-up quiz locked</div>
+            <div class="module-inline-copy">Complete all recommended resources first. You have finished ${completedCount} of ${resources.length} cards.</div>
           </div>
-          <span class="badge ${res.badge.class}">${escapeHtml(res.badge.label)}</span>
+          <button class="btn" type="button" disabled>Complete all cards first</button>
         </div>
-        <div class="res-bottom">
-          <div class="res-meta">
-            <div class="rm-item"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M6 3.5v3l1.5 1"/></svg>${escapeHtml(res.duration)}</div>
-            <div class="rm-item">${escapeHtml(res.tag)}</div>
+      </div>`;
+    return;
+  }
+  if (activeResult.progress && activeResult.followUpQuiz?.analysis) {
+    mount.innerHTML = `
+      <div class="fu-shell">
+        <div class="module-action-bar">
+          <div>
+            <div class="mod-kicker" style="margin-bottom:6px">Progress comparison</div>
+            <div class="module-inline-copy">${escapeHtml(activeResult.progress.improvement_summary || '')}</div>
           </div>
-          ${res.url && res.url !== '#'
-            ? `<a href="${escapeHtml(res.url)}" target="_blank" rel="noopener noreferrer" class="sched-btn">Open resource →</a>`
-            : `<span class="sched-btn" style="opacity:0.4">No link</span>`}
+          <button class="btn" onclick="startFollowUpQuiz(true)">Retake follow-up quiz</button>
+        </div>
+        <div class="fu-grid">
+          <div class="fu-card">
+            <div class="fu-label">Score change</div>
+            <div class="fu-value">${activeResult.progress.score_delta > 0 ? '+' : ''}${activeResult.progress.score_delta}%</div>
+            <div class="fu-copy">Difference between your first quiz and follow-up quiz.</div>
+          </div>
+          <div class="fu-card">
+            <div class="fu-label">Improved topics</div>
+            <div class="fu-copy">${(activeResult.progress.improved_topics || []).join(', ') || 'No clear improvement topics detected yet.'}</div>
+          </div>
+          <div class="fu-card">
+            <div class="fu-label">Study next</div>
+            <div class="fu-copy">${(activeResult.progress.next_steps || []).join(' ')}</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  if (followUpQuestions.length) { renderFollowUpQuestion(); return; }
+  mount.innerHTML = `
+    <div class="fu-shell">
+      <div class="module-action-bar">
+        <div>
+          <div class="mod-kicker" style="margin-bottom:6px">Targeted retest</div>
+          <div class="module-inline-copy">Generate a new 6-question follow-up quiz focused on the weak topics from your first quiz.</div>
+        </div>
+        <button class="btn btn-primary" onclick="startFollowUpQuiz()">Start follow-up quiz →</button>
+      </div>
+    </div>`;
+}
+
+/**
+ * Render the current follow-up quiz question with options, progress bar,
+ * and navigation (skip / next). Shows immediate feedback after answering.
+ */
+function renderFollowUpQuestion() {
+  const mount = document.getElementById('follow-up-shell');
+  const q = followUpQuestions[followUpIndex];
+  const pct = Math.round((followUpIndex / Math.max(followUpQuestions.length, 1)) * 100);
+  mount.innerHTML = `
+    <div class="fu-shell">
+      <div class="module-action-bar">
+        <div>
+          <div class="mod-kicker" style="margin-bottom:6px">Follow-up quiz</div>
+          <div class="module-inline-copy">Question ${followUpIndex + 1} of ${followUpQuestions.length} · Topic: ${escapeHtml(q.topic || '')}</div>
+        </div>
+        <div class="prog-wrap" style="margin:0;min-width:180px">
+          <div class="prog-track"><div class="prog-fill" style="width:${pct}%"></div></div>
+        </div>
+      </div>
+      <div class="fu-quiz">
+        <div class="fu-q">${escapeHtml(q.question)}</div>
+        <div class="fu-options">
+          ${q.options.map((opt, i) => `
+            <button class="fu-opt" id="fu-opt-${i}" onclick="selectFollowUpAnswer(${i})">
+              <span class="fu-opt-mark">${'ABCD'[i]}</span>${escapeHtml(opt)}
+            </button>`).join('')}
+        </div>
+        <div class="fu-feedback" id="fu-feedback"></div>
+        <div class="fu-nav">
+          <button class="btn" id="fu-skip" onclick="skipFollowUpQuestion()">Skip</button>
+          <button class="btn btn-primary" id="fu-next" style="display:none" onclick="nextFollowUpQuestion()">
+            ${followUpIndex + 1 < followUpQuestions.length ? 'Next question →' : 'Compare progress →'}
+          </button>
         </div>
       </div>
     </div>`;
 }
 
 /**
- * Show fallback message when module data cannot be loaded.
+ * Record the user's follow-up quiz answer, highlight correct/wrong options,
+ * show explanation, and reveal the "Next" button.
+ *
+ * @param {number} i  Index of the selected option (0–3)
  */
-function showEmptyModule() {
-  document.getElementById('res-list').innerHTML = '<p style="color:var(--cream-25);font-size:13px;padding:20px 0">No module data available. Complete a quiz first.</p>';
+function selectFollowUpAnswer(i) {
+  if (followUpAnswered) return;
+  followUpAnswered = true;
+  const q = followUpQuestions[followUpIndex];
+  followUpAnswers.push({ chosen_index: i, question_index: followUpIndex });
+  document.querySelectorAll('.fu-opt').forEach((node, j) => {
+    if (j === q.correct_index) node.classList.add('correct');
+    else if (j === i) node.classList.add('wrong');
+    if (j === i) node.classList.add('selected');
+    node.style.pointerEvents = 'none';
+  });
+  const fb = document.getElementById('fu-feedback');
+  const ok = i === q.correct_index;
+  fb.className = `fu-feedback show ${ok ? 'correct' : 'wrong'}`;
+  fb.textContent = `${ok ? 'Correct.' : 'Incorrect.'} ${q.explanation}`;
+  document.getElementById('fu-skip').style.display = 'none';
+  document.getElementById('fu-next').style.display = 'inline-flex';
+}
+/**
+ * Skip the current follow-up question (records -1 as chosen index)
+ * and advance to the next one.
+ */
+function skipFollowUpQuestion() {
+  followUpAnswers.push({ chosen_index: -1, question_index: followUpIndex });
+  nextFollowUpQuestion();
+}
+/**
+ * Advance to the next follow-up question, or finish the quiz when all
+ * questions have been answered.
+ */
+function nextFollowUpQuestion() {
+  followUpIndex += 1;
+  followUpAnswered = false;
+  if (followUpIndex >= followUpQuestions.length) { finishFollowUpQuiz(); return; }
+  renderFollowUpQuestion();
 }
 
-loadModule();
+/**
+ * Start or restart the follow-up quiz. If the quiz hasn't been generated
+ * yet (or forceRefresh is true), calls LEARNOVA_API.generateFollowUpQuiz
+ * to build questions targeting the user's weak topics.
+ *
+ * @param {boolean} [forceRefresh=false]  Whether to regenerate questions
+ * @returns {Promise<void>}
+ */
+async function startFollowUpQuiz(forceRefresh = false) {
+  if (!activeResult?.learningModule) return;
+  if (resources.length && completedCount < resources.length) {
+    showToast('Complete all recommended cards before taking the follow-up quiz');
+    return;
+  }
+  if (!followUpQuestions.length || forceRefresh) {
+    try {
+      const quiz = await LEARNOVA_API.generateFollowUpQuiz({
+        title: activeResult.title,
+        summary: normalizeSummaryForApi(activeResult.summaryRaw),
+        weak_topics: normalizeWeakTopics(),
+        learning_module: activeResult.learningModule,
+        previous_questions: (activeResult.initialQuiz?.questions || []).map(q => q.question),
+        question_count: (window.LEARNOVA_CONFIG || window.APP_CONFIG || {})?.api?.followUpQuestionCount || 6
+      });
+      followUpQuestions = quiz.questions || [];
+      activeResult.followUpQuiz = {
+        questionCount: quiz.question_count,
+        questions: quiz.questions || [],
+        targetTopics: quiz.target_topics || []
+      };
+      persistModuleResources();
+    } catch (err) {
+      showToast(err.message || 'Could not build follow-up quiz');
+      return;
+    }
+  }
+  followUpAnswers = [];
+  followUpIndex = 0;
+  followUpAnswered = false;
+  renderFollowUpQuestion();
+}
+
+/**
+ * Finish the follow-up quiz: send answers to LEARNOVA_API.analyzeQuizResults,
+ * compare progress via LEARNOVA_API.compareProgress, persist results, and
+ * re-render the follow-up shell with the comparison grid.
+ *
+ * @returns {Promise<void>}
+ */
+async function finishFollowUpQuiz() {
+  try {
+    const analysis = await LEARNOVA_API.analyzeQuizResults({
+      title: activeResult.title,
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
+      questions: followUpQuestions,
+      answers: followUpAnswers
+    });
+    const comparison = await LEARNOVA_API.compareProgress({
+      initial_result: activeResult.analysis,
+      follow_up_result: analysis
+    });
+    activeResult.followUpQuiz = { ...(activeResult.followUpQuiz || {}), questions: followUpQuestions, analysis };
+    activeResult.progress = comparison;
+    persistModuleResources();
+    renderFollowUpShell();
+    showToast('Follow-up quiz complete');
+  } catch (err) {
+    showToast(err.message || 'Could not compare progress');
+  }
+}
+
+// ── Resource hydration ────────────────────────────────────────────────────────
+
+/**
+ * Map a learning-module object (from the API) into the local `resources`
+ * array format, cycling through article/video/podcast types per section.
+ *
+ * @param {object} module  Learning module object with .sections[] or .focus_areas[]
+ * @returns {object[]}     Array of resource objects ready for rendering
+ */
+function mapModuleSections(module) {
+  const sections = module.sections?.length
+    ? module.sections
+    : (module.focus_areas || []).map(t => ({ topic: t, why_it_matters: 'Key concept from your quiz analysis.', practice_tip: 'Summarise in your own words and test with the follow-up quiz.' }));
+  const types = ['article', 'video', 'podcast'];
+  return sections.map((s, i) => ({
+    id: i + 1,
+    topicKey: s.topic,
+    title: buildResourceTitle(s.topic, types[i % 3]),
+    source: s.why_it_matters,
+    duration: `${8 + i * 3} min`,
+    meta: s.practice_tip,
+    type: types[i % 3],
+    url: buildResourceUrl(s.topic, types[i % 3]),
+    badge: hasWeakTopics() ? 'Weak topic' : 'Keep sharp',
+    badgeClass: hasWeakTopics() ? 'badge-red' : 'badge-gold',
+    scheduled: false,
+    completed: false
+  }));
+}
+
+/**
+ * Merge API-recommended resources into the base module-derived list.
+ * Preserves scheduling and completion states from the base.
+ *
+ * @param {object[]} base   Locally-built resource list
+ * @param {object}   recs   API response containing .resources[]
+ * @returns {object[]}      Merged resource list (API results override base by topic)
+ */
+function mergeRecommended(base, recs) {
+  const recommended = recs?.resources || [];
+  if (!recommended.length) return base;
+  const byTopic = new Map(base.map(r => [r.topicKey || r.title, r]));
+  return recommended.map((m, i) => {
+    const prev = byTopic.get(m.topic) || {};
+    return {
+      id: i + 1,
+      topicKey: m.topic,
+      title: m.title,
+      source: m.source,
+      duration: prev.duration || `${8 + i * 3} min`,
+      meta: m.snippet,
+      type: m.resource_type,
+      url: m.url,
+      badge: hasWeakTopics() ? 'Weak topic' : 'Keep sharp',
+      badgeClass: hasWeakTopics() ? 'badge-red' : 'badge-gold',
+      scheduled: Boolean(prev.scheduled),
+      completed: Boolean(prev.completed)
+    };
+  });
+}
+
+/**
+ * Build a fallback learning module from the result's weak topics or
+ * general topic tags when the AI generation fails or is unavailable.
+ *
+ * @returns {object}  Module object with .title, .description, .focus_areas, .sections
+ */
+function buildFallbackModule() {
+  const areas = (activeResult?.weakTopics || activeResult?.weaknesses || activeResult?.topicTags || []).slice(0, 4);
+  const fallback = [...new Set([...(areas.length ? areas : []), 'Core concepts', 'Method and findings'])].slice(0, 4);
+  return {
+    title: `Targeted review for ${activeResult?.title || 'your latest document'}`,
+    description: 'Fallback learning module built from your quiz analysis. It focuses on the weakest topics from the first quiz and turns them into short review tasks before the follow-up quiz.',
+    focus_areas: fallback,
+    sections: fallback.slice(0, 3).map(t => ({
+      topic: t,
+      explanation: `Revisit the summary sections connected to ${t}. Write down the claim, the evidence used for it, and how it supports the document's argument.`,
+      why_it_matters: `${t} appeared in missed questions or is central to the document's argument, so improving it should lift follow-up quiz performance.`,
+      practice_tip: `Summarise ${t} in your own words with one example from the document, then test recall in the follow-up quiz.`
+    }))
+  };
+}
+
+/**
+ * Normalise the active result's summary into the format expected by
+ * the various LEARNOVA_API endpoints. Guarantees minimum body paragraphs,
+ * takeaways, and topics so the API never receives empty arrays.
+ *
+ * @param {object} summary  Raw summary object from the result
+ * @returns {object}        Normalised summary payload
+ */
+function normalizeSummaryForApi(summary) {
+  const raw = summary || {};
+  const body = Array.isArray(raw.body) && raw.body.length
+    ? raw.body.map(String).filter(Boolean)
+    : [String(raw.overview || activeResult?.title || 'Document summary')];
+  while (body.length < 2) body.push(body[0] || 'Review the main ideas from this document.');
+
+  const takeaways = Array.isArray(raw.takeaways) && raw.takeaways.length
+    ? raw.takeaways.map(String).filter(Boolean)
+    : ['Review the document summary.', 'Focus on missed quiz topics.', 'Practice retrieval before retesting.'];
+  while (takeaways.length < 3) takeaways.push('Connect each concept to the document argument.');
+
+  const topicPool = [
+    ...(Array.isArray(raw.topics) ? raw.topics : []),
+    ...(activeResult?.weakTopics || []),
+    ...(activeResult?.weaknesses || []),
+    ...(activeResult?.topicTags || []),
+    'Core argument',
+    'Evidence and examples',
+    'Main conclusion'
+  ].map(String).filter(Boolean);
+  const topics = [...new Set(topicPool)].slice(0, 6);
+  while (topics.length < 3) topics.push('Document concept ' + (topics.length + 1));
+
+  const overview = String(raw.overview || body.join(' '));
+  return {
+    summary_title: String(raw.summary_title || activeResult?.title || 'Document summary').slice(0, 200),
+    authors: String(raw.authors || 'Uploaded document').slice(0, 200),
+    overview: overview.length >= 80 ? overview : (overview + ' Review the summary and quiz feedback to reinforce the document-specific concepts.'),
+    body: body.slice(0, 4),
+    takeaways: takeaways.slice(0, 5),
+    topics,
+    chunks_used: raw.chunks_used || 1
+  };
+}
+
+/**
+ * Extract and deduplicate weak topics from the active result, falling
+ * back to a generic "Core argument" topic if nothing is available.
+ *
+ * @returns {string[]}  Up to 4 unique topic strings
+ */
+function normalizeWeakTopics() {
+  const topics = [
+    ...(activeResult?.weakTopics || []),
+    ...(activeResult?.weaknesses || []),
+    ...(activeResult?.topicTags || [])
+  ].map(String).filter(Boolean);
+  const unique = [...new Set(topics)].slice(0, 4);
+  return unique.length ? unique : ['Core argument'];
+}
+
+/**
+ * Extract up to 8 missed (incorrect) questions from the initial quiz
+ * for use in generating the learning module.
+ *
+ * @returns {object[]}  Array of { question, topic, user_answer, correct_answer, explanation }
+ */
+function normalizeMissedQuestions() {
+  return (activeResult.questions || [])
+    .filter(q => !q.correct)
+    .map(q => ({
+      question: String(q.q || 'Review the missed quiz question.'),
+      topic: String(q.topic || 'General comprehension').slice(0, 80),
+      user_answer: String(q.your || 'Skipped'),
+      correct_answer: String(q.answer || 'Review the correct answer in the quiz results.'),
+      explanation: String(q.explanation || 'Use the source summary to understand why this answer is correct.')
+    }))
+    .slice(0, 8);
+}
+
+/**
+ * Fetch AI-recommended resources from LEARNOVA_API.recommendResources
+ * and merge them into the local resources array. Falls back silently
+ * to the locally-built resource list if the API call fails.
+ *
+ * @param {string[]} topics  Weak topics to target for recommendations
+ * @returns {Promise<void>}
+ */
+async function hydrateResources(topics) {
+  try {
+    const recs = await LEARNOVA_API.recommendResources({
+      title: activeResult.title,
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
+      learning_module: activeResult.learningModule,
+      weak_topics: topics && topics.length ? topics : normalizeWeakTopics()
+    });
+    resources = mergeRecommended(resources, recs);
+    persistModuleResources();
+  } catch (_) { /* keep fallback URLs */ }
+}
+
+/**
+ * Orchestrate the learning-module lifecycle:
+ * 1. Use cached moduleResources if available (with stale-URL refresh).
+ * 2. Fall back to activeResult.learningModule if it exists.
+ * 3. Generate a new module via LEARNOVA_API.generateLearningModule.
+ * 4. On API failure, use buildFallbackModule().
+ *
+ * Then hydrates resources and persists everything to the backend.
+ *
+ * @returns {Promise<void>}
+ */
+async function ensureLearningModule() {
+  if (!activeResult?.done || !activeResult.analysis) return;
+
+  // Use cached resources if available
+  if (Array.isArray(activeResult.moduleResources) && activeResult.moduleResources.length) {
+    resources = activeResult.moduleResources.map(r => ({ ...r }));
+    if (resources.some(hasStaleResourceUrl)) {
+      await hydrateResources(activeResult.weakTopics?.length ? activeResult.weakTopics : (activeResult.topicTags || []).slice(0, 3));
+    }
+    return;
+  }
+
+  // Build from existing learning module
+  if (activeResult.learningModule) {
+    resources = mapModuleSections(activeResult.learningModule);
+    await hydrateResources(activeResult.weakTopics?.length ? activeResult.weakTopics : (activeResult.topicTags || []).slice(0, 3));
+    persistModuleResources();
+    return;
+  }
+
+  // Generate a new learning module from AI
+  const topics = activeResult.weakTopics?.length
+    ? activeResult.weakTopics
+    : (activeResult.weaknesses?.length ? activeResult.weaknesses : (activeResult.topicTags || []).slice(0, 3));
+  try {
+    const lm = await LEARNOVA_API.generateLearningModule({
+      title: activeResult.title,
+      summary: normalizeSummaryForApi(activeResult.summaryRaw),
+      weak_topics: topics && topics.length ? topics.slice(0, 4) : normalizeWeakTopics(),
+      missed_questions: normalizeMissedQuestions()
+    });
+    activeResult.learningModule = lm;
+    resources = mapModuleSections(lm);
+    await hydrateResources(topics);
+    persistModuleResources();
+  } catch (err) {
+    activeResult.learningModule = buildFallbackModule();
+    resources = mapModuleSections(activeResult.learningModule);
+    await hydrateResources(topics);
+    persistModuleResources();
+    showToast(err.message || 'Using fallback study module');
+  }
+}
+
+// ── YouTube modal ─────────────────────────────────────────────────────────────
+
+/**
+ * Open the YouTube player modal overlay. Extracts the video ID from the URL,
+ * embeds the iframe with autoplay, and displays title/source metadata.
+ *
+ * @param {string} url       Full YouTube watch URL
+ * @param {string} title     Video title for the modal header
+ * @param {string} topic     Associated topic label
+ * @param {string} source    Source attribution
+ * @param {string} duration  Duration string for display
+ */
+function openYtModal(url, title, topic, source, duration) {
+  const videoId = extractYouTubeId(url);
+  if (!videoId) {
+    // Not a direct watch link — open in new tab as fallback
+    window.open(url, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  document.getElementById('yt-modal-title').textContent = title || 'Video';
+  document.getElementById('yt-modal-topic').textContent =
+    [topic ? 'Topic: ' + topic : '', source, duration].filter(Boolean).join(' · ');
+  document.getElementById('yt-open-yt').href = url;
+  document.getElementById('yt-footer-meta').textContent = source || 'YouTube';
+  // autoplay=1 so it starts playing immediately
+  document.getElementById('yt-iframe').src =
+    `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0&modestbranding=1`;
+  document.getElementById('yt-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+/**
+ * Close the YouTube player modal, stop the video by clearing the iframe
+ * src, and restore page scrolling.
+ */
+function closeYtModal() {
+  document.getElementById('yt-backdrop').classList.remove('open');
+  // Stop video by clearing src
+  document.getElementById('yt-iframe').src = '';
+  document.body.style.overflow = '';
+}
+
+/**
+ * Close the YouTube modal when clicking on the backdrop area.
+ *
+ * @param {Event} e  Click event
+ */
+function closeYtOnBackdrop(e) {
+  if (e.target === document.getElementById('yt-backdrop')) closeYtModal();
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────────
+// Close the YouTube player modal when the user presses Escape.
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeYtModal();
+});
+
+// ── Load result from backend ─────────────────────────────────────────────────
+
+/**
+ * Fetch the full quiz/result object from the backend by history ID.
+ * Maps the backend's response format to the internal shape expected
+ * by the module page's rendering functions.
+ *
+ * @param {string} historyId  MongoDB ObjectID of the history item
+ * @returns {Promise<object>}  Normalised result object
+ */
+async function loadResultFromBackend(historyId) {
+  const token = localStorage.getItem('token') || '';
+  const res = await fetch('/api/results?id=' + historyId, {
+    headers: { 'Authorization': 'Bearer ' + token }
+  });
+  if (!res.ok) throw new Error('Could not load result');
+  const data = await res.json();
+
+  // Map backend result format to what module.html expects
+  return {
+    id: historyId,
+    title: data.title || 'Document',
+    done: true,
+    summaryRaw: {
+      summary_title: data.title,
+      authors: data.authors || 'Unknown authors',
+      overview: (data.summary?.body || []).join(' '),
+      body: data.summary?.body || [],
+      takeaways: data.summary?.takeaways || [],
+      topics: data.topicTags || [],
+      chunks_used: 1,
+    },
+    topicTags: data.topicTags || [],
+    weakTopics: data.weaknesses || [],
+    weaknesses: data.weaknesses || [],
+    strengths: data.strengths || [],
+    studyNext: data.studyNext || [],
+    score: data.score,
+    questions: (data.questions || []).map(q => ({
+      q: q.q,
+      correct: q.correct,
+      your: q.your,
+      answer: q.answer,
+      explanation: q.explanation,
+      topic: q.topic || '',
+    })),
+    initialQuiz: {
+      questions: (data.quizFull || []).map(q => ({
+        question: q.q,
+        options: q.opts,
+        correct_index: q.correct,
+        explanation: q.explanation,
+        topic: q.topic || '',
+      })),
+    },
+    learningModule: data.learningModule || null,
+    moduleResources: data.moduleResources || null,
+    followUpQuiz: data.followUpQuiz || null,
+    progress: data.progress || null,
+    analysis: data.analysis || null,
+  };
+}
+
+/**
+ * Initialise the module page: show a loading state, fetch the result
+ * from the backend using the historyId URL param (or localStorage
+ * fallback), build the learning module and resources, and render
+ * everything (header, resources, states, follow-up quiz).
+ *
+ * @returns {Promise<void>}
+ */
+async function initModulePage() {
+  // Show loading state
+  document.getElementById('res-list').innerHTML = `
+    <div class="module-loading">
+      <div class="module-loading-spinner"></div>
+      <div class="module-loading-text">Loading your study module…</div>
+    </div>`;
+
+  // Load result from backend using historyId URL param
+  const params = new URLSearchParams(window.location.search);
+  const historyId = params.get('historyId') || params.get('id') || localStorage.getItem('currentHistoryId');
+
+  if (historyId) {
+    try {
+      activeResult = await loadResultFromBackend(historyId);
+    } catch (err) {
+      document.getElementById('res-list').innerHTML = `
+        <div class="module-loading">
+          <div class="module-loading-text" style="color:rgba(200,120,80,0.8)">Could not load result. ${err.message}</div>
+        </div>`;
+      return;
+    }
+  } else {
+    document.getElementById('res-list').innerHTML = `
+      <div class="module-loading">
+        <div class="module-loading-text">No document selected. Go back and upload a document first.</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('res-list').innerHTML = `
+    <div class="module-loading">
+      <div class="module-loading-spinner"></div>
+      <div class="module-loading-text">Building your personalised study module…</div>
+    </div>`;
+
+  try {
+    await ensureLearningModule();
+  } catch (err) {
+    console.error('ensureLearningModule failed:', err);
+  }
+
+  renderModuleHeader();
+  renderResources();
+  scheduledCount = resources.filter(r => r.scheduled).length;
+  completedCount = resources.filter(r => r.completed).length;
+  updateModuleStates();
+  renderFollowUpShell();
+}
+
+initModulePage();
+
+// ── Handle OAuth callback redirect ─────────────────────────────────────────
+
+/**
+ * On page load, check for ?calendar=connected|error in the URL (OAuth
+ * redirect from Google/Auth0). Show a toast and clean the URL params.
+ */
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('calendar') === 'connected') {
+    const provider = params.get('provider') || '';
+    const email = params.get('email') || '';
+    showToast((PROVIDER_NAMES[provider] || provider) + ' connected as ' + email);
+    // Clean URL
+    window.history.replaceState({}, '', window.location.pathname + '?historyId=' + (new URLSearchParams(window.location.search).get('historyId') || ''));
+  } else if (params.get('calendar') === 'error') {
+    showToast('Calendar connection failed: ' + (params.get('reason') || 'unknown error'));
+    window.history.replaceState({}, '', window.location.pathname + '?historyId=' + (new URLSearchParams(window.location.search).get('historyId') || ''));
+  }
+})();
 </script>
 <script src="js/animations.js"></script>
 </body>

@@ -76,35 +76,75 @@
           <div class="empty-sub">Upload a document or paste text to begin.</div>
         </div>
       </div>
+      <div class="curtain-panel" id="curtain-panel"></div>
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
 <script>
+// ── upload.html ────────────────────────────────────────────────────────────────
+// This page handles document upload, AI-powered summarisation, and interactive
+// quiz-taking for single and multi-file uploads. Users can drag-and-drop PDF,
+// TXT, or PPTX files, or paste plain text. The upload pipeline delivers a
+// summary panel, synchronises quiz generation (via polling), and persists
+// quiz results to the backend for later review.
+
+// ── Sidebar & state ────────────────────────────────────────────────────────────
 document.getElementById('sidebar-mount').innerHTML = renderSidebar('upload');
 
-let uploadedFiles = [];
+// ── Upload state ───────────────────────────────────────────────────────────────
+let uploadedFiles = [];          // File objects attached by the user
+let _multiQueue = [];            // Files waiting to be processed in batch mode
+let _multiResults = [];          // Completed per-file outcomes [{title, historyId, success}]
+let _multiAllData = [];          // Full response data for each successfully processed file
+let _multiCurrent = 0;           // Index of the file currently being processed in the queue
+let _multiMode = false;          // True when chaining multiple files (summary → quiz → next)
+let _multiIndex = 0;             // Which entry in _multiAllData is currently displayed
 let currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
-let resumedSession = false;
-let processingTimer = null;
+let resumedSession = false;      // True when the page loads from a history result (?resume=)
+let processingTimer = null;      // Interval handle for the animated progress bar
 
-let quizData = []; // populated from POST /api/upload
+let quizData = [];               // Populated from POST /api/upload quiz response
 
 let quizMode = false, currentQ = 0, answers = [], answered = false;
 
-/* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
+// ── Quiz data management ───────────────────────────────────────────────────────
 /**
- * Check whether the current user has Pro tier enabled.
- * @returns {boolean}
+ * Normalise and store quiz questions from upload or history responses.
+ * Also synchronises currentDoc's quiz references for downstream rendering.
+ *
+ * @param {object[] | undefined | null} questions  Raw quiz question array
+ * @returns {object[]}  The stored quiz data array
+ */
+function setQuizData(questions) {
+  quizData = Array.isArray(questions) ? questions : [];
+  if (currentDoc) {
+    currentDoc.quizData = quizData;
+    currentDoc.quizFull = quizData;
+    currentDoc.total = quizData.length || currentDoc.total || 8;
+  }
+  return quizData;
+}
+
+/* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
+
+/**
+ * Check whether the current user has the Pro tier enabled.
+ * References the global LEARNOVA_USER set by app.js.
+ *
+ * @returns {boolean}  True if user's tier equals 'pro'
  */
 function isPro() {
   return LEARNOVA_USER.tier === 'pro';
 }
 
 /**
- * Update upload controls based on current plan tier.
+ * Update the upload zone, file-accept attributes, and multi-file support
+ * based on the current plan tier (Pro allows .pptx/.ppt and multiple files).
  */
 function updateUploadUI() {
   const gate = document.getElementById('pro-gate-banner');
@@ -124,16 +164,17 @@ function updateUploadUI() {
 }
 
 /**
- * Open hidden file picker input.
+ * Programmatically open the hidden file-picker input element.
  */
 function triggerFileInput() {
   document.getElementById('file-input').click();
 }
 
 /**
- * Handle drag enter/leave states for upload zone.
- * @param {DragEvent} e
- * @param {boolean} entering
+ * Toggle visual drag-over state on the upload zone.
+ *
+ * @param {DragEvent} e        The dragover / dragleave event
+ * @param {boolean}  entering  True for dragover, false for dragleave
  */
 function handleDrag(e, entering) {
   e.preventDefault();
@@ -141,8 +182,9 @@ function handleDrag(e, entering) {
 }
 
 /**
- * Handle dropped files and pass them to file handler.
- * @param {DragEvent} e
+ * Accept dropped files and delegate to the shared file-handling logic.
+ *
+ * @param {DragEvent} e  The drop event containing FileList on dataTransfer
  */
 function handleDrop(e) {
   e.preventDefault();
@@ -151,9 +193,13 @@ function handleDrop(e) {
 }
 
 /* ── File Handling ─────────────────────────────────────────────────────────── */
+
 /**
- * Validate and store selected files based on plan limits and file size.
- * @param {FileList | File[]} files
+ * Validate, filter, and store selected files according to plan tier.
+ * Free users are limited to a single PDF/TXT; Pro users can queue up to 3
+ * files including PPTX. Files exceeding 10 MB are rejected.
+ *
+ * @param {FileList | File[]} files  Raw file collection from input or drop
  */
 function handleFileInput(files) {
   if (!files || !files.length) return;
@@ -179,7 +225,7 @@ function handleFileInput(files) {
   if (!isPro() && newFiles.length > 0) {
     uploadedFiles = [newFiles[0]];
   } else {
-    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,5);
+    uploadedFiles = [...uploadedFiles, ...newFiles].slice(0,3);
   }
 
   renderFileList();
@@ -188,7 +234,9 @@ function handleFileInput(files) {
 }
 
 /**
- * Render attached file cards in the upload panel.
+ * Render attached file cards inside the upload panel's file list.
+ * Each card shows the extension badge, file name, size, and a remove button.
+ * Delegates to extColor() for per-extension badge colouring.
  */
 function renderFileList() {
   const list = document.getElementById('file-list');
@@ -209,8 +257,10 @@ function renderFileList() {
 }
 
 /**
- * Remove a file by index and refresh related UI.
- * @param {number} i
+ * Remove a file by its index from the uploadedFiles array and refresh
+ * the file list, breadcrumb, and process-button visibility.
+ *
+ * @param {number} i  Index of the file to remove
  */
 function removeFile(i) {
   uploadedFiles.splice(i,1);
@@ -220,7 +270,9 @@ function removeFile(i) {
 }
 
 /**
- * Toggle process button based on text/file availability.
+ * Show or hide the "Summarise with AI" button depending on whether the user
+ * has attached files or pasted text (minimum 30 characters). Also updates
+ * the breadcrumb label to reflect the current input mode.
  */
 function checkContent() {
   const hasPaste = document.getElementById('paste-area').value.trim().length > 30;
@@ -235,9 +287,12 @@ function checkContent() {
 }
 
 /* ── Document Summary Builders ─────────────────────────────────────────────── */
+
 /**
- * Resolve active upload label for compact header status.
- * @returns {string}
+ * Resolve the human-readable label for the compact file header based on
+ * current state (attached files, resumed session, or pasted text).
+ *
+ * @returns {string}  Display label such as "document.pdf" or "Pasted text"
  */
 function getActiveUploadLabel() {
   if (uploadedFiles.length === 1) return uploadedFiles[0].name;
@@ -248,7 +303,9 @@ function getActiveUploadLabel() {
 }
 
 /**
- * Check whether pasted text meets minimum processing length.
+ * Check whether the pasted-text area contains enough content (≥30 chars)
+ * to warrant processing.
+ *
  * @returns {boolean}
  */
 function hasPastedText() {
@@ -256,7 +313,8 @@ function hasPastedText() {
 }
 
 /**
- * Determine whether current upload is text-only.
+ * Determine whether the current input mode is text-only (no file attached).
+ *
  * @returns {boolean}
  */
 function isTextOnlyUpload() {
@@ -264,17 +322,19 @@ function isTextOnlyUpload() {
 }
 
 /**
- * Format character count label for text uploads.
- * @param {number} count
- * @returns {string}
+ * Format a character count for display in the summary metadata.
+ *
+ * @param {number} count  Number of characters
+ * @returns {string}      e.g. "1 234 chars"
  */
 function formatChars(count) {
   return `${count} chars`;
 }
 
 /**
- * Return local processed timestamp string.
- * @returns {string}
+ * Return a localised processed-at timestamp for NZ locale.
+ *
+ * @returns {string}  e.g. "11:45 am"
  */
 function getProcessedTime() {
   return new Date().toLocaleTimeString('en-NZ', {
@@ -285,9 +345,12 @@ function getProcessedTime() {
 }
 
 /**
- * Build summary payload for pasted-text uploads.
- * @param {string} pasted
- * @returns {object}
+ * Build a synthetic summary payload for pasted-text-only uploads.
+ * Returns a minimal document object with placeholder content so the
+ * same summary-rendering code path works for file and text inputs.
+ *
+ * @param {string} pasted  The raw pasted text
+ * @returns {object}       Document object with .summary, .infoRows, etc.
  */
 function buildPastedSummary(pasted) {
   const charCount = pasted.length;
@@ -332,8 +395,11 @@ function buildPastedSummary(pasted) {
 }
 
 /**
- * Build summary metadata from uploaded file.
- * @returns {object}
+ * Build the summary metadata object from the first attached file.
+ * Returns a document object populated with file name, type, size label,
+ * and generated info rows for the left-panel document card.
+ *
+ * @returns {object}  Current document object extended with file metadata
  */
 function buildUploadedFileSummary() {
   const file = uploadedFiles[0];
@@ -358,8 +424,10 @@ function buildUploadedFileSummary() {
 }
 
 /**
- * Resolve the current document object from active upload state.
- * @returns {object}
+ * Resolve the current document object from whichever input mode is active:
+ * pasted text, uploaded file, or the default currentDoc.
+ *
+ * @returns {object}  Document payload ready for rendering
  */
 function buildCurrentDocument() {
   if (isTextOnlyUpload()) return buildPastedSummary(document.getElementById('paste-area').value.trim());
@@ -368,7 +436,8 @@ function buildCurrentDocument() {
 }
 
 /**
- * Render left-panel document information card and metadata rows.
+ * Render the left-panel document-information card showing file type, title,
+ * metadata rows, and an "Upload new document" button.
  */
 function renderDocumentInfo() {
   const mount = document.getElementById('upload-summary-shell');
@@ -395,8 +464,10 @@ function renderDocumentInfo() {
 }
 
 /**
- * Toggle upload panel between input mode and summary mode.
- * @param {boolean} active
+ * Toggle the left upload panel between its expanded input layout and
+ * the compact summary-info layout.
+ *
+ * @param {boolean} active  True = summary mode, False = input mode
  */
 function setSummaryMode(active) {
   const panel = document.querySelector('.panel-left');
@@ -405,7 +476,8 @@ function setSummaryMode(active) {
 }
 
 /**
- * Sync compact status card text and icon.
+ * Synchronise the compact file-status card (shown when the panel is
+ * collapsed) with the active document's name, extension, and quiz state.
  */
 function syncCompactFile() {
   const compactName = document.getElementById('compact-file-name');
@@ -419,8 +491,10 @@ function syncCompactFile() {
 }
 
 /**
- * Collapse or expand upload panel while quiz is active.
- * @param {boolean} collapsed
+ * Collapse or expand the left upload panel while the quiz is active,
+ * revealing the compact status card.
+ *
+ * @param {boolean} collapsed  True to collapse, False to restore
  */
 function setUploadCollapsed(collapsed) {
   document.querySelector('.panel-left').classList.toggle('compact', collapsed);
@@ -430,17 +504,483 @@ function setUploadCollapsed(collapsed) {
 }
 
 /* ── Document Processing ────────────────────────────────────────────────────── */
+
 /**
- * Send upload payload to backend and transition to summary view.
+ * Render an error panel when the uploaded PDF cannot be read (e.g. scanned
+ * or image-based). Shows actionable suggestions and retry buttons.
+ *
+ * @param {object} data  Response from the API containing .user_message and .suggestions
+ */
+function showPdfReadError(data) {
+  const suggestions = (data.suggestions || [
+    'Use a text-based PDF (not a scan)',
+    'Copy and paste the text directly using the text input below',
+    'Convert the PDF to Word first, then re-export as PDF',
+    'If it is a scanned document, run OCR software on it first'
+  ]);
+
+  const suggestionsHtml = suggestions.map(s =>
+    `<div style="display:flex;align-items:flex-start;gap:9px;padding:10px 13px;border:0.5px solid rgba(240,237,232,0.08);border-radius:6px;background:rgba(240,237,232,0.03);font-size:12px;color:rgba(240,237,232,0.4);line-height:1.55;margin-bottom:6px">
+      <span style="color:#C8B89A;flex-shrink:0">→</span>${s}
+    </div>`
+  ).join('');
+
+  const rightPanel = document.getElementById('right-panel');
+  if (rightPanel) {
+    rightPanel.innerHTML = `
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 28px;text-align:center;gap:16px">
+        <div style="width:52px;height:52px;border-radius:12px;background:rgba(200,100,80,0.1);border:0.5px solid rgba(200,100,80,0.25);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="rgba(200,100,80,0.8)" stroke-width="1.3">
+            <path d="M4 6h10l5 5v9H4V6z"/>
+            <path d="M14 6v5h5"/>
+            <path d="M11 10v5M11 17v.5" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <div style="font-family:var(--serif,Georgia);font-size:20px;letter-spacing:-0.3px;line-height:1.3;color:rgba(240,237,232,0.9)">
+          This PDF can't be read
+        </div>
+        <div style="font-size:13px;color:rgba(240,237,232,0.4);line-height:1.78;max-width:44ch">
+          ${data.user_message || data.detail || 'The file appears to be a scanned or image-based PDF with no selectable text.'}
+        </div>
+        <div style="width:100%;max-width:380px;margin-top:4px">
+          <div style="font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:rgba(240,237,232,0.25);margin-bottom:10px;text-align:left">What you can do</div>
+          ${suggestionsHtml}
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:6px">
+          <button class="btn btn-primary" onclick="resetUploadForNewFile()">Upload a different file</button>
+          <button class="btn" onclick="switchToTextInput()">Paste text instead</button>
+        </div>
+      </div>`;
+  }
+
+  // Also show a toast
+  showToast('PDF could not be read — it may be a scan or image-based file');
+}
+
+/**
+ * Reset the upload area so the user can pick a new file after a failed upload,
+ * clearing the file input and restoring the right panel to its empty state.
+ */
+function resetUploadForNewFile() {
+  const fileInput = document.getElementById('file-input') || document.querySelector('input[type="file"]');
+  if (fileInput) { fileInput.value = ''; }
+  // Reset right panel to empty state
+  const rightPanel = document.getElementById('right-panel');
+  if (rightPanel) {
+    rightPanel.innerHTML = '<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Upload a document to get started.</div><div class="empty-sub">PDF, TXT, or DOCX</div></div>';
+  }
+  document.getElementById('btn-process').style.display = 'flex';
+  document.getElementById('btn-process').disabled = false;
+}
+
+/**
+ * Switch the interface to text-input mode, scrolling to and focusing the
+ * paste textarea for the user to enter document content manually.
+ */
+function switchToTextInput() {
+  // Attempt to activate a dedicated text-mode tab if one exists
+  const textTab = document.querySelector('[data-tab="text"]') || document.getElementById('tab-text') || document.getElementById('paste-tab');
+  if (textTab) { textTab.click(); return; }
+  // Fallback: scroll to and focus any textarea on the page
+  const textarea = document.querySelector('textarea');
+  if (textarea) { textarea.scrollIntoView({ behavior: 'smooth' }); textarea.focus(); }
+  showToast('Paste your document text below');
+}
+
+// ── Multi-file queue processing ──────────────────────────────────────────────
+
+/**
+ * Process all queued files sequentially. For each file, POST to /api/upload,
+ * poll for quiz readiness, and collect results. After all files are processed,
+ * render individual summaries or a final multi-file results view.
+ *
+ * @returns {Promise<void>}
+ */
+async function processMultiQueue() {
+  _multiQueue = [...uploadedFiles];
+  _multiResults = [];
+  _multiAllData = [];
+  _multiCurrent = 0;
+  document.getElementById('btn-process').disabled = true;
+  document.getElementById('btn-rescan').style.display = 'none';
+
+  for (let i = 0; i < _multiQueue.length; i++) {
+    _multiCurrent = i;
+    const file = _multiQueue[i];
+    showMultiProgress(i, _multiQueue.length, file.name);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+      const token = localStorage.getItem('token') || '';
+
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Upload failed');
+
+      // Poll for quiz if needed
+      if (data.quizJobId && !data.quizReady) {
+        data.quizData = await pollQuizReady(data.quizJobId);
+        data.quizReady = true;
+      }
+
+      data._fileName = file.name.replace(/\.[^/.]+$/, '');
+      _multiAllData.push(data);
+      _multiResults.push({ title: data._fileName, historyId: data.historyId, success: true });
+    } catch (err) {
+      _multiResults.push({ title: file.name.replace(/\.[^/.]+$/, ''), historyId: null, success: false, error: err.message });
+    }
+  }
+
+  if (_multiAllData.length) {
+    _multiMode = true;
+    _multiIndex = 0;
+    showMultiFileSummary(0);
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+    var btnQuiz = document.getElementById('btn-quiz');
+    if (btnQuiz) btnQuiz.style.display = 'none';
+  } else {
+    showMultiComplete();
+  }
+}
+
+
+
+/**
+ * Render a progress panel in the right panel showing the current file being
+ * processed out of the total queue, with a progress bar and live result list.
+ *
+ * @param {number} current  0-based index of the file being processed
+ * @param {number} total    Total number of files in the queue
+ * @param {string} filename Name of the file currently being processed
+ */
+function showMultiProgress(current, total, filename) {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  panel.innerHTML = `
+    <div style="padding:40px;max-width:600px;margin:0 auto">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">
+        Processing ${current + 1} of ${total}
+      </div>
+      <div style="font-family:var(--serif);font-size:28px;color:var(--cream);margin-bottom:8px">
+        ${escapeHtml(filename)}
+      </div>
+      <div style="font-size:13px;color:var(--cream-40);margin-bottom:32px">Generating summary and quiz…</div>
+      <div style="background:var(--border);border-radius:4px;height:3px;overflow:hidden">
+        <div style="height:100%;background:var(--gold);border-radius:4px;width:${Math.round(((current) / total) * 100)}%;transition:width 0.5s ease"></div>
+      </div>
+      <div style="margin-top:32px;display:flex;flex-direction:column;gap:10px">
+        ${_multiResults.map(r => `
+          <div style="display:flex;align-items:center;gap:10px;font-size:13px;color:var(--cream-60)">
+            <span style="color:${r.success ? 'var(--green)' : 'var(--red)'}">
+              ${r.success ? '✓' : '✗'}
+            </span>
+            ${escapeHtml(r.title)}
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * Display the summary for a specific file from the multi-queue results.
+ * Saves the history ID and quiz data to localStorage for cross-page access.
+ *
+ * @param {number} idx  Index into _multiAllData
+ */
+function showMultiFileSummary(idx) {
+  var doc = _multiAllData[idx];
+  if (!doc) return;
+  if (doc.historyId) localStorage.setItem('currentHistoryId', doc.historyId);
+  if (doc.quizData && doc.quizData.length) localStorage.setItem('currentQuiz', JSON.stringify(doc.quizData));
+  showSummary(doc);
+}
+
+/**
+ * Advance to the next file in the multi-queue results, or show the final
+ * aggregated results page when all files have been reviewed.
+ */
+function _multiNextFile() {
+  _multiIndex++;
+  if (_multiIndex < _multiAllData.length) {
+    showMultiFileSummary(_multiIndex);
+  } else {
+    showMultiFinalResults();
+  }
+}
+
+/**
+ * Render the final aggregated results for all files in the multi-queue.
+ * Fetches detailed per-file results (score, strengths, weaknesses, question
+ * breakdown) from the backend and presents them in a scrollable comparison view.
+ *
+ * @returns {Promise<void>}
+ */
+async function showMultiFinalResults() {
+  _multiMode = false;
+  document.getElementById('btn-quiz').style.display = 'none';
+
+  // Fetch full results from API for each file
+  var token = localStorage.getItem('token') || '';
+  var allData = [];
+  for (var i = 0; i < _multiAllData.length; i++) {
+    var d = _multiAllData[i];
+    if (d.historyId) {
+      try {
+        var res = await fetch('/api/results?id=' + encodeURIComponent(d.historyId), {
+          headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (res.ok) {
+          var rd = await res.json();
+          allData.push(rd);
+          continue;
+        }
+      } catch (_) {}
+    }
+    allData.push(null);
+  }
+
+  var sectionsHtml = allData.map(function(rd, idx){
+    var d = _multiAllData[idx];
+    var fileName = d ? d._fileName || '' : 'File ' + (idx + 1);
+    if (!rd) {
+      var s = JSON.parse(localStorage.getItem('_multiSaved_' + idx) || '{}');
+      return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
+        '<div class="results-header" style="padding:0;margin-bottom:20px;gap:24px">' +
+          '<div><div class="rh-tag" style="margin-bottom:4px">File ' + (idx + 1) + '</div>' +
+          '<div class="rh-title" style="font-size:16px">' + escapeHtml(fileName) + '</div></div>' +
+          '<div class="score-wrap" style="flex-shrink:0">' +
+            '<svg width="90" height="90" viewBox="0 0 110 110">' +
+              '<circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>' +
+              '<circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="0" transform="rotate(-90 55 55)"/>' +
+              '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor" font-weight="600">' + (s.score || 0) + '%</text>' +
+            '</svg>' +
+            '<div class="ring-label" style="font-size:11px">' + (s.correct || 0) + ' of ' + (s.total || 8) + ' correct</div>' +
+          '</div></div>' +
+        '<div style="text-align:center"><span style="font-size:13px;color:var(--cream-40)">No detailed results available</span></div></div>';
+    }
+    var an = rd.analysis || {};
+    var pct = rd.score || 0;
+    var correct = rd.correct || 0;
+    var total = rd.total || (rd.quizFull ? rd.quizFull.length : 8);
+    var questions = rd.quizFull || [];
+    var userAnswers = rd.userAnswers || [];
+
+    var fbPanels =
+      '<div class="fb-panel strength">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-s"></span><span class="fb-title">Strengths</span></div>' +
+        '<div class="tag-cloud">' + (an.strengths || []).map(function(s){ return '<span class="badge badge-green">' + escapeHtml(s) + '</span>'; }).join('') + '</div>' +
+      '</div>' +
+      '<div class="fb-panel weakness">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-w"></span><span class="fb-title">Needs work</span></div>' +
+        '<div class="tag-cloud">' + (an.weaknesses || []).map(function(s){ return '<span class="badge badge-red">' + escapeHtml(s) + '</span>'; }).join('') + '</div>' +
+      '</div>' +
+      '<div class="fb-panel">' +
+        '<div class="fb-head"><span class="fb-dot fb-dot-r"></span><span class="fb-title">Study next</span></div>' +
+        '<div class="tag-cloud">' + (an.studyNext || []).map(function(s){ return '<span class="badge badge-gold">' + escapeHtml(s) + '</span>'; }).join('') + '</div>' +
+      '</div>';
+
+    var qList = questions.map(function(q, qi){
+      var chosen = userAnswers[qi];
+      var isCorrect = chosen === q.correct;
+      var yourAnswer = chosen !== undefined ? (q.opts[chosen] || 'No answer') : 'No answer';
+      var correctAnswer = q.opts[q.correct] || '';
+      return '<div class="q-item ' + (isCorrect ? 'correct' : 'wrong') + '">' +
+        '<div class="q-row"><span class="q-mark ' + (isCorrect ? 'c' : 'w') + '">' + (isCorrect ? '✓' : '✗') + '</span><span class="q-text">' + escapeHtml(q.q) + '</span></div>' +
+        '<div class="q-ans">Your answer: ' + escapeHtml(yourAnswer) + (!isCorrect && correctAnswer ? ' &nbsp;·&nbsp; <span class="q-ans-wrong">Correct: ' + escapeHtml(correctAnswer) + '</span>' : '') + '</div>' +
+      '</div>';
+    }).join('');
+
+    var ringOffset = 251.2 - (pct / 100) * 251.2;
+    return '<div style="margin-bottom:48px;padding-bottom:32px;border-bottom:1px solid var(--border)">' +
+      '<div class="results-header" style="padding:0;margin-bottom:20px;gap:24px">' +
+        '<div><div class="rh-tag" style="margin-bottom:4px">File ' + (idx + 1) + '</div>' +
+        '<div class="rh-title" style="font-size:16px">' + escapeHtml(fileName) + '</div>' +
+        '<div class="rh-doc" style="margin-top:2px">' + escapeHtml(rd.title || '') + ' · ' + total + ' questions</div></div>' +
+        '<div class="score-wrap" style="flex-shrink:0">' +
+          '<svg width="90" height="90" viewBox="0 0 110 110">' +
+            '<circle cx="55" cy="55" r="40" fill="none" stroke="var(--border)" stroke-width="7"/>' +
+            '<circle cx="55" cy="55" r="40" fill="none" stroke="#C8B89A" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2" stroke-dashoffset="' + ringOffset + '" transform="rotate(-90 55 55)" style="transition:stroke-dashoffset 1s ease"/>' +
+            '<text x="55" y="55" text-anchor="middle" dominant-baseline="central" font-family="DM Serif Display,serif" font-size="22" fill="currentColor" font-weight="600">' + pct + '%</text>' +
+          '</svg>' +
+          '<div class="ring-label">' + correct + ' of ' + total + ' correct</div>' +
+        '</div></div>' +
+      '<div class="feedback-panels" style="margin-bottom:24px">' + fbPanels + '</div>' +
+      '<div class="section-label">Question breakdown</div>' +
+      '<div class="q-list">' + qList + '</div></div>';
+  }).join('');
+
+  var panel = document.getElementById('right-panel');
+  if (!panel) return;
+  panel.innerHTML = '<div style="padding:36px 40px;max-width:720px;margin:0 auto">' +
+    '<div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">All files complete</div>' +
+    sectionsHtml +
+    '<div class="bottom-actions" style="text-align:center;padding-top:8px">' +
+      '<button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>' +
+      '<a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>' +
+    '</div></div>';
+
+  var curtain = document.getElementById('curtain-panel');
+  if (curtain) {
+    curtain.innerHTML = panel.innerHTML;
+    requestAnimationFrame(function(){ curtain.classList.add('curtain-visible'); });
+  }
+}
+
+/**
+ * Render a simple "All done" completion panel when all files have been
+ * processed but none yielded usable summary data (e.g. all failed).
+ */
+function showMultiComplete() {
+  const panel = document.getElementById('right-panel');
+  if (!panel) return;
+  const succeeded = _multiResults.filter(r => r.success).length;
+  panel.innerHTML = `
+    <div style="padding:40px;max-width:600px;margin:0 auto">
+      <div style="font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);margin-bottom:24px">
+        All done
+      </div>
+      <div style="font-family:var(--serif);font-size:32px;color:var(--cream);margin-bottom:8px">
+        ${succeeded} of ${_multiResults.length} processed.
+      </div>
+      <div style="font-size:13px;color:var(--cream-40);margin-bottom:32px">
+        Your documents are saved to history. Take a quiz on any of them.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:32px">
+        ${_multiResults.map(r => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border:0.5px solid var(--border);border-radius:var(--radius)">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:16px">${r.success ? '✓' : '✗'}</span>
+              <span style="font-size:13px;color:var(--cream-60)">${escapeHtml(r.title)}</span>
+            </div>
+            ${r.success && r.historyId ? `
+              <a href="/results.html?id=${r.historyId}" style="font-size:12px;color:var(--gold);text-decoration:none">
+                Take quiz →
+              </a>
+            ` : `<span style="font-size:12px;color:var(--red)">Failed</span>`}
+          </div>
+        `).join('')}
+      </div>
+      <button class="btn btn-secondary" onclick="resetUpload()" style="margin-right:10px">New upload</button>
+      <a href="/history.html" class="btn btn-primary" style="text-decoration:none">View history</a>
+    </div>
+  `;
+}
+
+/**
+ * Poll the backend quiz-status endpoint until the quiz generation job
+ * completes. Used in the multi-file queue path. Times out after 30
+ * attempts (90 seconds).
+ *
+ * @param {string} jobId  The quiz generation job ID
+ * @returns {Promise<object[]>}  Array of quiz questions, or empty on failure
+ */
+async function pollQuizReady(jobId) {
+  const token = localStorage.getItem('token') || '';
+  for (let i = 0; i < 30; i++) {
+    await new Promise(r => setTimeout(r, 3000));
+    try {
+      const res = await fetch('/api/upload/quiz-status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      const d = await res.json();
+      if (d.status === 'done') return d.quiz || [];
+      if (d.status === 'error') return [];
+    } catch (_) {}
+  }
+  return [];
+}
+
+/**
+ * Transition the left panel to a compact processing state showing the
+ * file name, type, and a "Processing…" badge while the upload request is
+ * in flight. The right panel is set to a loading spinner.
+ *
+ * @param {File}  file      The file being processed (or null for pasted text)
+ * @param {boolean} hasPaste Whether the upload source is pasted text
+ */
+function showCompactFileDuringProcessing(file, hasPaste) {
+  const panel = document.querySelector('.panel-left');
+  if(!panel)return;
+  setSummaryMode(true);
+  panel.classList.add('compact');
+  const sizeLabel = file ? (file.size < 1024 * 1024 ? Math.max(1, Math.round(file.size / 1024)) + ' KB' : (file.size / (1024 * 1024)).toFixed(1) + ' MB') : 'N/A';
+  const ext = file ? file.name.split('.').pop().toUpperCase() : 'TXT';
+  const name = file ? file.name : 'Pasted text';
+  const mount = document.getElementById('upload-summary-shell');
+  if(mount){
+    mount.innerHTML = '<div class="doc-info-card">'
+      + '<div class="file-icon-box" style="width:64px;height:72px;font-size:13px">' + ext + '</div>'
+      + '<div class="doc-info-main">'
+      +   '<div class="doc-info-name">' + name + '</div>'
+      +   '<div class="doc-info-meta">.' + ext.toLowerCase() + ' \u00b7 ' + sizeLabel + '</div>'
+      + '</div>'
+      + '<span class="badge badge-green" style="background:rgba(200,184,154,0.12);color:var(--gold)">Processing\u2026</span>'
+      + '</div>';
+  }
+  const compactName = document.getElementById('compact-file-name');
+  const compactIcon = document.getElementById('compact-file-icon');
+  const compactMeta = document.getElementById('compact-file-meta');
+  if(compactIcon) compactIcon.textContent = ext;
+  if(compactName) compactName.textContent = name;
+  if(compactMeta) compactMeta.textContent = 'Processing\u2026';
+  document.getElementById('upload-panel-label').textContent = 'Document info';
+  document.getElementById('right-panel').innerHTML = '<div class="loading-state"><div class="loading-shell"><div class="loading-label">Generating your summary</div><div class="loading-spinner"></div><div class="loading-text">This may take up to a minute\u2026</div></div></div>';
+}
+
+/**
+ * Main document processing entry point.
+ *
+ * Phase 1 — Single PPTX: Redirect to pptx-session.html for slide-by-slide study.
+ * Phase 2 — Multi-file: Dispatch to processMultiQueue().
+ * Phase 3 — Single file/text: POST to /api/upload, show summary immediately,
+ *            and poll for quiz on Mac 2 via pollForUploadQuiz().
+ *
  * @returns {Promise<void>}
  */
 async function processDocument() {
+  // Single PPTX file — redirect to pptx-session for slide-by-slide study
+  if (uploadedFiles.length === 1 && isPro()) {
+    var singleFile = uploadedFiles[0];
+    var ext = '.' + singleFile.name.split('.').pop().toLowerCase();
+    if (ext === '.ppt' || ext === '.pptx') {
+      document.getElementById('btn-process').disabled = true;
+      var pptxForm = new FormData();
+      pptxForm.append('file', singleFile);
+      try {
+        var pptxRes = await fetch('/api/pptx/upload', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('token') || '') },
+          body: pptxForm,
+        });
+        var pptxData = await pptxRes.json();
+        if (pptxRes.ok && pptxData.doc_id) {
+          window.location.href = 'pptx-session.html?doc=' + pptxData.doc_id;
+          return;
+        }
+      } catch (_) {}
+      showToast('PPTX upload failed, trying standard upload…');
+    }
+  }
+  // Multi-file: if Pro and more than 1 file, queue them all
+  if (isPro() && uploadedFiles.length > 1) {
+    await processMultiQueue();
+    return;
+  }
   // Phase 1: Set initial loading UI state.
-  showProcessingState();
+  localStorage.removeItem('currentQuiz');
   document.getElementById('btn-process').disabled = true;
   const file = uploadedFiles[0];
   const hasPaste = hasPastedText();
   const _token = localStorage.getItem('token') || '';
+  showCompactFileDuringProcessing(file, hasPaste);
 
   // Phase 2: Build FormData payload for file or pasted text.
   const formData = new FormData();
@@ -454,50 +994,72 @@ async function processDocument() {
   }
 
   // Phase 3: Run animated progress and network request in parallel.
+  // Progress animation — honest pacing, stays at 85% until summary returns
   let step = 0;
-  const progressMarks = [18, 42, 71, 100];
-  const animPromise = new Promise(function(resolve) {
-    processingTimer = setInterval(function() {
+  const progressMarks = [12, 35, 60, 85];
+  updateProcessingState(progressMarks[0], 0);  // show 12% immediately
+  processingTimer = setInterval(function() {
+    if (step < progressMarks.length - 1) {
       step++;
-      updateProcessingState(progressMarks[Math.min(step, progressMarks.length - 1)], step);
-      if (step >= progressMarks.length - 1) {
-        clearInterval(processingTimer);
-        processingTimer = null;
-        resolve();
-      }
-    }, 520);
-  });
+      updateProcessingState(progressMarks[step], step);
+    }
+    // stays at 85% — never hits 100 until fetch actually completes
+  }, 25000);  // advance every 25s — realistic for a 90s summary
+
   const fetchPromise = fetch('/api/upload', {
     method: 'POST',
     headers: { 'Authorization': 'Bearer ' + _token },
     body: formData
   });
 
+  // Phase 4: Wait for summary (not quiz) — show it immediately when ready
   try {
-    // Phase 4: Validate response and update app state.
-    const results = await Promise.all([animPromise, fetchPromise]);
-    const fetchRes = results[1];
+    const fetchRes = await fetchPromise;
+    clearInterval(processingTimer);
+    processingTimer = null;
+
     const data = await fetchRes.json();
+
     if (fetchRes.status === 401 || fetchRes.status === 403) {
       localStorage.removeItem('token');
       window.location.href = 'index.html';
       return;
     }
-    if (!fetchRes.ok) throw new Error(data.detail || data.message || 'Upload failed');
+    if (!fetchRes.ok) {
+      if (fetchRes.status === 422 && data.error === 'unreadable_pdf') {
+        document.getElementById('btn-process').disabled = false;
+        showPdfReadError(data);
+        return;
+      }
+      throw new Error(data.detail || data.message || 'Upload failed');
+    }
 
-    // Persist IDs so quiz/results pages can continue flow.
+    // Phase 5: Show summary immediately — don't wait for quiz
     if (data.historyId) localStorage.setItem('currentHistoryId', data.historyId);
-    if (data.quizData) localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
 
-    // Phase 5: Transition to summary and reveal next actions.
-    setTimeout(function() {
-      showSummary(data);
-      document.getElementById('btn-rescan').style.display = 'flex';
-      document.getElementById('btn-quiz').style.display = 'flex';
-      document.getElementById('btn-process').style.display = 'none';
-    }, 260);
+    showSummary(data);
+    document.getElementById('btn-rescan').style.display = 'flex';
+    document.getElementById('btn-process').style.display = 'none';
+
+    const btnQuiz = document.getElementById('btn-quiz');
+
+    // If quiz is already ready (legacy path), enable immediately
+    if (data.quizReady && data.quizData && data.quizData.length) {
+      localStorage.setItem('currentQuiz', JSON.stringify(data.quizData));
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Start quiz →';
+    } else if (data.quizJobId) {
+      // Quiz is generating on Mac 2 — show pending state and poll
+      btnQuiz.style.display = 'flex';
+      btnQuiz.disabled = true;
+      btnQuiz.textContent = 'Quiz generating…';
+      pollForUploadQuiz(data.quizJobId, data.historyId, btnQuiz);
+    } else {
+      btnQuiz.style.display = 'none';
+    }
+
   } catch (e) {
-    // Phase 6: Reset actionable UI and show fallback error state.
     clearInterval(processingTimer);
     processingTimer = null;
     document.getElementById('btn-process').disabled = false;
@@ -506,8 +1068,59 @@ async function processDocument() {
   }
 }
 
+// ── Poll for quiz from Mac 2 ───────────────────────────────────────────────
+
 /**
- * Render right-panel processing skeleton and progress placeholders.
+ * Poll the quiz-status endpoint while the quiz is being generated on the
+ * Mac 2 worker. Updates the quiz button from "Quiz generating…" to
+ * "Start quiz →" once ready. Times out after 80 attempts (~4 minutes).
+ *
+ * @param {string}   jobId     Quiz generation job ID from Mac 2
+ * @param {string}   historyId History item ID for quiz persistence
+ * @param {Element}  btnQuiz   The DOM element for the start-quiz button
+ */
+function pollForUploadQuiz(jobId, historyId, btnQuiz) {
+  var attempts = 0;
+  var interval = setInterval(async function() {
+    attempts++;
+    if (attempts > 80) {  // 80 × 3s = 4 min timeout
+      clearInterval(interval);
+      btnQuiz.disabled = false;
+      btnQuiz.textContent = 'Quiz unavailable';
+      showToast('Quiz generation timed out — try re-uploading');
+      return;
+    }
+    try {
+      var token = localStorage.getItem('token') || '';
+      var res = await fetch('/api/upload/quiz-status/' + jobId, {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      var data = await res.json();
+      if (data.status === 'done' && data.quiz && data.quiz.length) {
+        clearInterval(interval);
+        setQuizData(data.quiz);
+        localStorage.setItem('currentQuiz', JSON.stringify(quizData));
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Start quiz →';
+        if (!quizMode && currentDoc && currentDoc.summary) showSummary(currentDoc);
+        showToast('Quiz ready — ' + data.quiz.length + ' questions generated');
+      } else if (data.status === 'error') {
+        clearInterval(interval);
+        btnQuiz.disabled = false;
+        btnQuiz.textContent = 'Quiz failed — retry';
+        showToast('Quiz generation failed: ' + (data.error || 'unknown error'));
+      }
+      // still pending — keep polling
+    } catch (err) {
+      // network hiccup — keep polling
+    }
+  }, 3000);
+}
+
+/**
+ * Render right-panel processing skeleton with a multi-step progress tracker.
+ * Uses window.LN (if available) for animated panel transitions, otherwise
+ * falls back to direct innerHTML assignment.
  */
 function showProcessingState() {
   const html = `
@@ -531,9 +1144,11 @@ function showProcessingState() {
 }
 
 /**
- * Update progress bar, label, and active processing step state.
- * @param {number} progress
- * @param {number} activeIndex
+ * Update the progress bar width, percentage label, step description, and
+ * the active/done visual state of each processing step in the loading UI.
+ *
+ * @param {number} progress     Percentage (0–100) for the bar width
+ * @param {number} activeIndex  Index of the currently active step label
  */
 function updateProcessingState(progress, activeIndex) {
   const labels = [
@@ -555,25 +1170,59 @@ function updateProcessingState(progress, activeIndex) {
 }
 
 /**
- * Render generated summary and prepare quiz entrypoint controls.
- * @param {object} data
+ * Render the generated summary panel in the right content area and prepare
+ * the quiz entry-point controls. Supports multi-mode file header display
+ * and uses window.LN for animated transitions when available.
+ *
+ * @param {object} data  Document payload containing .summary, .quizData, etc.
  */
 function showSummary(data) {
   currentDoc = Object.assign({}, data, { done: false, score: null, correct: null });
-  quizData = data.quizData || data.quizFull || [];
+  setQuizData(data.quizData || data.quizFull || []);
   setSummaryMode(true);
   renderDocumentInfo();
-  const summaryHTML = `<div class="summary-panel">${renderSummaryMarkup(currentDoc, { ctaLabel: 'Take quiz →', ctaHandler: 'startQuiz()', ctaHint: quizData.length + ' questions ready' })}</div>`;
+  const quizReady = quizData.length > 0;
+  var multiHeader = '';
+  if (_multiMode) {
+    multiHeader = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;padding-bottom:16px;border-bottom:0.5px solid var(--border)">' +
+      '<span style="font-size:11px;letter-spacing:1px;text-transform:uppercase;color:var(--gold);background:rgba(200,184,154,0.1);padding:3px 10px;border-radius:4px">File ' + (_multiIndex + 1) + ' of ' + _multiAllData.length + '</span>' +
+      '<span style="font-size:14px;color:var(--cream-40)">' + escapeHtml(data._fileName || '') + '</span>' +
+    '</div>';
+  }
+  const summaryHTML = multiHeader + `<div class="summary-panel">${renderSummaryMarkup(currentDoc, {
+    ctaLabel: quizReady ? 'Take quiz →' : 'Quiz generating…',
+    ctaHandler: quizReady ? 'startQuiz()' : "showToast('Quiz is still generating — this will update automatically')",
+    ctaHint: quizReady ? quizData.length + ' questions ready' : 'Quiz still generating'
+  })}</div>`;
   if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), summaryHTML, 'backward');
   else document.getElementById('right-panel').innerHTML = summaryHTML;
+  const curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.innerHTML = summaryHTML;
+    requestAnimationFrame(() => curtain.classList.add('curtain-visible'));
+  }
   syncCompactFile();
 }
 
 /* ── Quiz Engine ────────────────────────────────────────────────────────────── */
+
 /**
- * Start quiz mode and render first question.
+ * Initialise quiz mode, reset answer tracking, collapse the upload panel,
+ * and render the first question. Falls back to localStorage if quizData
+ * hasn't been populated yet.
  */
 function startQuiz() {
+  if (!quizData.length) {
+    try {
+      setQuizData(JSON.parse(localStorage.getItem('currentQuiz') || '[]'));
+    } catch (_) {
+      setQuizData([]);
+    }
+  }
+  if (!quizData.length) {
+    showToast('Quiz is still generating — please wait a moment');
+    return;
+  }
   quizMode = true; currentQ = 0; answers = []; answered = false;
   document.getElementById('btn-quiz').style.display = 'none';
   setUploadCollapsed(true);
@@ -581,12 +1230,21 @@ function startQuiz() {
 }
 
 /**
- * Render active quiz question panel.
- * @param {'forward'|'backward'} [direction='forward']
+ * Render the current quiz question inside the right panel (or curtain).
+ * Shows progress bar, question text, A/B/C/D options, and navigation
+ * (skip / next). Supports animated transitions via window.LN.
+ *
+ * @param {'forward'|'backward'} [direction='forward']  Transition direction
  */
 function renderQuestion(direction='forward') {
   answered = false;
   const q = quizData[currentQ];
+  if (!q) {
+    quizMode = false;
+    showToast('Quiz is not ready yet');
+    showSummary(currentDoc);
+    return;
+  }
   const pct = Math.round((currentQ/quizData.length)*100);
   const html = `
     <div class="quiz-container">
@@ -607,13 +1265,25 @@ function renderQuestion(direction='forward') {
         </button>
       </div>
     </div>`;
-  if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, direction);
-  else document.getElementById('right-panel').innerHTML = html;
+  var panel = document.getElementById('curtain-panel');
+  if(panel && panel.classList.contains('curtain-visible')){
+    panel.innerHTML = html;
+  }else{
+    if (window.LN) window.LN.swapPanelContent(document.getElementById('right-panel'), html, direction);
+    else document.getElementById('right-panel').innerHTML = html;
+    if(panel){
+      panel.innerHTML = html;
+      requestAnimationFrame(() => panel.classList.add('curtain-visible'));
+    }
+  }
 }
 
 /**
- * Record selected answer and show immediate feedback.
- * @param {number} i
+ * Record the user's selected answer index, visually highlight correct/wrong
+ * options, disable further clicks on this question, and reveal the explanation
+ * feedback. Also toggles the "Next" button visibility.
+ *
+ * @param {number} i  Index of the selected option (0–3)
  */
 function selectAnswer(i) {
   if (answered) return;
@@ -633,7 +1303,8 @@ function selectAnswer(i) {
 }
 
 /**
- * Skip current question and continue quiz flow.
+ * Skip the current question by recording a sentinel answer (chosen: -1)
+ * and advancing to the next question or results.
  */
 function skipQuestion() {
   answers.push({ chosen: -1, correct: quizData[currentQ].correct });
@@ -641,7 +1312,8 @@ function skipQuestion() {
 }
 
 /**
- * Move to next question or finish quiz when completed.
+ * Advance to the next question in the quiz, or render the final results
+ * panel when all questions have been answered.
  */
 function nextQuestion() {
   currentQ++;
@@ -650,8 +1322,16 @@ function nextQuestion() {
 }
 
 /* ── Results and Persistence ───────────────────────────────────────────────── */
+
 /**
- * Render quiz results and persist answer summary to history endpoint.
+ * Render the quiz results panel showing the score ring, per-question
+ * correct/wrong indicators, and persistence controls.
+ *
+ * Phase 1: Calculate score and render result UI (score ring + question list).
+ * Phase 2: Build per-question details for persistence.
+ * Phase 3: POST answers to /api/history/:id/submit-quiz to persist results.
+ * Phase 4: Fallback to local results view if backend save fails.
+ *
  * @returns {Promise<void>}
  */
 async function showQuizResults() {
@@ -684,16 +1364,32 @@ async function showQuizResults() {
       <button class="btn btn-primary" id="btn-full-results" disabled>Saving…</button>
     </div>
     </div>`;
-  if (window.LN) {
-    window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
-    setTimeout(() => {
-      const panel = document.getElementById('right-panel');
-      window.LN.revealSequence(panel.querySelectorAll('.result-step'), 110);
-      const ring = panel.querySelector('circle[stroke="var(--gold)"]');
-      if (ring) window.LN.animateScoreRing(ring, pct);
+  var curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.innerHTML = html;
+    if(!curtain.classList.contains('curtain-visible')){
+      requestAnimationFrame(() => curtain.classList.add('curtain-visible'));
+    }
+    setTimeout(function(){
+      var steps = curtain.querySelectorAll('.result-step');
+      var ring = curtain.querySelector('circle[stroke="var(--gold)"]');
+      if(window.LN){
+        window.LN.revealSequence(steps, 110);
+        if(ring) window.LN.animateScoreRing(ring, pct);
+      }
     }, 220);
-  } else {
-    document.getElementById('right-panel').innerHTML = html;
+  }else{
+    if (window.LN) {
+      window.LN.swapPanelContent(document.getElementById('right-panel'), html, 'forward');
+      setTimeout(function() {
+        var p = document.getElementById('right-panel');
+        window.LN.revealSequence(p.querySelectorAll('.result-step'), 110);
+        var r = p.querySelector('circle[stroke="var(--gold)"]');
+        if(r) window.LN.animateScoreRing(r, pct);
+      }, 220);
+    } else {
+      document.getElementById('right-panel').innerHTML = html;
+    }
   }
 
   // Phase 2: Build per-question details for persistence.
@@ -726,27 +1422,56 @@ async function showQuizResults() {
     }
     const btn = document.getElementById('btn-full-results');
     if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+      if (_multiMode) {
+        var nextLabel = 'Next file →';
+        if (_multiIndex >= _multiAllData.length - 1) nextLabel = 'View final results →';
+        btn.textContent = nextLabel;
+        btn.disabled = false;
+        btn.onclick = function() { _multiNextFile(); };
+        localStorage.setItem('_multiSaved_' + _multiIndex, JSON.stringify({
+          score: pct, correct: correctCount, total: quizData.length,
+          weaknesses: [], strengths: ['Quiz completed']
+        }));
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Full results →';
+        btn.onclick = function() { window.location.href = 'results.html?id=' + savedId; };
+      }
     }
     showToast('Quiz complete — ' + pct + '% saved');
   } catch (e) {
     // Phase 4: Fallback to local results view when backend save fails.
     const btn = document.getElementById('btn-full-results');
     if (btn) {
-      btn.disabled = false;
-      btn.textContent = 'Full results →';
-      btn.onclick = function() { window.location.href = 'results.html'; };
+      if (_multiMode) {
+        var nextLabel = 'Next file →';
+        if (_multiIndex >= _multiAllData.length - 1) nextLabel = 'View final results →';
+        btn.textContent = nextLabel;
+        btn.disabled = false;
+        btn.onclick = function() { _multiNextFile(); };
+        localStorage.setItem('_multiSaved_' + _multiIndex, JSON.stringify({
+          score: pct, correct: correctCount, total: quizData.length,
+          weaknesses: [], strengths: ['Quiz completed']
+        }));
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Full results →';
+        btn.onclick = function() { window.location.href = 'results.html'; };
+      }
     }
     showToast('Quiz complete — ' + pct + '%');
   }
 }
 
 /**
- * Reset upload workspace and clear transient quiz/processing state.
+ * Fully reset the upload workspace: clear multi-queue state, uploaded files,
+ * paste area, all transient quiz/processing timers, and restore the right
+ * panel to the initial empty-state view.
  */
 function resetUpload() {
+  _multiMode = false;
+  _multiIndex = 0;
+  for (var i = 0; i < 10; i++) localStorage.removeItem('_multiSaved_' + i);
   if (processingTimer) {
     clearInterval(processingTimer);
     processingTimer = null;
@@ -758,15 +1483,24 @@ function resetUpload() {
   document.getElementById('btn-process').style.display = 'none'; document.getElementById('btn-process').disabled = false;
   quizMode = false;
   resumedSession = false;
+  localStorage.removeItem('currentQuiz');
   currentDoc = { title: '', fileType: 'TXT', pageCount: 1, done: false, score: null, correct: null, total: 8 };
   quizData = [];
   setSummaryMode(false);
   setUploadCollapsed(false);
   document.getElementById('right-panel').innerHTML = `<div class="empty-state"><svg class="empty-icon" width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.1"><path d="M10 6h14l8 8v22H10V6z"/><path d="M24 6v8h8"/><path d="M14 18h12M14 24h12M14 30h8"/></svg><div class="empty-text">Your summary will appear here.</div><div class="empty-sub">Upload a document or paste text to begin.</div></div>`;
+  const curtain = document.getElementById('curtain-panel');
+  if(curtain){
+    curtain.classList.remove('curtain-visible');
+    setTimeout(() => { curtain.innerHTML = ''; }, 500);
+  }
 }
 
 /**
- * Resume summary/quiz flow from history item in query params.
+ * Resume the summary/quiz flow from a history item passed via URL query
+ * params (?resume=ID&mode=summary|quiz). Fetches the full history record
+ * from the backend, restores quiz data, and optionally auto-starts the quiz.
+ *
  * @returns {Promise<void>}
  */
 async function loadResumedQuizFlow() {
@@ -800,10 +1534,11 @@ async function loadResumedQuizFlow() {
 
     // Store IDs so showQuizResults can submit the quiz
     localStorage.setItem('currentHistoryId', resumeId);
-    if (item.quizFull) localStorage.setItem('currentQuiz', JSON.stringify(item.quizFull));
+    const resumedQuiz = item.quizFull || item.quizData || [];
+    if (resumedQuiz.length) localStorage.setItem('currentQuiz', JSON.stringify(resumedQuiz));
 
     resumedSession = true;
-    const qLen = (item.quizFull || []).length;
+    const qLen = resumedQuiz.length;
     currentDoc = {
       ...item,
       id: resumeId,      // keep id aligned with legacy getResumeQuizUrl helper
@@ -812,7 +1547,7 @@ async function loadResumedQuizFlow() {
       correct: null,
       total: qLen || item.total || 8
     };
-    quizData = item.quizFull || [];
+    setQuizData(resumedQuiz);
 
     if (!quizData.length) {
       console.error('[quiz] No quiz data found for history item:', resumeId);
@@ -843,6 +1578,12 @@ async function loadResumedQuizFlow() {
 }
 
 /* ── Page Bootstrap ─────────────────────────────────────────────────────────── */
+
+/**
+ * On DOMContentLoaded, initialise the upload UI (plan tier gate, accept
+ * attributes), sync the compact file status, and check for a ?resume= query
+ * param to restore a previous session.
+ */
 document.addEventListener('DOMContentLoaded', () => {
   updateUploadUI();
   syncCompactFile();

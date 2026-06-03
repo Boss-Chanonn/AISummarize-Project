@@ -1,18 +1,14 @@
 # Learnova — AI Development Log
-Last updated: 2026-05-14
+Last updated: 2026-06-01
 
 ## CRITICAL RULES FOR ALL AI AGENTS
-1. NEVER modify .css files
-2. NEVER modify frontend/js/app.js
-3. NEVER modify frontend/js/animations.js
-4. NEVER modify frontend/js/mock-api.js
-5. NEVER hardcode credentials
-6. ALWAYS read this file before starting
-7. ALWAYS update this file after finishing
-8. If unsure → STOP and ASK user
-9. ALWAYS refactor code to beginner-friendly style: clear naming, simple flow, clean grouping, and easy-to-read structure
+1. NEVER hardcode credentials
+2. ALWAYS read this file before starting
+3. ALWAYS update this file after finishing
+4. If unsure → STOP and ASK user
+5. ALWAYS refactor code to beginner-friendly style: clear naming, simple flow, clean grouping, and easy-to-read structure
 
-NOTE: .html files CAN be modified (owner approved on 2026-04-20)
+NOTE: .html files CAN be modified (owner approved on 2026-04-20). As of 2026-06-01, .css files and frontend/js/app.js can also be modified (owner approved). Do NOT modify frontend/js/animations.js or frontend/js/mock-api.js.
 
 ## Project Overview
 - Name     : Learnova
@@ -87,12 +83,13 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
   ✅ History page: Summary button + modal (re-read AI summaries)
   ✅ Ollama timeout: 300s (no more ReadTimeout on large documents)
 
-## Still Missing / Not Yet Built
-  ❌ admin.html frontend page (admin.py backend exists) → split into admin-users.html, admin-stats.html, admin-history.html ✅
+## Milestone Completion
+  ✅ admin.html frontend page → split into admin-users.html, admin-stats.html, admin-history.html (2026-05-01)
   ✅ sysadmin.html frontend page → created as system-admin.html (2026-05-12)
   ✅ Plan & Billing page (Pro upgrade flow) — completed 2026-04-29
-  ❌ PUT /api/auth/profile (update name/phone)
-  ❌ PUT /api/auth/password (change password)
+  ✅ PUT /api/auth/profile — implemented at backend/routes/auth.py:135
+  ✅ PUT /api/auth/password — implemented at backend/routes/auth.py:148
+  ✅ Calendar Integration (Google/Outlook/Apple) — completed 2026-06-01
 
 ## Docker
   docker-compose up --build -d   ← use --build when requirements.txt changes
@@ -312,9 +309,74 @@ Cards: 6 total — Total Users, Active Users, Pro Users, Total Uploads, Quizzes,
 Active Users: users who uploaded in the last 30 days (distinct userId in history)
 Auth: JWT guard + role revalidation via /api/auth/profile on every page load
 
+### Calendar Integration — 2026-06-01 ✅
+
+**Status:** Completed — Multi-calendar integration with Google Calendar, Outlook Calendar, and Apple Calendar (.ics).
+
+**Files Created:**
+- `backend/routes/calendar.py` — OAuth flow, event creation, connection management, .ics generation
+- `backend/services/calendar_service.py` — Google Calendar API (OAuth2 + event creation), Outlook/Microsoft Graph API (OAuth2 + event creation), Apple Calendar (.ics file generation)
+
+**Files Modified:**
+- `backend/models/user.py` — added `CalendarConnection`, `CalendarEvent`, `CalendarStatus` models
+- `backend/main.py` — registered `calendar_router` at prefix `/api/calendar`
+- `.env` — added `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `OUTLOOK_CLIENT_ID`, `OUTLOOK_CLIENT_SECRET`, `OUTLOOK_REDIRECT_URI`
+- `frontend/module.html` — replaced mock calendar modal with real connection-aware UI showing connect/disconnect/schedule per provider
+- `frontend/js/config.js` — added `apiBaseUrl` to module config
+
+**API Routes Added:**
+| Method | Route | Description |
+|--------|-------|-------------|
+| GET  | /api/calendar/status | Return connection status for all 3 providers |
+| GET  | /api/calendar/google/auth | Get Google OAuth authorization URL |
+| GET  | /api/calendar/google/callback | Google OAuth redirect handler (saves tokens, redirects to module.html) |
+| GET  | /api/calendar/outlook/auth | Get Outlook OAuth authorization URL |
+| GET  | /api/calendar/outlook/callback | Outlook OAuth redirect handler (saves tokens, redirects to module.html) |
+| POST | /api/calendar/apple/connect | Store Apple Calendar CalDAV email config |
+| GET  | /api/calendar/apple/ical | Generate .ics download file for Apple Calendar import |
+| POST | /api/calendar/events | Create calendar event on connected provider |
+| POST | /api/calendar/disconnect | Remove a connected provider from user account |
+
+**Architecture:**
+- OAuth state is stored in-memory (`_pending_oauth` dict) mapped to user's MongoDB `_id`
+- Tokens stored in user document under `calendar_connections` array (field per provider)
+- Token auto-refresh supported for Google and Outlook via refresh tokens
+- Google Calendar uses v3 API with `calendar.events` scope
+- Outlook uses Microsoft Graph API with `Calendars.ReadWrite` scope
+- Apple Calendar generates standard .ics file for manual import
+- When Google/Outlook credentials are empty in .env, connect button shows config instructions (graceful fallback)
+- Event duration defaults to 30 minutes from selected start time
+
+**User Flow:**
+1. Open module.html → click "Schedule" on a study resource
+2. Modal shows connection status: connected providers show email, unconnected show "Connect" button
+3. Click "Connect" → redirects to OAuth consent screen → authorizes → redirects back to module.html with toast
+4. Select connected provider → pick date/time → "Add to calendar"
+5. Backend creates real calendar event (Google/Outlook) or provides .ics download (Apple)
+6. Resource marked as scheduled locally
+
+## Frontend Polish — Curtain Effect & Responsive Sidebar (2026-06-01)
+
+**Curtain Effect (upload.html):**
+- Added `<div class="curtain-panel" id="curtain-panel">` in upload-layout after panel-right
+- CSS: grid-column:1/-1 overlay with `transform:translateX(100%)` sliding to `translateX(0)` via `.curtain-visible` class (0.5s cubic-bezier)
+- `showSummary()` populates curtain + slides it in (covers both panels like a curtain)
+- `renderQuestion()` populates curtain (already visible from summary)
+- `showQuizResults()` populates curtain
+- `resetUpload()` removes `.curtain-visible` + clears content after 500ms
+
+**Responsive Sidebar:**
+- All sidebar text labels wrapped in `<span class="sidebar-label">` (app.js and admin-sidebar.js)
+- Desktop (>1024px): full sidebar (unchanged)
+- Tablet (761–1024px): icon-only sidebar (64px wide, `.sidebar-label` hidden via `font-size:0` and `display:none`), hamburger button visible (opens overlay on mobile-style)
+- Mobile (<760px): sidebar hidden by default, hamburger button visible, clicking opens sidebar as fixed overlay (260px, slides from left with backdrop)
+- `toggleSidebar()` / `closeSidebar()` added to app.js and admin-sidebar.js
+- Hamburger button + backdrop added to all 13 HTML pages (dashboard, upload, module, results, history, billing, payment, confirm, pro, pptx-session, system-admin, admin-users, admin-stats, admin-history)
+
 ## Next Steps for Next AI Agent
 1. Read this PROGRESS.md first.
 2. Identify backend ownership by route prefix directly from `backend/main.py` router registration and corresponding files in `backend/routes/`.
 3. Backend refactor stages B1-B8 are complete; do not reopen old stage tasks unless a regression is found.
 4. If continuing backend work, start with a focused review or targeted bug fix, then rerun smoke checks for auth, billing, admin, and sysadmin routes.
 5. If moving to a new chat, ask the next agent to summarize current status from PROGRESS.md before editing code.
+6. Frontend polish (curtain effect + responsive sidebar) is complete. If doing CSS/JS work, note that css files and app.js can now be modified.
