@@ -38,6 +38,7 @@ from backend.database.db import client, token_blocklist_collection, system_logs_
 from backend.utils.rate_limit import limiter
 from dotenv import load_dotenv
 from datetime import datetime, timezone
+from http import HTTPStatus
 from jose import jwt as _jwt
 import json
 import os
@@ -186,6 +187,28 @@ async def _write_system_log(request: Request, status_code: int, user_email: str 
         "timestamp": datetime.now(timezone.utc),
     })
 
+
+def _status_label(status_code: int) -> str:
+    """Return a short HTTP status label for sanitized console access logs."""
+    try:
+        return HTTPStatus(status_code).phrase
+    except ValueError:
+        return ""
+
+
+def _print_sanitized_access_log(request: Request, status_code: int) -> None:
+    """Print request logs without query strings, tokens, or other URL secrets."""
+    path = request.url.path
+    status_text = _status_label(status_code)
+    client = request.client
+    client_addr = f"{client.host}:{client.port}" if client else "unknown:0"
+    http_version = request.scope.get("http_version", "1.1")
+    print(
+        f'INFO:     {client_addr} - "{request.method} {path} '
+        f'HTTP/{http_version}" {status_code} {status_text}'.rstrip()
+    )
+
+
 @app.middleware("http")
 async def log_activity(request: Request, call_next):
     """Log API requests for system-admin audit views after each response.
@@ -204,6 +227,7 @@ async def log_activity(request: Request, call_next):
     """
     user_email = await _resolve_log_user_email(request)
     response = await call_next(request)
+    _print_sanitized_access_log(request, response.status_code)
     # Only log API calls (not static files or frontend asset requests)
     if request.url.path.startswith("/api/"):
         try:

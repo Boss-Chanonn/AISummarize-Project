@@ -316,7 +316,6 @@ async def send_pro_welcome_email(user_email: str, user_name: str, plan_type: str
         True if the email was sent successfully.
     """
     html = _build_pro_welcome_email_html(user_name, plan_type)
-    label = "Monthly" if plan_type == "monthly" else "Yearly"
     subject = f"You're now a Learnova Pro, {user_name}! 🚀"
     return await _send_email(user_email, subject, html)
 
@@ -438,6 +437,7 @@ def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
     Returns:
         Complete HTML string.
     """
+    label = "Monthly" if plan_type == "monthly" else "Yearly"
     return f"""
 <!DOCTYPE html>
 <html>
