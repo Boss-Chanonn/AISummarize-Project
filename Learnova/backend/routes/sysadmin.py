@@ -16,6 +16,7 @@ _API_HEALTH_CATALOG = {
         {"method": "GET", "path": "/api/health"},
         {"method": "GET", "path": "/api/auth/health"},
         {"method": "POST", "path": "/api/auth/register"},
+        {"method": "POST", "path": "/api/auth/resend-verification"},
         {"method": "POST", "path": "/api/auth/login"},
         {"method": "POST", "path": "/api/auth/logout"},
         {"method": "GET", "path": "/api/auth/profile"},

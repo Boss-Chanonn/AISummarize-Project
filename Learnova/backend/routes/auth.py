@@ -67,6 +67,17 @@ def generate_verification_code() -> str:
     return str(random.randint(100000, 999999))
 
 
+def verification_expiry_time() -> datetime:
+    """Return the UTC expiry time for a newly issued verification code."""
+    return datetime.utcnow() + timedelta(hours=1)
+
+
+async def send_verification_code_email(email: str, name: str, code: str) -> bool:
+    """Send a verification code email and return whether delivery was accepted."""
+    from backend.services.email_service import send_verification_email
+    return await send_verification_email(email, name, code)
+
+
 def create_access_token(data: dict) -> str:
     """
     Create a signed JWT token with expiration and unique token ID (JTI).
@@ -230,15 +241,23 @@ async def register(request: Request, user: UserCreate):
             "status": "active",
             "verified": False,
             "verification_code": code,
+            "verification_expires_at": verification_expiry_time(),
             "welcomed": False,
             "createdAt": datetime.utcnow()
         })
         try:
-            from backend.services.email_service import send_verification_email
-            import asyncio
-            asyncio.ensure_future(send_verification_email(normalized_email, user.name, code))
-        except Exception:
-            pass
+            email_sent = await send_verification_code_email(normalized_email, user.name, code)
+            if not email_sent:
+                return message_error(
+                    503,
+                    "Account created, but verification email could not be sent. Please use resend code.",
+                )
+        except Exception as error:
+            print(f"[auth.register] Verification email failed: {repr(error)}")
+            return message_error(
+                503,
+                "Account created, but verification email could not be sent. Please use resend code.",
+            )
     except DuplicateKeyError:
         return message_error(409, "Email already registered")
     except PyMongoError as error:
@@ -267,14 +286,54 @@ async def verify_email(body: dict):
         return message_error(404, "User not found")
     if user.get("verified"):
         return {"message": "Email already verified — please sign in"}
+    expires_at = user.get("verification_expires_at")
+    if expires_at and expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        return message_error(400, "Verification code has expired — please request a new code")
     stored_code = user.get("verification_code", "")
     if stored_code != code:
         return message_error(400, "Invalid verification code")
     await users_collection.update_one(
         {"_id": user["_id"]},
-        {"$set": {"verified": True}, "$unset": {"verification_code": ""}}
+        {
+            "$set": {"verified": True},
+            "$unset": {"verification_code": "", "verification_expires_at": ""},
+        }
     )
     return {"message": "Email verified — you can now sign in"}
+
+
+@router.post("/resend-verification")
+@limiter.limit("3/minute")
+async def resend_verification(request: Request, body: dict):
+    """Issue and email a fresh verification code for an unverified account."""
+    email = body.get("email", "").strip().lower()
+    if not email:
+        return message_error(400, "Email is required")
+
+    user = await users_collection.find_one({"email": email})
+    if not user:
+        return message_error(404, "User not found")
+    if user.get("verified"):
+        return {"message": "Email already verified — please sign in"}
+
+    code = generate_verification_code()
+    await users_collection.update_one(
+        {"_id": user["_id"]},
+        {"$set": {
+            "verification_code": code,
+            "verification_expires_at": verification_expiry_time(),
+        }},
+    )
+    try:
+        email_sent = await send_verification_code_email(email, user.get("name", "User"), code)
+    except Exception as error:
+        print(f"[auth.resend_verification] Verification email failed: {repr(error)}")
+        email_sent = False
+
+    if not email_sent:
+        return message_error(503, "Verification email could not be sent. Please try again later.")
+
+    return {"message": "Verification code sent — please check your email"}
 
 
 # POST /login — authenticate and issue a JWT token
@@ -291,6 +350,8 @@ async def login(request: Request, credentials: UserLogin):
         return message_error(401, "Invalid email or password")
     if user.get("status") == "inactive":
         return message_error(403, "Account is disabled. Contact an administrator.")
+    if user.get("verified") is False:
+        return message_error(403, "Please verify your email before signing in.")
     # ── Send welcome email on first sign-in ──
     if not user.get("welcomed"):
         try:

@@ -382,14 +382,17 @@ async function resendVerification() {
   if (!email) return;
   showToast('Sending a new code…');
   try {
-    // Reuse forgot-password style approach — resend uses the same register endpoint
-    // but we call a lightweight resend endpoint
-    await fetch('/api/auth/forgot-password', {
+    const response = await fetch('/api/auth/resend-verification', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email })
     });
-    showToast('New code sent — check your email');
+    const data = await response.json();
+    if (!response.ok) {
+      showToast(data.message || 'Could not resend code');
+      return;
+    }
+    showToast(data.message || 'New code sent — check your email');
   } catch (_) {
     showToast('Could not resend code');
   }
