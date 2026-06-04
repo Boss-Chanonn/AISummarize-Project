@@ -422,6 +422,7 @@ class AIService:
         ])
 
         prompt = f"""You are a learning coach analysing a student's quiz results.
+Use a natural, conversational tone — like a real tutor giving feedback.
 Return strict JSON only with these exact keys:
 strengths, weaknesses, weak_topics, study_recommendations
 
@@ -433,6 +434,7 @@ Rules:
   Example good recommendation: "Re-read the methodology section and focus on how X differs from Y."
   Example bad recommendation: "Review core concepts."
 - Be specific to this document. Never write generic advice.
+- Vary how you phrase each point — don't start every sentence the same way.
 
 Document: {title}
 Score: {score_percent}%
@@ -497,9 +499,17 @@ Follow-up strengths: {followup.strengths}
     # ── Prompts ───────────────────────────────────────────────────────────────
 
     def _summary_prompt(self, title: str, text: str) -> str:
-        return f"""You are generating a learner-friendly academic summary for a study platform.
+        return f"""You are writing a learner-friendly academic summary for a study platform.
+Write in a natural, human tone — think of how a thoughtful tutor or peer would explain things.
 Return strict JSON only with these exact keys:
 summary_title, authors, overview, body, takeaways, topics, chunks_used
+
+Style guidelines (very important):
+- Vary your sentence length and how you start each sentence — don't let every sentence begin the same way.
+- Use natural qualifying language where appropriate: "often", "can", "may", "many", "for many people", "some", "tend to".
+- Avoid stiff transitions like "Furthermore,", "Moreover,", "Additionally," — use natural flow instead.
+- When listing examples, weave them into sentences rather than separating them out.
+- Write body paragraphs that feel like a real person explaining the ideas, not an encyclopedia entry.
 
 Field rules:
 - summary_title: concise title (max 100 chars). If the document has a clear title, use it.
@@ -521,12 +531,13 @@ Document text (full):
 
     def _chunk_summary_prompt(self, title: str, index: int, total: int, text: str) -> str:
         return f"""You are summarizing chunk {index} of {total} from an academic document.
+Write naturally — like a real person explaining just this section.
 Return strict JSON only with these exact keys:
 summary_title, authors, overview, body, takeaways, topics, chunks_used
 
 Rules:
 - Focus only on what this chunk covers — do not invent content from other parts.
-- body: exactly 2 paragraphs, each 40-80 words.
+- body: exactly 2 paragraphs, each 40-80 words. Vary sentence openings and lengths.
 - takeaways: exactly 3 specific claims from this chunk.
 - topics: 2-4 study topics found in this chunk.
 - authors: extract if visible, otherwise "Unknown authors".
@@ -585,6 +596,7 @@ Study plan: {'; '.join(module.study_plan[:3])}
 """
 
         return f"""You are writing a multiple-choice quiz for a study platform.
+Write explanations in a natural, conversational tone — like a tutor walking through why things are right or wrong.
 Return strict JSON only with these exact keys:
 title, question_count, questions{', target_topics' if follow_up else ''}
 
@@ -596,8 +608,8 @@ Question rules:
 - DIFFICULTY: {difficulty_desc}
 - Each question must have exactly 4 options (A, B, C, D).
 - correct_index is 0-3 (0=A, 1=B, 2=C, 3=D).
-- explanation must say WHY the correct answer is right AND why the most tempting wrong answer is wrong.
-  Minimum 25 words. Be specific to this document.
+- explanation: write in a natural voice — explain why the correct answer is right and why the most tempting wrong answer is wrong.
+  Minimum 25 words. Be specific to this document. Vary how you start each explanation.
 - topic must be a specific noun phrase (2-6 words) from the document's subject matter.
   Bad: "general", "document", "content". Good: "experimental methodology", "carbon cycle feedback".
 - Questions must cover a spread of topics — no more than 2 questions on the same topic.
@@ -627,6 +639,7 @@ Excluded questions (do not repeat or lightly reword these):
         weak_topics_str = ", ".join(payload.weak_topics)
 
         return f"""You are building a targeted revision module after a student struggled with a quiz.
+Write in a natural, human tone — like a tutor creating a personalised study guide.
 Return strict JSON only with these exact keys:
 title, description, focus_areas, sections, study_plan
 
@@ -639,6 +652,7 @@ Field rules:
     explanation: 3-5 sentences explaining the concept using content from the document.
       Reference specific findings, methods, or arguments from the summary.
       Do NOT write generic textbook definitions.
+      Vary sentence openings and lengths — make it feel like a real person explaining.
     why_it_matters: 1-2 sentences connecting this topic to the document's main argument.
     practice_tip: 1 concrete action (e.g. "Redraw Figure 2 from memory and label the feedback loops").
 - study_plan: 3-5 specific next actions. Each must be actionable and tied to the document content.
