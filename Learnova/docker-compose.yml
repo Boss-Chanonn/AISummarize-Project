@@ -8,6 +8,5 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
-      - OLLAMA_BASE_URL=http://host.docker.internal:11434
     volumes:
       - .:/app

@@ -26,7 +26,7 @@ from bson import ObjectId
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
-from backend.database.db import db
+from backend.database.db import DATABASE_NAME, MONGO_URL, db
 from backend.middleware.auth_middleware import get_current_user
 from backend.services.ollama_client import OllamaClient, QuizOllamaSettings, SummaryOllamaSettings
 from backend.services.pptx_service import (
@@ -81,8 +81,8 @@ def _run_slide_summarisation(doc_id: str, pptx_title: str, slides_data: list[dic
     Background task: summarise every slide on Mac 1, then save to MongoDB.
     slides_data is a list of dicts with keys: slide_number, title, body, full_text.
     """
-    from backend.services.pptx_service import SlideText, _summarise_slide
-    import asyncio
+    from backend.services.pptx_service import SlideText
+    from pymongo import MongoClient
 
     slides = [
         SlideText(
@@ -106,8 +106,12 @@ def _run_slide_summarisation(doc_id: str, pptx_title: str, slides_data: list[dic
         for s in summaries
     ]
 
-    async def _update():
-        await pptx_collection.update_one(
+    # This synchronous FastAPI background task runs in a worker thread.
+    # Motor is bound to the application's event loop, so use a scoped
+    # synchronous client instead of starting another asyncio event loop.
+    mongo_client = MongoClient(MONGO_URL)
+    try:
+        mongo_client[DATABASE_NAME]["pptx_documents"].update_one(
             {"_id": ObjectId(doc_id)},
             {"$set": {
                 "slide_summaries": summaries_dicts,
@@ -115,8 +119,8 @@ def _run_slide_summarisation(doc_id: str, pptx_title: str, slides_data: list[dic
                 "summarised_at": datetime.now(timezone.utc),
             }},
         )
-
-    asyncio.run(_update())
+    finally:
+        mongo_client.close()
 
 
 def _run_quiz_job(job_id: str, payload: QuizRequest) -> None:
