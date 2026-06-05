@@ -1157,8 +1157,8 @@ Missed questions (what the student got wrong):
     def _search_podcast_resource(self, title: str, topic: str) -> ResourceRecommendation | None:
         """Search for an educational podcast episode about the topic.
 
-        Tries ListenNotes first (scraped), then Apple Podcasts / Spotify
-        via DuckDuckGo, and finally falls back to an Apple Podcasts search URL.
+        Returns only direct episode pages. Search-result pages are deliberately
+        excluded because they can return no matches when the user opens them.
 
         Args:
             title: Document title.
@@ -1170,6 +1170,9 @@ Missed questions (what the student got wrong):
         ln_result = self._search_listennotes(topic, title)
         if ln_result:
             return ln_result
+        apple_result = self._search_apple_podcast_episode(topic, title)
+        if apple_result:
+            return apple_result
         ddg_result = self._search_resource_variants(
             topic=topic,
             resource_type="podcast",
@@ -1177,20 +1180,77 @@ Missed questions (what the student got wrong):
                 f"{topic} {title} podcast episode site:podcasts.apple.com",
                 f"{topic} educational podcast episode site:open.spotify.com/episode",
             ],
-            preferred_domains=["podcasts.apple.com", "open.spotify.com", "anchor.fm", "buzzsprout.com"],
+            preferred_domains=["podcasts.apple.com", "open.spotify.com"],
         )
-        if ddg_result:
+        if ddg_result and self._is_direct_podcast_episode_url(ddg_result.url):
             return ddg_result
-        from urllib.parse import quote_plus
-        search_url = f"https://podcasts.apple.com/search?term={quote_plus(topic + ' ' + title)}"
+        return None
+
+    def _search_apple_podcast_episode(
+        self, topic: str, doc_title: str
+    ) -> ResourceRecommendation | None:
+        """Use Apple's search API to find a direct podcast episode page."""
+        try:
+            query = quote_plus(f"{topic} {doc_title}")
+            req = Request(
+                "https://itunes.apple.com/search"
+                f"?term={query}&media=podcast&entity=podcastEpisode&limit=12",
+                headers={"User-Agent": "LearnovaAI/2.0"},
+            )
+            with urlopen(req, timeout=12) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (URLError, OSError, json.JSONDecodeError):
+            return None
+
+        results = payload.get("results", []) if isinstance(payload, dict) else []
+        topic_tokens = self._topic_tokens(topic)
+        best: tuple[int, dict] | None = None
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            url = str(item.get("trackViewUrl") or "")
+            if not self._is_direct_podcast_episode_url(url):
+                continue
+            searchable = " ".join(
+                str(item.get(key) or "")
+                for key in ("trackName", "collectionName", "description", "shortDescription")
+            ).lower()
+            score = sum(1 for token in topic_tokens if token in searchable)
+            if best is None or score > best[0]:
+                best = (score, item)
+
+        if best is None or (topic_tokens and best[0] < 1):
+            return None
+
+        item = best[1]
+        episode_title = str(item.get("trackName") or "").strip()
+        if len(episode_title) < 8:
+            return None
+        description = str(
+            item.get("shortDescription")
+            or item.get("description")
+            or f"Podcast episode covering {topic}."
+        ).strip()
         return ResourceRecommendation(
             topic=topic,
-            title=f"{topic}: educational podcast episodes",
-            url=search_url,
+            title=episode_title[:240],
+            url=str(item["trackViewUrl"]),
             source="podcasts.apple.com",
-            snippet=f"Search Apple Podcasts for episodes covering {topic}.",
+            snippet=description[:400],
             resource_type="podcast",
         )
+
+    def _is_direct_podcast_episode_url(self, url: str) -> bool:
+        """Return True only for known direct podcast episode URL formats."""
+        parsed = urlparse(url)
+        host = parsed.netloc.lower().removeprefix("www.")
+        if host == "listennotes.com":
+            return parsed.path.startswith("/e/") and len(parsed.path.strip("/").split("/")) >= 2
+        if host == "open.spotify.com":
+            return parsed.path.startswith("/episode/")
+        if host == "podcasts.apple.com":
+            return bool(re.search(r"(?:^|&)i=\d+(?:&|$)", parsed.query))
+        return False
 
     def _search_listennotes(self, topic: str, doc_title: str) -> ResourceRecommendation | None:
         """Search ListenNotes for podcast episodes matching the topic.

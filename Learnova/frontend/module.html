@@ -441,7 +441,15 @@ function hasInvalidUrl(url) {
 function hasStaleResourceUrl(resource) {
   const url = String(resource?.url || '');
   return hasInvalidUrl(url)
+    || (resource?.type === 'podcast' && !isDirectPodcastEpisodeUrl(url))
     || (resource?.type === 'article' && /wikipedia\.org\/wiki\//.test(url) && resource?.source !== 'wikipedia.org');
+}
+
+function isDirectPodcastEpisodeUrl(url) {
+  const value = String(url || '');
+  return /listennotes\.com\/e\/[^/?#]+/.test(value)
+    || /open\.spotify\.com\/episode\/[^/?#]+/.test(value)
+    || (/podcasts\.apple\.com\//.test(value) && /[?&]i=\d+/.test(value));
 }
 /**
  * Extract a YouTube video ID from a watch or short-url.
@@ -1221,7 +1229,7 @@ function mapModuleSections(module) {
     badgeClass: hasWeakTopics() ? 'badge-red' : 'badge-gold',
     scheduled: false,
     completed: false
-  }));
+  })).filter(resource => resource.type !== 'podcast');
 }
 
 /**
