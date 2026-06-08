@@ -20,7 +20,7 @@
 const API_CONFIG = (window.LEARNOVA_CONFIG || window.APP_CONFIG || {}).api || {};
 
 // Resolve the base backend URL and strip any trailing slash for consistent path joining.
-const API_BASE_URL = (API_CONFIG.baseUrl || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const API_BASE_URL = (API_CONFIG.baseUrl || '').replace(/\/$/, '');
 
 // ── Helper Functions ──
 

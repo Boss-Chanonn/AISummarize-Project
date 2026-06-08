@@ -276,7 +276,7 @@ def _build_summary_email_html(name: str, doc_title: str, summary: dict) -> str:
       <div class="takes-label">Key Takeaways</div>
       <table><tbody>{takeaways_html}</tbody></table>
     </div>
-    <a href="http://localhost:8000/upload.html" class="cta">View full summary →</a>
+    <a href="{os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')}/upload.html" class="cta">View full summary →</a>
   </div>
   <div class="footer">
     You're receiving this because you uploaded a document to Learnova.<br>
@@ -479,7 +479,7 @@ def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
       <li>Full study history and analytics</li>
       <li>Calendar integration with Apple & Google</li>
     </ul>
-    <a href="http://localhost:8000/upload.html" class="cta">Upload your first PPTX →</a>
+    <a href="{os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')}/upload.html" class="cta">Upload your first PPTX →</a>
   </div>
   <div class="footer">
     Learnova · AI-Powered Learning Platform<br>
@@ -540,7 +540,7 @@ def _build_welcome_email_html(name: str) -> str:
       Upload your first document and let the AI<br>
       do the heavy lifting.
     </div>
-    <a href="http://localhost:8000/upload.html" class="cta">Upload your first document →</a>
+    <a href="{os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')}/upload.html" class="cta">Upload your first document →</a>
   </div>
   <div class="footer">
     Learnova · AI-Powered Learning Platform
@@ -625,7 +625,7 @@ def _build_email_html(name: str, stats: dict) -> str:
     <ul>{strong_html}</ul>
     <h3>Needs more work</h3>
     <ul>{weak_html}</ul>
-    <a href="http://localhost:8000/dashboard.html" class="cta">Continue learning →</a>
+    <a href="{os.getenv('APP_URL', 'http://localhost:8000').rstrip('/')}/dashboard.html" class="cta">Continue learning →</a>
   </div>
   <div class="footer">
     You're receiving this because you have an active Learnova account.<br>

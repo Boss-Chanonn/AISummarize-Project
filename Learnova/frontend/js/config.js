@@ -17,7 +17,7 @@ window.LEARNOVA_CONFIG = {
 
   // ── API / Backend Settings ──
   api: {
-    baseUrl: 'http://127.0.0.1:8000',         // FastAPI backend origin
+    baseUrl: '',                              // Same origin in local and production
     questionCount: 6,                         // Default number of quiz questions per round
     followUpQuestionCount: 6                  // Default number of follow-up quiz questions
   },
@@ -68,7 +68,7 @@ window.LEARNOVA_CONFIG = {
       { name: 'Outlook', color: '#0F6E56' }
     ],
     resources: [],                                // Pre-populated resource links for modules
-    apiBaseUrl: 'http://127.0.0.1:8000'
+    apiBaseUrl: ''
   },
 
   // ── History ──

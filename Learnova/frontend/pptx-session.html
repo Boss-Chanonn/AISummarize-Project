@@ -226,7 +226,7 @@ let prevDocs = [];               // Previously uploaded documents for quick-resu
 
 const TOKEN = () => localStorage.getItem('token');
 const HEADERS = () => ({ 'Content-Type': 'application/json', 'Authorization': `Bearer ${TOKEN()}` });
-const BASE = (API?.API_BASE_URL || 'http://127.0.0.1:8000');
+const BASE = (API?.API_BASE_URL || '');
 
 /**
  * Perform an authenticated GET request to the API.
