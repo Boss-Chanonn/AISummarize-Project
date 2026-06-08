@@ -258,6 +258,49 @@ function handleDashboardRedirect() {
 function openModal(type) {
   document.getElementById('modal-content').innerHTML = type === 'login' ? loginHTML : registerHTML;
   document.getElementById('modal-overlay').classList.add('open');
+  bindAuthEnterSubmit();
+}
+
+/**
+ * Bind Enter-key submit behavior for auth modal inputs.
+ */
+function bindAuthEnterSubmit() {
+  const modalContent = document.getElementById('modal-content');
+  if (!modalContent) return;
+
+  modalContent.onkeydown = function(event) {
+    if (event.key !== 'Enter') return;
+
+    const target = event.target;
+    if (!target || target.tagName !== 'INPUT') return;
+
+    const modalOpen = document.getElementById('modal-overlay').classList.contains('open');
+    if (!modalOpen) return;
+
+    const fieldId = target.id;
+
+    if (fieldId === 'login-email' || fieldId === 'login-password') {
+      event.preventDefault();
+      loginUser();
+      return;
+    }
+
+    if (
+      fieldId === 'register-name' ||
+      fieldId === 'register-email' ||
+      fieldId === 'register-dob' ||
+      fieldId === 'register-password'
+    ) {
+      event.preventDefault();
+      registerUser();
+      return;
+    }
+
+    if (fieldId === 'verify-code') {
+      event.preventDefault();
+      verifyEmail();
+    }
+  };
 }
 
 /**
@@ -350,6 +393,7 @@ function showEmailVerification(email) {
     <button class="btn-primary btn" style="width:100%;justify-content:center;margin-top:8px" id="verify-btn" onclick="verifyEmail()">Verify email</button>
     <div class="modal-footer">Didn't receive it? <a href="#" onclick="resendVerification()">Resend code</a></div>`;
   document.getElementById('modal-overlay').classList.add('open');
+  bindAuthEnterSubmit();
   // Auto-focus the code input
   setTimeout(function(){ document.getElementById('verify-code').focus(); }, 100);
 }

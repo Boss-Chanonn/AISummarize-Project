@@ -1495,6 +1495,16 @@ function closeYtOnBackdrop(e) {
 // Close the YouTube player modal when the user presses Escape.
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeYtModal();
+
+  if (e.key !== 'Enter') return;
+  if (!e.target || e.target.tagName !== 'INPUT') return;
+  if (e.target.id !== 'cm-date' && e.target.id !== 'cm-time') return;
+
+  const calBackdrop = document.getElementById('cal-backdrop');
+  if (!calBackdrop || !calBackdrop.classList.contains('open')) return;
+
+  e.preventDefault();
+  confirmSchedule();
 });
 
 // ── Load result from backend ─────────────────────────────────────────────────

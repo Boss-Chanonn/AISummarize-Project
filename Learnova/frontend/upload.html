@@ -1588,6 +1588,17 @@ document.addEventListener('DOMContentLoaded', () => {
   updateUploadUI();
   syncCompactFile();
   loadResumedQuizFlow();
+
+  const pasteArea = document.getElementById('paste-area');
+  if (pasteArea) {
+    pasteArea.addEventListener('keydown', function(event) {
+      if (event.key !== 'Enter' || event.shiftKey) return;
+      const processBtn = document.getElementById('btn-process');
+      if (!processBtn || processBtn.style.display === 'none' || processBtn.disabled) return;
+      event.preventDefault();
+      processDocument();
+    });
+  }
 });
 </script>
 <script src="js/animations.js"></script>

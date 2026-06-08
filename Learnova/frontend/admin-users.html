@@ -1071,6 +1071,18 @@ document.addEventListener('keydown', function(e) {
     closeUserModal();
     closeModal();
   }
+
+  if (e.key !== 'Enter') return;
+  if (!e.target || e.target.tagName !== 'INPUT') return;
+  const targetId = e.target.id;
+  if (targetId !== 'eeName' && targetId !== 'eeEmail' && targetId !== 'eePhone' && targetId !== 'eeDob') return;
+
+  const overlayOpen = document.getElementById('userDetailOverlay').classList.contains('open');
+  const editModeOpen = document.getElementById('udmEditMode').style.display !== 'none';
+  if (!overlayOpen || !editModeOpen) return;
+
+  e.preventDefault();
+  saveProfile();
 });
 
 /* ── Init ───────────────────────────────────────────────────────────────────── */
