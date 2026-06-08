@@ -667,52 +667,101 @@ function closeEditProfile() {
 /**
  * Persist edited profile data to in-memory user state and refresh UI.
  */
-function saveProfile() {
+async function saveProfile() {
   const name = document.getElementById('s-name').value.trim();
   const email = document.getElementById('s-email').value.trim();
   const avatarPreview = document.getElementById('s-avatar-preview');
   const currentPassword = document.getElementById('s-current-password').value;
   const newPassword = document.getElementById('s-new-password').value;
   const confirmPassword = document.getElementById('s-confirm-password').value;
+  const token = localStorage.getItem('token') || '';
 
   // Change flags used to decide which validations/messages apply.
   const emailChanged = email && email !== LEARNOVA_USER.email;
   const hasAnyPasswordInput = Boolean(currentPassword || newPassword || confirmPassword);
   const hasAllPasswordInputs = Boolean(currentPassword && newPassword && confirmPassword);
-  const isCurrentPasswordValid = currentPassword === LEARNOVA_USER.password;
   const isNewPasswordLongEnough = newPassword.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?~`]/.test(newPassword);
   const isPasswordConfirmationMatch = newPassword === confirmPassword;
+  let passwordChanged = false;
 
-  if (name) LEARNOVA_USER.name = name;
-  if (avatarPreview) LEARNOVA_USER.avatarUrl = avatarPreview.dataset.avatarUrl || '';
-  if (emailChanged) LEARNOVA_USER.pendingEmail = email;
+  const nextName = name || LEARNOVA_USER.name;
+  const nextAvatarUrl = avatarPreview ? (avatarPreview.dataset.avatarUrl || '') : LEARNOVA_USER.avatarUrl;
+  const nextPendingEmail = emailChanged ? email : LEARNOVA_USER.pendingEmail;
 
   if (hasAnyPasswordInput) {
     if (!hasAllPasswordInputs) {
       showToast('Fill in all password fields');
       return;
     }
-    if (!isCurrentPasswordValid) {
-      showToast('Current password is incorrect');
-      return;
-    }
     if (!isNewPasswordLongEnough) {
       showToast('New password must be at least 8 characters');
+      return;
+    }
+    if (!hasUppercase) {
+      showToast('New password must contain at least one uppercase letter');
+      return;
+    }
+    if (!hasLowercase) {
+      showToast('New password must contain at least one lowercase letter');
+      return;
+    }
+    if (!hasNumber) {
+      showToast('New password must contain at least one number');
+      return;
+    }
+    if (!hasSymbol) {
+      showToast('New password must contain at least one symbol');
       return;
     }
     if (!isPasswordConfirmationMatch) {
       showToast('New passwords do not match');
       return;
     }
-    LEARNOVA_USER.password = newPassword;
+
+    if (!token) {
+      showToast('Please sign in again');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showToast(data.message || data.detail || 'Unable to update password');
+        return;
+      }
+      passwordChanged = true;
+    } catch (_error) {
+      showToast('Unable to connect to server');
+      return;
+    }
+
     LEARNOVA_USER.passwordMask = '•'.repeat(Math.max(7, newPassword.length));
   }
+
+  LEARNOVA_USER.name = nextName;
+  LEARNOVA_USER.avatarUrl = nextAvatarUrl;
+  LEARNOVA_USER.pendingEmail = nextPendingEmail;
   LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
   closeSettings();
   closeEditProfile();
-  if (emailChanged && hasAnyPasswordInput) showToast('Profile updated. Verify your new email address.');
+  if (emailChanged && passwordChanged) showToast('Profile updated. Verify your new email address.');
   else if (emailChanged) showToast('Profile updated. Verify your new email address.');
-  else if (hasAnyPasswordInput) showToast('Password updated');
+  else if (passwordChanged) showToast('Password updated');
   else showToast('Profile updated');
   syncUserUI();
 }
