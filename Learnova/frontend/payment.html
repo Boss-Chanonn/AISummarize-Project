@@ -77,6 +77,8 @@
 
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/animations.js"></script>
@@ -149,6 +151,14 @@
   document.getElementById('card-number').addEventListener('input', handleCardNumberInput);
   document.getElementById('card-expiry').addEventListener('input', handleExpiryInput);
   document.getElementById('card-cvv').addEventListener('input', handleCvvInput);
+  document.addEventListener('keydown', function(event) {
+    if (event.key !== 'Enter') return;
+    if (!event.target || event.target.tagName !== 'INPUT') return;
+    const id = event.target.id;
+    if (id !== 'card-number' && id !== 'card-name' && id !== 'card-expiry' && id !== 'card-cvv') return;
+    event.preventDefault();
+    reviewOrder();
+  });
 
   /**
    * Toggle field-level error state.

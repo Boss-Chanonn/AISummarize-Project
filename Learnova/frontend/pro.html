@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Learnova Pro</title>
+  <link rel="stylesheet" href="css/style.css"/>
+  <style>
+    .dash-section{
+      padding:24px;border:0.5px solid var(--border);border-radius:var(--radius-lg);
+      background:
+        radial-gradient(120% 120% at 0% 0%, rgba(200,184,154,0.08), transparent 42%),
+        linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
+    }
+    [data-theme="light"] .dash-section{
+      background:linear-gradient(180deg, rgba(255,255,255,0.98), rgba(241,236,228,0.94));
+      box-shadow:0 12px 30px rgba(42,31,19,0.04);
+    }
+    .pro-overview{
+      display:grid;
+      grid-template-columns:minmax(0, 1.2fr) minmax(280px, 0.8fr);
+      gap:14px;
+      margin-bottom:32px;
+    }
+    .pro-hero{
+      padding:34px;
+      position:relative;
+      overflow:hidden;
+      min-height:320px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+    .pro-hero::before{
+      content:'PRO';
+      position:absolute;
+      right:20px;
+      top:12px;
+      font-family:var(--serif);
+      font-size:132px;
+      line-height:0.9;
+      letter-spacing:-8px;
+      color:rgba(200,184,154,0.05);
+      pointer-events:none;
+      user-select:none;
+    }
+    .pro-hero-kicker{
+      display:inline-flex;align-items:center;gap:8px;
+      font-size:10px;letter-spacing:1.4px;text-transform:uppercase;
+      color:var(--gold);margin-bottom:16px;
+    }
+    .pro-hero-kicker-dot{
+      width:5px;height:5px;border-radius:50%;
+      background:var(--gold);
+      animation:pulse 2s ease-in-out infinite;
+    }
+    .pro-hero-title{
+      font-family:var(--serif);
+      font-size:44px;
+      font-weight:400;
+      letter-spacing:-1.2px;
+      line-height:1.02;
+      margin-bottom:14px;
+      max-width:11ch;
+    }
+    .pro-hero-title em{font-style:italic;color:var(--gold)}
+    .pro-hero-desc{
+      max-width:56ch;
+      font-size:13px;
+      line-height:1.85;
+      color:var(--cream-40);
+      font-weight:300;
+      margin-bottom:22px;
+    }
+    .pro-hero-actions{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+    .pro-status-badge{
+      display:inline-flex;align-items:center;gap:7px;
+      padding:7px 14px;border-radius:999px;
+      font-size:12px;border:0.5px solid var(--border-md);
+      color:var(--cream-40);background:rgba(240,237,232,0.035);
+    }
+    .pro-status-badge.active{
+      background:rgba(107,158,107,0.08);
+      border-color:rgba(107,158,107,0.25);
+      color:var(--green);
+    }
+    .pro-status-dot{
+      width:6px;height:6px;border-radius:50%;
+      background:var(--cream-25);
+    }
+    .pro-status-badge.active .pro-status-dot{background:var(--green)}
+    .pro-summary{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+    .pro-summary-card{
+      padding:22px;
+      min-height:154px;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+    }
+    .pro-summary-label{
+      font-size:10px;
+      letter-spacing:1.2px;
+      text-transform:uppercase;
+      color:var(--cream-25);
+      margin-bottom:8px;
+    }
+    .pro-summary-title{
+      font-size:16px;
+      color:var(--cream);
+      line-height:1.35;
+      margin-bottom:8px;
+    }
+    .pro-summary-copy{
+      font-size:12px;
+      line-height:1.75;
+      color:var(--cream-25);
+    }
+    .pro-summary-metric{
+      display:flex;align-items:flex-end;gap:12px;
+      padding-top:14px;border-top:0.5px solid var(--border);
+    }
+    .pro-summary-value{
+      font-family:var(--serif);
+      font-size:34px;
+      line-height:1;
+      color:var(--gold);
+    }
+    .pro-summary-meta{
+      font-size:11px;
+      color:var(--cream-25);
+      line-height:1.6;
+    }
+    .pro-block{
+      margin-bottom:32px;
+    }
+    .pro-block-head{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:16px;
+      margin-bottom:14px;
+    }
+    .pro-block-copy{
+      max-width:52ch;
+      font-size:12px;
+      line-height:1.75;
+      color:var(--cream-25);
+    }
+    .feat-grid{
+      display:grid;
+      grid-template-columns:repeat(3, 1fr);
+      gap:12px;
+    }
+    .feat-card {
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      background: rgba(240,237,232,0.035);
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.18s, transform 0.22s cubic-bezier(0.16,1,0.3,1), box-shadow 0.22s;
+    }
+    .feat-card:hover { border-color: rgba(200,184,154,0.22); transform: translateY(-2px); box-shadow:0 10px 28px rgba(0,0,0,0.12); }
+    .feat-card.locked {
+      opacity: 0.55;
+      cursor: default;
+    }
+    .feat-card.locked:hover { transform: none; }
+    .feat-card.pro-active {
+      border-color: rgba(200,184,154,0.2);
+      background: linear-gradient(180deg, rgba(200,184,154,0.05), rgba(240,237,232,0.02));
+    }
+    .feat-card::after {
+      content: '';
+      position: absolute; right: -20px; bottom: -20px;
+      width: 80px; height: 80px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(200,184,154,0.06), transparent 70%);
+      pointer-events: none;
+    }
+    .feat-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+      background: rgba(200,184,154,0.08);
+      border: 0.5px solid rgba(200,184,154,0.14);
+    }
+    .feat-icon svg { width: 18px; height: 18px; color: var(--gold); }
+    .feat-lock-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+      background: var(--cream-05); color: var(--cream-25);
+      border: 0.5px solid var(--border-md);
+      margin-bottom: 12px;
+    }
+    .feat-pro-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; letter-spacing: 0.8px; text-transform: uppercase;
+      padding: 2px 7px; border-radius: 3px;
+      background: rgba(200,184,154,0.12); color: var(--gold);
+      border: 0.5px solid rgba(200,184,154,0.25);
+      margin-bottom: 12px;
+    }
+    .feat-title {
+      font-size: 15px; font-weight: 500; color: var(--cream);
+      margin-bottom: 6px; line-height: 1.3;
+    }
+    .feat-desc {
+      font-size: 12px; color: var(--cream-40);
+      line-height: 1.75; font-weight: 300;
+    }
+
+    /* ── PPTX slide selector ── */
+    .pptx-demo {
+      border: 0.5px solid rgba(200,184,154,0.2);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .pptx-demo-head {
+      padding: 20px 24px;
+      border-bottom: 0.5px solid var(--border);
+      background: rgba(200,184,154,0.04);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .pptx-demo-title {
+      font-size: 13px; font-weight: 500; color: var(--cream-60);
+    }
+    .pptx-demo-meta { font-size: 11px; color: var(--cream-25); margin-top: 2px; }
+    .pptx-demo-body { padding: 24px; }
+    .slide-range-label {
+      font-size: 11px; letter-spacing: 1.1px; text-transform: uppercase;
+      color: var(--cream-25); margin-bottom: 12px;
+    }
+    .slide-grid {
+      display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px;
+    }
+    .slide-pill {
+      width: 36px; height: 36px; border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; cursor: pointer;
+      border: 0.5px solid var(--border);
+      color: var(--cream-40);
+      background: var(--cream-05);
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .slide-pill:hover { border-color: rgba(200,184,154,0.3); color: var(--cream-60); }
+    .slide-pill.in-range {
+      background: rgba(200,184,154,0.08);
+      border-color: rgba(200,184,154,0.25);
+      color: var(--gold);
+    }
+    .slide-pill.done {
+      background: rgba(107,158,107,0.08);
+      border-color: rgba(107,158,107,0.22);
+      color: var(--green);
+    }
+    .slide-pill.done::after { content: '✓'; font-size: 10px; }
+    .slide-range-info {
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 16px;
+      background: rgba(200,184,154,0.05);
+      border: 0.5px solid rgba(200,184,154,0.15);
+      border-radius: var(--radius-md);
+      margin-bottom: 16px;
+    }
+    .sri-label { font-size: 12px; color: var(--cream-40); flex: 1; }
+    .sri-value { font-size: 13px; color: var(--gold); font-family: var(--serif); }
+
+    .pptx-sessions {
+      display: flex; flex-direction: column; gap: 8px; margin-top: 16px;
+    }
+    .session-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px;
+      background: var(--cream-05);
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-md);
+      font-size: 12px;
+    }
+    .session-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); flex-shrink: 0;
+    }
+    .session-dot.pending { background: rgba(200,184,154,0.4); }
+    .session-label { color: var(--cream-60); flex: 1; }
+    .session-score { color: var(--gold-dim); font-size: 11px; }
+    .session-score.pending { color: var(--cream-25); }
+
+    /* ── Progress / weekly summary ── */
+    .weekly-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 14px; margin-bottom: 40px;
+    }
+    .weekly-card {
+      border: 0.5px solid var(--border); border-radius: var(--radius-lg);
+      padding: 22px 24px;
+      background: linear-gradient(180deg, rgba(240,237,232,0.04), rgba(240,237,232,0.02));
+    }
+    .weekly-card-title {
+      font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--cream-25); margin-bottom: 16px;
+    }
+    .weekly-bars {
+      display: flex; align-items: flex-end; gap: 6px; height: 60px;
+    }
+    .wbar-wrap { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+    .wbar {
+      width: 100%; border-radius: 3px 3px 0 0;
+      background: rgba(200,184,154,0.15);
+      transition: height 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+    .wbar.filled { background: var(--gold); }
+    .wbar-label { font-size: 9px; color: var(--cream-25); }
+
+    .streak-row {
+      display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    }
+    .streak-num {
+      font-family: var(--serif); font-size: 40px;
+      color: var(--gold); line-height: 1;
+    }
+    .streak-copy { font-size: 12px; color: var(--cream-40); line-height: 1.5; }
+
+    /* ── Multi-file zone ── */
+    .multi-upload-demo {
+      border: 0.5px dashed rgba(200,184,154,0.25);
+      border-radius: var(--radius-md);
+      padding: 28px 24px;
+      text-align: center;
+      background: rgba(200,184,154,0.02);
+    }
+    .multi-file-chips {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      justify-content: center; margin-bottom: 14px;
+    }
+    .file-chip {
+      display: flex; align-items: center; gap: 7px;
+      padding: 6px 12px;
+      background: var(--cream-05); border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm); font-size: 12px; color: var(--cream-60);
+    }
+    .file-chip-ext {
+      font-size: 9px; font-weight: 600;
+      padding: 1px 5px; border-radius: 3px;
+      background: rgba(200,184,154,0.12); color: var(--gold);
+    }
+    .file-chip-ext.pptx { background: rgba(150,120,200,0.12); color: #B89AE8; }
+    .file-chip-ext.pdf { background: rgba(200,184,154,0.12); color: var(--gold); }
+    .file-chip-ext.txt { background: rgba(107,158,107,0.12); color: var(--green); }
+
+    /* ── Comparison table ── */
+    .compare-table-wrap{
+      border:0.5px solid var(--border);
+      border-radius:var(--radius-lg);
+      overflow:hidden;
+      background:rgba(240,237,232,0.025);
+    }
+    .compare-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px;
+    }
+    .compare-table th {
+      padding: 12px 16px; text-align: left;
+      font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase;
+      color: var(--cream-25); border-bottom: 0.5px solid var(--border);
+      font-weight: 500;
+    }
+    .compare-table th:last-child { color: var(--gold); }
+    .compare-table td {
+      padding: 13px 16px; border-bottom: 0.5px solid var(--border);
+      color: var(--cream-60); vertical-align: middle;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+    .compare-table tr:hover td { background: var(--cream-05); }
+    .compare-table td:first-child { color: var(--cream-40); font-size: 12px; }
+    .compare-table .check { color: var(--green); font-size: 14px; }
+    .compare-table .cross { color: rgba(200,120,80,0.4); font-size: 14px; }
+    .compare-table .pro-col { color: var(--gold); }
+
+    /* ── CTA strip ── */
+    .pro-cta-strip {
+      border: 0.5px solid rgba(200,184,154,0.2);
+      border-radius: var(--radius-lg);
+      padding: 28px 32px;
+      display: flex; align-items: center; justify-content: space-between; gap: 24px;
+      background: linear-gradient(135deg, rgba(200,184,154,0.06), rgba(200,184,154,0.02));
+      flex-wrap: wrap;
+    }
+    .cta-left { flex: 1; min-width: 200px; }
+    .cta-title {
+      font-family: var(--serif); font-size: 24px;
+      letter-spacing: -0.5px; margin-bottom: 6px;
+    }
+    .cta-desc { font-size: 13px; color: var(--cream-40); line-height: 1.6; }
+    .cta-price {
+      font-family: var(--serif); font-size: 32px; color: var(--gold);
+      letter-spacing: -0.8px; margin-right: 6px;
+    }
+    .cta-per { font-size: 13px; color: var(--cream-25); }
+
+    @keyframes pulse {
+      0%,100%{opacity:1} 50%{opacity:0.4}
+    }
+    @media(max-width:980px){
+      .pro-overview{grid-template-columns:1fr}
+    }
+    @media(max-width:900px){
+      .feat-grid{grid-template-columns:repeat(2,1fr)}
+      .weekly-grid{grid-template-columns:1fr}
+      .main-content{padding:24px 20px}
+      .pro-hero{padding:28px}
+    }
+    @media(max-width:600px){
+      .feat-grid{grid-template-columns:1fr}
+      .pro-hero-title{font-size:34px}
+      .pro-hero::before{font-size:88px;right:14px;top:16px}
+      .pro-cta-strip{padding:24px}
+    }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main-content">
+    <div class="page-header fade-up">
+      <div>
+        <div class="page-title">Learnova Pro</div>
+        <div class="page-subtitle">Premium tools, presented in the same workflow language as the rest of Learnova.</div>
+      </div>
+    </div>
+
+    <div class="pro-overview fade-up fade-up-1 reveal reveal-delay-1">
+      <section class="dash-section pro-hero">
+        <div>
+          <div class="pro-hero-kicker">
+            <div class="pro-hero-kicker-dot"></div>
+            Plan overview
+          </div>
+          <div class="pro-hero-title">
+            Learn <em>deeper.</em><br>Study smarter.
+          </div>
+          <div class="pro-hero-desc">
+            Pro unlocks everything Learnova can do: PPTX presentations with saved slide sessions, multi-file uploads, deeper feedback, and weekly progress intelligence.
+          </div>
+        </div>
+        <div class="pro-hero-actions">
+          <div class="pro-status-badge" id="pro-status-badge">
+            <div class="pro-status-dot" id="pro-status-dot"></div>
+            <span id="pro-status-text">Free plan active</span>
+          </div>
+          <button class="btn btn-primary" id="pro-upgrade-btn" onclick="handleProAction()">
+            Upgrade to Pro — $12/month
+          </button>
+        </div>
+      </section>
+
+      <div class="pro-summary">
+        <section class="dash-section pro-summary-card">
+          <div>
+            <div class="pro-summary-label">Included</div>
+            <div class="pro-summary-title">PPTX sessions, batch uploads, advanced feedback, and calendar-connected modules.</div>
+            <div class="pro-summary-copy">The paid plan extends the current workflow instead of replacing it, so the experience stays familiar across upload, quiz, and review.</div>
+          </div>
+          <div class="pro-summary-metric">
+            <div class="pro-summary-value">6</div>
+            <div class="pro-summary-meta">premium capabilities live in this build</div>
+          </div>
+        </section>
+
+        <section class="dash-section pro-summary-card">
+          <div>
+            <div class="pro-summary-label">Pricing</div>
+            <div class="pro-summary-title">$12/month, cancel any time.</div>
+            <div class="pro-summary-copy">Free keeps the core study loop. Pro adds the workflow depth that matters once you are studying across more files, more sessions, and more feedback cycles.</div>
+          </div>
+          <div class="pro-summary-metric">
+            <div class="pro-summary-value">5x</div>
+            <div class="pro-summary-meta">documents per upload on the Pro plan</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <section class="pro-block fade-up fade-up-2 reveal reveal-delay-2">
+      <div class="pro-block-head">
+        <div>
+          <div class="section-label" style="margin-bottom:8px">What Pro unlocks</div>
+          <div class="pro-block-copy">The premium layer should read like a natural extension of the existing product, so each capability is shown in the same restrained card language used elsewhere in Learnova.</div>
+        </div>
+      </div>
+      <div class="feat-grid" id="feat-grid">
+
+        <div class="feat-card" id="fc-pptx">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="2" y="3" width="16" height="13" rx="2"/>
+              <path d="M7 8h4M7 11h6M7 14h3"/>
+              <circle cx="14" cy="8" r="2"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-pptx-tag">Pro</div>
+          <div class="feat-title">PPTX / PowerPoint upload</div>
+          <div class="feat-desc">
+            Upload presentation files. AI summarises every slide once and saves the full structured summary — so you can return to study any slide range any time, with no re-processing needed.
+          </div>
+        </div>
+
+        <div class="feat-card" id="fc-multifile">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M4 5h10l2 2v9H4V5z"/>
+              <path d="M7 2h10l2 2v9"/>
+              <path d="M7 10h6M7 13h4"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-multi-tag">Pro</div>
+          <div class="feat-title">Multi-file batch upload</div>
+          <div class="feat-desc">
+            Upload up to 5 documents at once. Each file gets its own AI summary and quiz. Ideal for studying multiple papers or chapters in a single session.
+          </div>
+        </div>
+
+        <div class="feat-card" id="fc-feedback">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M10 2l2.4 5H18l-4.4 3.2 1.7 5.2L10 12.5l-5.3 2.9 1.7-5.2L2 7h5.6z"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-feedback-tag">Pro</div>
+          <div class="feat-title">Advanced personalised feedback</div>
+          <div class="feat-desc">
+            After each quiz, get deep AI analysis of your answer patterns — not just right or wrong, but why you got each answer wrong and what concepts to revisit.
+          </div>
+        </div>
+
+        <div class="feat-card" id="fc-weekly">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="2" y="3" width="16" height="15" rx="2"/>
+              <path d="M2 7h16M6 1v4M14 1v4"/>
+              <path d="M5 11h3v3H5z"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-weekly-tag">Pro</div>
+          <div class="feat-title">Weekly progress summary</div>
+          <div class="feat-desc">
+            Every week, get an AI-generated summary of your study activity — documents covered, average score trend, topics you're improving in, and what to focus on next week.
+          </div>
+        </div>
+
+        <div class="feat-card" id="fc-module">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <path d="M3 16V7l7-4 7 4v9"/><path d="M10 3v13"/><path d="M6 12h8"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-module-tag">Pro</div>
+          <div class="feat-title">Full learning modules</div>
+          <div class="feat-desc">
+            Access curated learning resources tied to each document — videos, articles, podcasts — and schedule them into your calendar. Free users see the module but cannot schedule.
+          </div>
+        </div>
+
+        <div class="feat-card" id="fc-cal">
+          <div class="feat-icon">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.2">
+              <rect x="2" y="3" width="16" height="15" rx="2"/>
+              <path d="M2 7h16M6 1v4M14 1v4"/>
+              <path d="M10 10l1.5 1.5L14 9"/>
+            </svg>
+          </div>
+          <div class="feat-pro-tag" id="fc-cal-tag">Pro</div>
+          <div class="feat-title">Calendar integration</div>
+          <div class="feat-desc">
+            Schedule study sessions directly into Google Calendar, Apple Calendar, or Outlook from within the learning module. Stay on track without switching apps.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pro-block fade-up fade-up-2 reveal reveal-delay-2">
+      <div class="pro-block-head">
+        <div>
+          <div class="section-label" style="margin-bottom:8px">How PPTX sessions work</div>
+          <div class="pro-block-copy">Upload once, keep the full slide summary on hand, and open focused study sessions by range without re-processing the presentation.</div>
+        </div>
+        <span id="pptx-pro-note" style="font-size:11px;color:var(--gold)"></span>
+      </div>
+      <div class="pptx-demo" id="pptx-demo-block">
+        <div class="pptx-demo-head">
+          <div>
+            <div class="pptx-demo-title">Machine Learning Fundamentals.pptx</div>
+            <div class="pptx-demo-meta">PPTX · 18 slides · uploaded today</div>
+          </div>
+          <span class="feat-pro-tag">Pro</span>
+        </div>
+        <div class="pptx-demo-body">
+          <div class="slide-range-label">Select slides to study this session</div>
+          <div class="slide-grid" id="slide-grid"></div>
+          <div class="slide-range-info">
+            <div class="sri-label">Selected range</div>
+            <div class="sri-value" id="sri-value">Slides 4 – 7</div>
+            <button class="btn btn-gold" style="padding:6px 14px;font-size:12px" onclick="studyRange()">Study these slides →</button>
+          </div>
+          <div style="font-size:11px;color:var(--cream-25);margin-bottom:14px;line-height:1.6">
+            AI ran once when you uploaded — the full summary is already saved. Selecting a new range is instant. No re-upload needed.
+          </div>
+          <div style="font-size:10px;letter-spacing:1.1px;text-transform:uppercase;color:var(--cream-25);margin-bottom:8px">Your sessions</div>
+          <div class="pptx-sessions" id="pptx-sessions"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pro-block fade-up fade-up-3 reveal reveal-delay-3">
+      <div class="pro-block-head">
+        <div>
+          <div class="section-label" style="margin-bottom:8px">Multi-file upload</div>
+          <div class="pro-block-copy">Batch upload mirrors the same product tone as the other pages: clean status, restrained accents, and utility-first copy.</div>
+        </div>
+      </div>
+      <div class="multi-upload-demo">
+        <div class="multi-file-chips" id="multi-file-chips">
+          <div class="file-chip"><span class="file-chip-ext pdf">PDF</span>Zawacki-Richter et al. 2019.pdf</div>
+          <div class="file-chip"><span class="file-chip-ext pdf">PDF</span>Seo et al. 2021.pdf</div>
+          <div class="file-chip"><span class="file-chip-ext pptx">PPTX</span>ML Fundamentals.pptx</div>
+          <div class="file-chip"><span class="file-chip-ext txt">TXT</span>lecture-notes-week4.txt</div>
+        </div>
+        <div style="font-size:13px;color:var(--cream-40);margin-bottom:16px">4 files selected — each gets its own summary and quiz</div>
+        <button class="btn btn-primary" onclick="showToast('Multi-file upload is a Pro feature — upgrade to use it')">Summarise all with AI →</button>
+      </div>
+    </section>
+
+    <section class="pro-block fade-up fade-up-3 reveal reveal-delay-3">
+      <div class="pro-block-head">
+        <div>
+          <div class="section-label" style="margin-bottom:8px">Weekly progress intelligence</div>
+          <div class="pro-block-copy">The analytics treatment now matches the rest of the product: clear labels, compact charts, and minimal decorative noise.</div>
+        </div>
+      </div>
+      <div class="weekly-grid">
+        <div class="weekly-card">
+          <div class="weekly-card-title">Documents studied this week</div>
+          <div class="weekly-bars" id="weekly-bars"></div>
+        </div>
+        <div class="weekly-card">
+          <div class="weekly-card-title">Study streak</div>
+          <div class="streak-row">
+            <div class="streak-num" id="streak-num">6</div>
+            <div class="streak-copy">days in a row<br><span style="color:var(--cream-25)">Keep it going — you're building real momentum.</span></div>
+          </div>
+          <div style="font-size:12px;color:var(--cream-40);line-height:1.65;padding-top:12px;border-top:0.5px solid var(--border)">
+            This week's focus areas: <span style="color:var(--gold)">NLP techniques</span>, <span style="color:var(--gold)">Adaptive learning</span>, <span style="color:var(--gold)">AI trust factors</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pro-block fade-up fade-up-4 reveal reveal-delay-4">
+      <div class="pro-block-head">
+        <div>
+          <div class="section-label" style="margin-bottom:8px">Free vs Pro</div>
+          <div class="pro-block-copy">The comparison stays informational and understated so it feels like product UI, not a separate marketing microsite.</div>
+        </div>
+      </div>
+      <div class="compare-table-wrap">
+        <table class="compare-table">
+          <thead>
+            <tr>
+              <th style="width:40%">Feature</th>
+              <th>Free</th>
+              <th>Pro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>PDF upload</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>TXT / plain text upload</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>AI summarization</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Quiz generation (7 MCQs)</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Basic strengths / weaknesses feedback</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Quiz history</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Accessibility settings</td><td class="check">✓</td><td class="check pro-col">✓</td></tr>
+            <tr><td>PPTX upload with slide sessions</td><td class="cross">✗</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Multiple files per upload (up to 5)</td><td class="cross">✗</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Advanced personalised feedback</td><td class="cross">✗</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Weekly progress summary</td><td class="cross">✗</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Learning module resources</td><td style="color:var(--cream-25);font-size:12px">View only</td><td class="check pro-col">✓ + Schedule</td></tr>
+            <tr><td>Calendar integration</td><td class="cross">✗</td><td class="check pro-col">✓</td></tr>
+            <tr><td>Price</td><td style="color:var(--cream-40)">$0</td><td class="pro-col" style="font-family:var(--serif);font-size:15px">$12 / month</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="pro-block fade-up fade-up-5 reveal reveal-delay-5">
+      <div class="pro-cta-strip" id="pro-cta-strip">
+        <div class="cta-left">
+          <div class="cta-title">Ready to go <em>deeper?</em></div>
+          <div class="cta-desc">Unlock PPTX sessions, multi-file uploads, advanced feedback and weekly intelligence.</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+          <div style="text-align:right">
+            <div><span class="cta-price">$12</span><span class="cta-per">/month</span></div>
+            <div style="font-size:11px;color:var(--cream-25);margin-top:2px">Cancel any time</div>
+          </div>
+          <button class="btn btn-primary" id="cta-btn" onclick="handleProAction()" style="white-space:nowrap">
+            Upgrade to Pro →
+          </button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
+
+<div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
+<script src="js/app.js"></script>
+<script>
+document.getElementById('sidebar-mount').innerHTML = renderSidebar('pro');
+
+// ── Sync Pro status UI ─────────────────────────────────────────────────────
+function syncProPage() {
+  const isPro = LEARNOVA_USER.tier === 'pro';
+
+  // Hero badge + button
+  const badge = document.getElementById('pro-status-badge');
+  const dot   = document.getElementById('pro-status-dot');
+  const txt   = document.getElementById('pro-status-text');
+  const btn   = document.getElementById('pro-upgrade-btn');
+  const ctaBtn = document.getElementById('cta-btn');
+  const ctaStrip = document.getElementById('pro-cta-strip');
+
+  if (isPro) {
+    badge.classList.add('active');
+    dot.style.background = 'var(--green)';
+    txt.textContent = 'Pro plan active';
+    btn.textContent = 'You\'re on Pro ✓';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    if (ctaBtn) { ctaBtn.textContent = 'Pro plan active ✓'; ctaBtn.disabled = true; ctaBtn.style.opacity = '0.6'; }
+    document.getElementById('pptx-pro-note').textContent = 'Available on your plan';
+  } else {
+    badge.classList.remove('active');
+    dot.style.background = 'var(--cream-25)';
+    txt.textContent = 'Free plan active';
+    btn.textContent = 'Upgrade to Pro — $12/month';
+    btn.disabled = false;
+    btn.style.opacity = '';
+  }
+
+  // Feature cards — lock if not pro
+  const proCards = ['fc-pptx','fc-multifile','fc-feedback','fc-weekly','fc-module','fc-cal'];
+  proCards.forEach(id => {
+    const card = document.getElementById(id);
+    if (!isPro) {
+      card.classList.add('locked');
+    } else {
+      card.classList.remove('locked');
+      card.classList.add('pro-active');
+    }
+  });
+}
+
+function handleProAction() {
+  if (LEARNOVA_USER.tier === 'pro') { showToast('You are already on Learnova Pro'); return; }
+  upgradeToPro();
+  setTimeout(() => { syncProPage(); }, 100);
+}
+
+// ── Slide picker demo ──────────────────────────────────────────────────────
+const TOTAL_SLIDES = 18;
+const DONE_SLIDES  = [1, 2, 3]; // already studied
+let rangeStart = 4, rangeEnd = 7;
+
+function renderSlides() {
+  const grid = document.getElementById('slide-grid');
+  grid.innerHTML = '';
+  for (let i = 1; i <= TOTAL_SLIDES; i++) {
+    const div = document.createElement('div');
+    div.className = 'slide-pill';
+    div.textContent = i;
+    if (DONE_SLIDES.includes(i)) {
+      div.className = 'slide-pill done';
+      div.textContent = '';
+      div.title = `Slide ${i} — studied`;
+    } else if (i >= rangeStart && i <= rangeEnd) {
+      div.className = 'slide-pill in-range';
+    }
+    div.onclick = () => selectSlide(i);
+    grid.appendChild(div);
+  }
+  document.getElementById('sri-value').textContent = `Slides ${rangeStart} – ${rangeEnd}`;
+}
+
+let selecting = false, selectAnchor = null;
+function selectSlide(n) {
+  if (DONE_SLIDES.includes(n)) return;
+  if (!selecting) {
+    selecting = true; selectAnchor = n;
+    rangeStart = n; rangeEnd = n;
+  } else {
+    selecting = false;
+    rangeStart = Math.min(selectAnchor, n);
+    rangeEnd   = Math.max(selectAnchor, n);
+    // Clamp to non-done slides only
+    while (DONE_SLIDES.includes(rangeStart) && rangeStart <= rangeEnd) rangeStart++;
+  }
+  renderSlides();
+}
+
+function studyRange() {
+  if (LEARNOVA_USER.tier !== 'pro') {
+    showToast('PPTX sessions require Pro — upgrade to use this feature');
+    return;
+  }
+  showToast(`Starting session: Slides ${rangeStart}–${rangeEnd}`);
+  // Simulate adding a new session
+  DONE_SLIDES.push(...Array.from({length: rangeEnd - rangeStart + 1}, (_, i) => rangeStart + i));
+  renderSessions();
+  // Move range to next unstudied block
+  let next = rangeEnd + 1;
+  while (DONE_SLIDES.includes(next) && next <= TOTAL_SLIDES) next++;
+  rangeStart = next;
+  rangeEnd = Math.min(next + 3, TOTAL_SLIDES);
+  setTimeout(renderSlides, 400);
+}
+
+function renderSessions() {
+  const sessData = [
+    { label: 'Session 1 — Slides 1–3', score: '85%', done: true },
+    { label: `Session 2 — Slides ${rangeStart}–${rangeEnd}`, score: 'In progress', done: false },
+  ];
+  document.getElementById('pptx-sessions').innerHTML = sessData.map(s => `
+    <div class="session-row">
+      <div class="session-dot${s.done ? '' : ' pending'}"></div>
+      <div class="session-label">${s.label}</div>
+      <div class="session-score${s.done ? '' : ' pending'}">${s.score}</div>
+    </div>
+  `).join('');
+}
+
+// ── Weekly bars ───────────────────────────────────────────────────────────
+function renderWeeklyBars() {
+  const days = ['M','T','W','T','F','S','S'];
+  const vals = [2, 3, 1, 4, 2, 3, 0];
+  const max  = Math.max(...vals);
+  document.getElementById('weekly-bars').innerHTML = days.map((d, i) => `
+    <div class="wbar-wrap">
+      <div class="wbar${vals[i] > 0 ? ' filled' : ''}"
+           style="height:${vals[i] > 0 ? Math.max(8, (vals[i]/max)*52) : 4}px"></div>
+      <div class="wbar-label">${d}</div>
+    </div>
+  `).join('');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+syncProPage();
+renderSlides();
+renderSessions();
+renderWeeklyBars();
+</script>
+<script src="js/animations.js"></script>
+</body>
+</html>

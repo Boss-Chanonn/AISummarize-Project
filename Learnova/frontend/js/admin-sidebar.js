@@ -16,6 +16,12 @@ let _ADMIN_NAV = [
     section: 'Overview',
     items: [
       {
+        label: 'Stats Overview',
+        href:  'admin-stats.html',
+        badge: true,
+        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
+      },
+      {
         label: 'Dashboard',
         href:  'dashboard.html',
         badge: false,
@@ -31,12 +37,6 @@ let _ADMIN_NAV = [
         href:  'admin-users.html',
         badge: true,
         icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>'
-      },
-      {
-        label: 'Stats Overview',
-        href:  'admin-stats.html',
-        badge: true,
-        icon:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>'
       },
       {
         label: 'History',
@@ -434,6 +434,33 @@ document.addEventListener('keydown', function(event) {
   if (event.key === 'Escape') { closeAdminAccountMenu(); closeAdminAccessibility(); _adminCloseEditProfile(); }
 });
 
+/* -- Group: Sidebar Toggle -- */
+/**
+ * Open/close admin sidebar (responsive).
+ */
+function toggleSidebar(e) {
+  var sidebar = document.getElementById('adminSidebar');
+  var hamburger = document.querySelector('.sidebar-hamburger');
+  var backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return;
+  if (window.innerWidth <= 760) {
+    sidebar.classList.toggle('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    if (hamburger) hamburger.classList.toggle('is-active');
+    if (backdrop) backdrop.classList.toggle('open');
+  }
+  if (e) e.stopPropagation();
+}
+function closeSidebar() {
+  var sidebar = document.getElementById('adminSidebar');
+  var hamburger = document.querySelector('.sidebar-hamburger');
+  var backdrop = document.querySelector('.sidebar-backdrop');
+  if (!sidebar) return;
+  sidebar.classList.remove('sidebar-overlay', 'open');
+  if (hamburger) hamburger.classList.remove('is-active');
+  if (backdrop) backdrop.classList.remove('open');
+}
+
 /* -- Group: Sidebar Bootstrap -- */
 document.addEventListener('DOMContentLoaded', function () {
   const sidebar = document.getElementById('adminSidebar');
@@ -452,12 +479,12 @@ document.addEventListener('DOMContentLoaded', function () {
       if (item.onclick) {
         /* action item (e.g. Sign Out) */
         html += '<div class="sidebar-item" onclick="' + item.onclick + '">'
-              + item.icon + ' ' + item.label
+              + item.icon + '<span class="sidebar-label"> ' + item.label + '</span>'
               + '</div>';
       } else {
         /* link item */
         html += '<a href="' + item.href + '" class="sidebar-item' + (isActive ? ' active' : '') + '">'
-              + item.icon + ' ' + item.label;
+              + item.icon + '<span class="sidebar-label"> ' + item.label + '</span>';
         html += '</a>';
       }
     });

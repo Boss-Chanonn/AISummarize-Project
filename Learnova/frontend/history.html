@@ -25,6 +25,8 @@
     <div style="display:flex;flex-direction:column;gap:8px" class="fade-up fade-up-2" id="history-list"></div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <div class="toast" id="toast"><div class="toast-dot"></div><span id="toast-msg"></span></div>
 <script src="js/app.js"></script>
@@ -146,7 +148,7 @@ async function renderHistory() {
           </div>
         </div>` : `
         <div class="mini-result" style="padding:14px 18px">
-          <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${escapeHtml((h.summary && h.summary.body) ? (Array.isArray(h.summary.body) ? h.summary.body[0] : h.summary.body).slice(0,200)+'…' : 'No summary yet')}</div>
+          <div style="font-size:12px;color:var(--cream-25);margin-bottom:10px">${(function(){ try { const b = h.summary && h.summary.body; const t = Array.isArray(b)?(b[0]||''):(b||''); return escapeHtml(t.slice(0,200)+(t.length>200?'…':'')); } catch(e){ return 'No summary yet'; } })()}</div>
           <div class="mr-actions" onclick="event.stopPropagation()">
             <button class="btn" onclick="event.stopPropagation();openSummaryModal('${hid}')">Summary</button>
             <a href="upload.html?resume=${hid}&mode=quiz" class="btn">Take quiz →</a>

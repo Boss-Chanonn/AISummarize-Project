@@ -27,7 +27,7 @@
     <div class="content">
       <div id="section-overview" class="sys-section active">
         <div class="card sys-card-shell">
-          <div class="sys-card-header">
+          <div class="sys-card-header sys-card-header-center sys-card-header-with-action">
             <span class="sys-card-title">Service Status</span>
             <button class="btn btn-outline btn-sm" id="sys-refresh-overview" type="button">Refresh</button>
           </div>
@@ -35,17 +35,22 @@
         </div>
 
         <div class="card sys-card-shell">
-          <div class="sys-card-header">
+          <div class="sys-card-header sys-card-header-center">
             <span class="sys-card-title">Realtime Stats</span>
           </div>
           <div class="stats-grid" id="statsGrid"></div>
         </div>
 
         <div class="card sys-card-shell">
-          <div class="sys-card-header">
+          <div class="sys-card-header sys-card-header-center">
             <span class="sys-card-title">API Health</span>
           </div>
-          <div id="apiHealthList"></div>
+          <div id="apiHealthMenu" class="db-function-menu security-function-menu"></div>
+          <div id="apiHealthDetail" class="sys-connected-detail-container">
+            <div class="sys-connected-detail-empty">
+              <span class="collection-empty-text">Select an API type from the menu above to view availability.</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -57,7 +62,6 @@
           </div>
           <select class="filter-select" id="sys-user-role">
             <option value="">All Roles</option>
-            <option value="system_admin">System Admin</option>
             <option value="admin">Admin</option>
             <option value="user">User</option>
           </select>
@@ -101,10 +105,10 @@
             <span class="sys-card-title">Database Manager</span>
           </div>
           <div id="dbFunctionMenu" class="db-function-menu security-function-menu db-function-menu-four"></div>
-        </div>
-        <div id="collectionDetail" class="db-detail-container">
-          <div class="collection-detail collection-detail-empty">
-            <span class="collection-empty-text">Select a collection from the menu above to view data.</span>
+          <div id="collectionDetail" class="db-detail-container sys-connected-detail-container">
+            <div class="sys-connected-detail-empty">
+              <span class="collection-empty-text">Select a collection from the menu above to view data.</span>
+            </div>
           </div>
         </div>
       </div>
@@ -115,16 +119,18 @@
             <span class="sys-card-title">Security Functions</span>
           </div>
           <div id="securityFunctionMenu" class="db-function-menu security-function-menu"></div>
-        </div>
-        <div id="securityDetail" class="db-detail-container">
-          <div class="collection-detail collection-detail-empty">
-            <span class="collection-empty-text">Select a function from the menu above to view data.</span>
+          <div id="securityDetail" class="db-detail-container sys-connected-detail-container">
+            <div class="sys-connected-detail-empty">
+              <span class="collection-empty-text">Select a function from the menu above to view data.</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <div class="overlay" id="sysRoleOverlay">
   <div class="modal">
@@ -136,7 +142,6 @@
     <select class="role-select" id="sysRoleSelect">
       <option value="user">user</option>
       <option value="admin">admin</option>
-      <option value="system_admin">system_admin</option>
     </select>
     <div class="modal-actions">
       <button class="btn btn-outline" type="button" id="sysRoleCancelBtn">Cancel</button>

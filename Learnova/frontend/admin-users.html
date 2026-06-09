@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="css/style.css">
 <script src="js/admin-sidebar.js"></script>
 </head>
-<body>
+<body class="admin-users-page">
 <div class="app-shell">
 
   <!-- Sidebar -->
@@ -55,24 +55,6 @@
 
     <div class="content">
 
-      <!-- Bulk action bar -->
-      <div class="bulk-bar" id="bulkBar">
-        <span class="bulk-count" id="bulkCount">0</span>
-        <span class="bulk-label">users selected</span>
-        <div class="bulk-divider"></div>
-        <div class="bulk-actions">
-          <button class="btn btn-outline btn-sm" onclick="bulkAction('deactivate')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-            Deactivate All
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="bulkAction('activate')">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="20 6 9 17 4 12"/></svg>
-            Activate All
-          </button>
-          <button class="btn btn-outline btn-sm" onclick="clearSelection()">Clear</button>
-        </div>
-      </div>
-
       <!-- Filter bar -->
       <div class="user-filter-bar">
         <div class="search-wrap">
@@ -81,9 +63,8 @@
         </div>
         <select class="filter-select" id="roleFilter" onchange="applyFilters()">
           <option value="">All Roles</option>
-          <option value="system_admin">System Admin</option>
-          <option value="admin">Admin</option>
           <option value="user">User</option>
+          <option value="admin">Admin</option>
         </select>
         <select class="filter-select" id="tierFilter" onchange="applyFilters()">
           <option value="">All Tiers</option>
@@ -102,11 +83,6 @@
         <table class="table">
           <thead>
             <tr>
-              <th>
-                <div class="cb-wrap">
-                  <input type="checkbox" class="cb" id="selectAll" onchange="toggleAll(this)">
-                </div>
-              </th>
               <th class="sortable" onclick="sortBy('name')">
                 User
                 <span class="sort-icon"><span></span><span></span></span>
@@ -117,6 +93,10 @@
               </th>
               <th class="sortable" onclick="sortBy('tier')">
                 Tier
+                <span class="sort-icon"><span></span><span></span></span>
+              </th>
+              <th class="sortable" onclick="sortBy('status')">
+                Status
                 <span class="sort-icon"><span></span><span></span></span>
               </th>
               <th class="sortable" onclick="sortBy('files')">
@@ -142,6 +122,8 @@
     </div>
   </main>
 </div>
+<button class="sidebar-hamburger" onclick="toggleSidebar(event)" aria-label="Toggle sidebar">☰</button>
+<div class="sidebar-backdrop" onclick="toggleSidebar(event)"></div>
 
 <!-- User Detail Modal -->
 <div class="overlay" id="userDetailOverlay">
@@ -317,7 +299,7 @@
           <div class="udm-account-left">
             <div style="display:flex;align-items:center;gap:12px">
               <span class="udm-account-label" style="margin-bottom:0;min-width:90px">Password</span>
-              <span style="font-size:13px;color:var(--cream-40)">Reset to: Learnova@2026</span>
+              <span style="font-size:13px;color:var(--cream-40)">Sends password reset link to user's email</span>
             </div>
           </div>
           <button class="action-btn" id="udmResetPwBtn" onclick="doResetPassword()" title="Reset password" style="color:var(--red-soft);border-color:rgba(200,120,80,0.3)">
@@ -338,7 +320,6 @@
     </div>
     <h3 id="modalTitle">Confirm Action</h3>
     <p id="modalDesc">Are you sure?</p>
-    <div id="bulkInfoWrap"></div>
     <div id="modalExtraWrap"></div>
     <div class="modal-label" id="modalInputLabel">Type username to confirm</div>
     <input class="modal-input" id="confirmInput" placeholder="Enter username…" oninput="checkConfirm()">
@@ -362,12 +343,10 @@
 /* ── State ──────────────────────────────────────────────────────────────────── */
 let ALL_USERS = [];
 let filteredUsers = [];
-let selectedIds = new Set();
 let sortCol = '';
 let sortDir = 'asc';
 let currentAction = null;
-let currentTargetUser = null;   // { _id, name } or null for bulk
-let isBulkAction = false;
+let currentTargetUser = null;
 let currentPage = 1;
 const PAGE_SIZE = 20;
 let totalUsers = 0;
@@ -400,7 +379,7 @@ async function fetchUsers(page = 1) {
     if (!IS_ADMIN_ONLY) renderStats();
     renderPagination();
   } catch (_error) {
-    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="7">Failed to load users — check your connection</td></tr>';
+    document.getElementById('tableBody').innerHTML = '<tr class="loading-row"><td colspan="6">Failed to load users — check your connection</td></tr>';
   }
 }
 
@@ -454,14 +433,12 @@ function applyFilters() {
 
   if (sortCol) applySort();
   else renderTable();
-
-  clearSelection();
 }
 
 /* ── Sort ───────────────────────────────────────────────────────────────────── */
 /**
  * Toggle sorting for a selected column.
- * @param {'name'|'role'|'tier'|'files'|'joined'} col
+ * @param {'name'|'role'|'tier'|'status'|'files'|'joined'} col
  */
 function sortBy(col) {
   document.querySelectorAll('.table th.sortable').forEach(th => th.classList.remove('sorted', 'sort-asc', 'sort-desc'));
@@ -471,7 +448,7 @@ function sortBy(col) {
     sortCol = col;
     sortDir = 'asc';
   }
-  const colMap = { name: 0, role: 1, tier: 2, files: 3, joined: 4 };
+  const colMap = { name: 0, role: 1, tier: 2, status: 3, files: 4, joined: 5 };
   const ths = document.querySelectorAll('.table th.sortable');
   if (colMap[col] !== undefined) {
     ths[colMap[col]].classList.add('sorted', sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
@@ -505,14 +482,7 @@ function renderTable() {
     return;
   }
   tbody.innerHTML = filteredUsers.map(u => `
-    <tr class="${selectedIds.has(u._id) ? 'selected' : ''}" onclick="openUserModal('${u._id}')" style="cursor:pointer">
-      <td onclick="event.stopPropagation()">
-        <div class="cb-wrap">
-          <input type="checkbox" class="cb row-cb" data-id="${u._id}"
-            ${selectedIds.has(u._id) ? 'checked' : ''}
-            onchange="toggleRow(this, '${u._id}')">
-        </div>
-      </td>
+    <tr onclick="openUserModal('${u._id}')" style="cursor:pointer">
       <td>
         <div class="user-cell">
           <div class="user-av-sm">${u.initials}</div>
@@ -524,6 +494,7 @@ function renderTable() {
       </td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
       <td><span class="badge badge-${u.tier}">${u.tier}</span></td>
+      <td><span class="badge badge-${u.status || 'active'}">${escHtml(u.status || 'active')}</span></td>
       <td style="color:var(--cream-60)">${u.files ?? '—'}</td>
       <td style="color:var(--cream-40);font-size:12px">${u.joinedLabel}</td>
       <td onclick="event.stopPropagation()">
@@ -546,7 +517,6 @@ function renderTable() {
       </td>
     </tr>
   `).join('');
-  updateSelectAll();
 }
 
 /* ── Pagination ─────────────────────────────────────────────────────────────── */
@@ -585,74 +555,15 @@ function renderPagination() {
   container.appendChild(next);
 }
 
-/* ── Selection ──────────────────────────────────────────────────────────────── */
-/**
- * Toggle row selection and refresh selection-derived UI.
- * @param {HTMLInputElement} cb
- * @param {string} id
- */
-function toggleRow(cb, id) {
-  if (cb.checked) selectedIds.add(id);
-  else selectedIds.delete(id);
-  updateBulkBar();
-  updateSelectAll();
-  renderTable();
-}
-
-/**
- * Toggle selection state for all visible rows.
- * @param {HTMLInputElement} masterCb
- */
-function toggleAll(masterCb) {
-  if (masterCb.checked) filteredUsers.forEach(u => selectedIds.add(u._id));
-  else filteredUsers.forEach(u => selectedIds.delete(u._id));
-  updateBulkBar();
-  renderTable();
-}
-
-/**
- * Sync select-all checkbox state from visible row selections.
- */
-function updateSelectAll() {
-  const masterCb = document.getElementById('selectAll');
-  const visibleIds = filteredUsers.map(u => u._id);
-  const selVis = visibleIds.filter(id => selectedIds.has(id));
-  masterCb.indeterminate = selVis.length > 0 && selVis.length < visibleIds.length;
-  masterCb.checked = selVis.length > 0 && selVis.length === visibleIds.length;
-}
-
-/**
- * Update bulk action bar visibility/count.
- */
-function updateBulkBar() {
-  const count = selectedIds.size;
-  document.getElementById('bulkCount').textContent = count;
-  document.getElementById('bulkBar').classList.toggle('visible', count > 0);
-}
-
-/**
- * Clear all selected row IDs.
- */
-function clearSelection() {
-  selectedIds.clear();
-  updateBulkBar();
-  updateSelectAll();
-  renderTable();
-}
-
 /* ── Modal config ───────────────────────────────────────────────────────────── */
 const MODAL_CFG = {
   status:     { title: 'Change Status',     icon: 'gold', btnText: 'Confirm', btn: 'btn-outline' },
-  deactivate: { title: 'Deactivate Users',  icon: 'gold', btnText: 'Deactivate All', btn: 'btn-outline' },
-  activate:   { title: 'Activate Users',    icon: 'gold', btnText: 'Activate All', btn: 'btn-outline' },
   role:       { title: 'Change Role',       icon: 'gold', btnText: 'Update Role', btn: 'btn-outline' },
   tier:       { title: 'Change Tier',       icon: 'gold', btnText: 'Update Tier', btn: 'btn-outline' },
 };
 
 const MODAL_ICON = {
   status:     '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-  deactivate: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
-  activate:   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="20 6 9 17 4 12"/></svg>',
   role: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="23" y1="11" x2="17" y2="11"/><line x1="20" y1="8" x2="20" y2="14"/></svg>',
   tier: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
 };
@@ -665,7 +576,6 @@ const MODAL_ICON = {
  * @param {string} [currentStatus]
  */
 function openActionModal(action, userId, userName, currentStatus) {
-  isBulkAction = false;
   currentAction = action;
   currentTargetUser = { _id: userId, name: userName, status: currentStatus || 'active' };
 
@@ -684,7 +594,6 @@ function openActionModal(action, userId, userName, currentStatus) {
   document.getElementById('modalIcon').innerHTML = MODAL_ICON[action] || MODAL_ICON.status;
   document.getElementById('confirmBtn').textContent = action === 'status' ? cap(statusLabel) : cfg.btnText;
   document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
-  document.getElementById('bulkInfoWrap').innerHTML = '';
   document.getElementById('confirmInput').value = '';
   document.getElementById('confirmBtn').disabled = true;
 
@@ -693,7 +602,6 @@ function openActionModal(action, userId, userName, currentStatus) {
       <select class="role-select" id="rolePickerSelect">
         <option value="user">user</option>
         <option value="admin">admin</option>
-        <option value="system_admin">system_admin</option>
       </select>`;
     document.getElementById('confirmInput').placeholder = `Type "${userName}" to confirm`;
     document.getElementById('modalInputLabel').textContent = `Type "${userName}" to confirm`;
@@ -715,35 +623,6 @@ function openActionModal(action, userId, userName, currentStatus) {
 }
 
 /**
- * Open bulk action confirmation modal for current selected users.
- * @param {'activate'|'deactivate'} action
- */
-function bulkAction(action) {
-  if (selectedIds.size === 0) return;
-  isBulkAction = true;
-  currentAction = action;
-  const cfg = MODAL_CFG[action];
-  const count = selectedIds.size;
-  const statusLabel = action === 'activate' ? 'active' : 'inactive';
-
-  document.getElementById('modalTitle').textContent = `${cfg.title} (${count} users)`;
-  document.getElementById('modalDesc').innerHTML = `Set <strong>${count} users</strong> to <strong>${statusLabel}</strong>. ${action === 'deactivate' ? 'They will not be able to log in.' : 'They will regain access.'}`;
-  document.getElementById('modalIcon').className = `modal-icon ${cfg.icon}`;
-  document.getElementById('modalIcon').innerHTML = MODAL_ICON[action];
-  document.getElementById('confirmBtn').textContent = cfg.btnText;
-  document.getElementById('confirmBtn').className = `btn ${cfg.btn}`;
-  document.getElementById('modalExtraWrap').innerHTML = '';
-  document.getElementById('bulkInfoWrap').innerHTML = `
-    <div class="bulk-info">Selected: <strong>${count} users</strong></div>`;
-  document.getElementById('modalInputLabel').textContent = 'Type "confirm" to proceed';
-  document.getElementById('confirmInput').placeholder = 'Type "confirm"';
-  document.getElementById('confirmInput').value = '';
-  document.getElementById('confirmBtn').disabled = true;
-  currentTargetUser = { name: 'confirm' };
-  document.getElementById('confirmOverlay').classList.add('open');
-}
-
-/**
  * Enable confirm button when expected confirmation text matches.
  */
 function checkConfirm() {
@@ -760,39 +639,11 @@ function closeModal() {
 
 /* ── Execute API actions ─────────────────────────────────────────────────────── */
 /**
- * Execute currently selected modal action (single or bulk).
+ * Execute the currently selected modal action for one user.
  * @returns {Promise<void>}
  */
 async function executeAction() {
   closeModal();
-
-  if (isBulkAction && (currentAction === 'activate' || currentAction === 'deactivate')) {
-    const ids = Array.from(selectedIds);
-    const newStatus = currentAction === 'activate' ? 'active' : 'inactive';
-    let success = 0, failed = 0;
-    for (const id of ids) {
-      try {
-        const res = await fetch(`/api/admin/user/${id}/account`, {
-          method: 'PUT',
-          headers: { ...AUTH, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
-        });
-        if (res.ok) {
-          const u = ALL_USERS.find(user => user._id === id);
-          if (u) u.status = newStatus;
-          success++;
-        } else {
-          failed++;
-        }
-      } catch (_) { failed++; }
-    }
-    clearSelection();
-    applyFilters();
-    if (!IS_ADMIN_ONLY) renderStats();
-    const label = newStatus === 'active' ? 'activated' : 'deactivated';
-    showToast(failed ? `${success} ${label}, ${failed} failed` : `${success} users ${label}`, failed ? 'warning' : 'success');
-    return;
-  }
 
   const { _id, name } = currentTargetUser;
 
@@ -1165,7 +1016,7 @@ async function doResetPassword() {
     });
     const data = await res.json();
     if (res.ok) {
-      showToast('Password has been reset', 'success');
+      showToast('Password reset link sent to user email', 'success');
     } else {
       showToast(data.message || 'Reset failed', 'error');
     }
@@ -1220,6 +1071,18 @@ document.addEventListener('keydown', function(e) {
     closeUserModal();
     closeModal();
   }
+
+  if (e.key !== 'Enter') return;
+  if (!e.target || e.target.tagName !== 'INPUT') return;
+  const targetId = e.target.id;
+  if (targetId !== 'eeName' && targetId !== 'eeEmail' && targetId !== 'eePhone' && targetId !== 'eeDob') return;
+
+  const overlayOpen = document.getElementById('userDetailOverlay').classList.contains('open');
+  const editModeOpen = document.getElementById('udmEditMode').style.display !== 'none';
+  if (!overlayOpen || !editModeOpen) return;
+
+  e.preventDefault();
+  saveProfile();
 });
 
 /* ── Init ───────────────────────────────────────────────────────────────────── */

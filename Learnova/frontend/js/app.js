@@ -1,28 +1,60 @@
-/* ──────────────────────────────────────────
-  Learnova Frontend App Script
-  Shared client logic for user pages and system admin pages.
-  Organized in sections: state, helpers, UI, and page modules.
-  ────────────────────────────────────────── */
+/* ───────────────────────────────────────────────────────────────
+ * Learnova Frontend App Script (app.js)
+ *
+ * Shared client logic for user-facing pages (dashboard, upload, quiz,
+ * history, module) and the System Admin panel.
+ *
+ * This file is loaded by every .html page in Learnova. It is organised
+ * into sections:
+ *   1. User State & Core Helpers
+ *   2. Theme & Accessibility Preferences
+ *   3. Toast Notifications
+ *   4. UI Sync (avatar, sidebar, profile)
+ *   5. Settings & Profile Modals
+ *   6. Sidebar HTML & Navigation
+ *   7. History Detail / Split Modals
+ *   8. System Admin Panel
+ *
+ * Dependencies:
+ *   - config.js  (window.LEARNOVA_CONFIG)
+ *   - api.js     (window.LEARNOVA_API, used by upload/quiz pages)
+ *   - billing.js (called via upgradeToPro() / billing.html redirect)
+ * ─────────────────────────────────────────────────────────────── */
 
-/* ── Section: User State and Core Helpers ── */
+// ── Section: User State and Core Helpers ──
+
+// Hydrate initial user snapshot from localStorage (set during login/signup).
 const _storedUser = JSON.parse(localStorage.getItem('user') || 'null');
-// Snapshot of the currently signed-in user, hydrated from localStorage.
+
+/**
+ * In-memory representation of the current signed-in user.
+ * Referenced throughout the app for name, email, tier, and role checks.
+ * Synced back to localStorage in saveProfile() and by the DOMContentLoaded handler.
+ *
+ * Related: syncUserUI() — pushes changes from this object to the DOM.
+ */
 const LEARNOVA_USER = {
   name: (_storedUser && _storedUser.name) || 'User',
   initials: '',
   email: (_storedUser && _storedUser.email) || '',
-  pendingEmail: '',
+  pendingEmail: '',   // Temporary store for an unverified new email address
   avatarUrl: '',
   dob: '',
   phone: '',
   password: '',
-  passwordMask: '•••••••',
+  passwordMask: '•••••••',  // Display-only; actual length varies but is never shown
   tier: (_storedUser && _storedUser.tier) || 'free',
   role: (_storedUser && _storedUser.role) || 'user',
 };
 LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
 
-/* History is stored in localStorage (ln_history) and starts empty for new users. */
+/**
+ * ── History ──
+ * Persisted across sessions via localStorage under the key "ln_history".
+ * On first visit (new user) the array starts empty.
+ * Each entry is created by upload.js → buildHistoryRecord() in api.js
+ * and then marked complete by quiz.js → applyAnalysisToRecord().
+ */
 
 
 /**
@@ -107,6 +139,11 @@ function renderSummaryMarkup(item, options = {}) {
       <div class="cta-hint">${ctaHint}</div>
       <button class="btn btn-primary" onclick="${ctaBefore}${ctaHandler}">${ctaLabel}</button>
     </div>
+    <div style="text-align:center;margin-top:10px;padding-bottom:2px">
+      <button class="btn btn-outline" onclick="sendSummaryEmail()" style="font-size:13px;padding:6px 16px">
+        ✉ Email Summary
+      </button>
+    </div>
   `;
 }
 
@@ -138,7 +175,7 @@ function applyFontSize(s) {
  * Load persisted theme/font-size preferences and apply to the page.
  */
 function loadPrefs() {
-  const t = localStorage.getItem('ln_theme') || 'dark';
+  const t = localStorage.getItem('ln_theme') || 'light';
   const s = localStorage.getItem('ln_fontsize') || 'default';
   applyTheme(t);
   applyFontSize(s);
@@ -194,7 +231,7 @@ function showToast(msg, typeOrDuration, maybeDuration) {
 
   if (!type) {
     const low = String(msg || '').toLowerCase();
-    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing)/.test(low)
+    type = /(fail|failed|error|unable|invalid|incorrect|wrong|denied|network|expired|missing|must)/.test(low)
       ? 'error'
       : 'success';
   }
@@ -405,7 +442,7 @@ function handleSidebarAccountAction(action) {
  */
 function openSettings(tab='general') {
   const currentTab = tab === 'plan' ? 'plan' : 'accessibility';
-  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const saved_theme = localStorage.getItem('ln_theme') || 'light';
 
   const themeSwatchItems = [
     { id:'dark',          label:'Dark',           dots:['#0A0A0A','#C8B89A','#6B9E6B'] },
@@ -455,7 +492,7 @@ function openSettings(tab='general') {
           ${isPro
             ? 'You are on the Pro plan. Premium uploads, advanced feedback, and full learning tools are unlocked for your account.'
             : 'You are on the Free plan. Upgrade to Pro to unlock unlimited documents, PPTX upload, multi-file uploads, and more.'
-          }
+}
         </div>
       </div>
       <div class="plan-card plan-upgrade-card">
@@ -488,6 +525,38 @@ function openSettings(tab='general') {
   const el = document.createElement('div');
   el.id = 'settings-mount'; el.innerHTML = html;
   document.body.appendChild(el);
+}
+
+/**
+ * Send the current document summary to the user's registered email address.
+ *
+ * Reads `currentDoc` from the nearest enclosing scope (set by upload.html or
+ * history detail views). Falls back silently if no document is available.
+ *
+ * Called from: the "✉ Email Summary" button in renderSummaryMarkup().
+ * Backend endpoint: POST /api/email/send-summary
+ */
+function sendSummaryEmail() {
+  var doc = typeof currentDoc !== 'undefined' ? currentDoc : null;
+  if (!doc || !doc.summary) {
+    if (typeof showToast === 'function') showToast('No summary to send');
+    return;
+  }
+  var token = localStorage.getItem('token') || '';
+  fetch('/api/email/send-summary', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+    body: JSON.stringify({
+      title: doc.summary.title || doc.title,
+      summary: doc.summary,
+    }),
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(data){
+    if (data.sent) showToast('Summary sent to your email');
+    else showToast('Could not send email');
+  })
+  .catch(function(e){ console.error('sendSummaryEmail error:', e); showToast('Could not send email'); });
 }
 
 /**
@@ -598,52 +667,101 @@ function closeEditProfile() {
 /**
  * Persist edited profile data to in-memory user state and refresh UI.
  */
-function saveProfile() {
+async function saveProfile() {
   const name = document.getElementById('s-name').value.trim();
   const email = document.getElementById('s-email').value.trim();
   const avatarPreview = document.getElementById('s-avatar-preview');
   const currentPassword = document.getElementById('s-current-password').value;
   const newPassword = document.getElementById('s-new-password').value;
   const confirmPassword = document.getElementById('s-confirm-password').value;
+  const token = localStorage.getItem('token') || '';
 
   // Change flags used to decide which validations/messages apply.
   const emailChanged = email && email !== LEARNOVA_USER.email;
   const hasAnyPasswordInput = Boolean(currentPassword || newPassword || confirmPassword);
   const hasAllPasswordInputs = Boolean(currentPassword && newPassword && confirmPassword);
-  const isCurrentPasswordValid = currentPassword === LEARNOVA_USER.password;
   const isNewPasswordLongEnough = newPassword.length >= 8;
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{}|;':\",./<>?~`]/.test(newPassword);
   const isPasswordConfirmationMatch = newPassword === confirmPassword;
+  let passwordChanged = false;
 
-  if (name) LEARNOVA_USER.name = name;
-  if (avatarPreview) LEARNOVA_USER.avatarUrl = avatarPreview.dataset.avatarUrl || '';
-  if (emailChanged) LEARNOVA_USER.pendingEmail = email;
+  const nextName = name || LEARNOVA_USER.name;
+  const nextAvatarUrl = avatarPreview ? (avatarPreview.dataset.avatarUrl || '') : LEARNOVA_USER.avatarUrl;
+  const nextPendingEmail = emailChanged ? email : LEARNOVA_USER.pendingEmail;
 
   if (hasAnyPasswordInput) {
     if (!hasAllPasswordInputs) {
       showToast('Fill in all password fields');
       return;
     }
-    if (!isCurrentPasswordValid) {
-      showToast('Current password is incorrect');
-      return;
-    }
     if (!isNewPasswordLongEnough) {
       showToast('New password must be at least 8 characters');
+      return;
+    }
+    if (!hasUppercase) {
+      showToast('New password must contain at least one uppercase letter');
+      return;
+    }
+    if (!hasLowercase) {
+      showToast('New password must contain at least one lowercase letter');
+      return;
+    }
+    if (!hasNumber) {
+      showToast('New password must contain at least one number');
+      return;
+    }
+    if (!hasSymbol) {
+      showToast('New password must contain at least one symbol');
       return;
     }
     if (!isPasswordConfirmationMatch) {
       showToast('New passwords do not match');
       return;
     }
-    LEARNOVA_USER.password = newPassword;
+
+    if (!token) {
+      showToast('Please sign in again');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/auth/password', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + token,
+        },
+        body: JSON.stringify({
+          current_password: currentPassword,
+          new_password: newPassword,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        showToast(data.message || data.detail || 'Unable to update password');
+        return;
+      }
+      passwordChanged = true;
+    } catch (_error) {
+      showToast('Unable to connect to server');
+      return;
+    }
+
     LEARNOVA_USER.passwordMask = '•'.repeat(Math.max(7, newPassword.length));
   }
+
+  LEARNOVA_USER.name = nextName;
+  LEARNOVA_USER.avatarUrl = nextAvatarUrl;
+  LEARNOVA_USER.pendingEmail = nextPendingEmail;
   LEARNOVA_USER.initials = getInitials(LEARNOVA_USER.name);
   closeSettings();
   closeEditProfile();
-  if (emailChanged && hasAnyPasswordInput) showToast('Profile updated. Verify your new email address.');
+  if (emailChanged && passwordChanged) showToast('Profile updated. Verify your new email address.');
   else if (emailChanged) showToast('Profile updated. Verify your new email address.');
-  else if (hasAnyPasswordInput) showToast('Password updated');
+  else if (passwordChanged) showToast('Password updated');
   else showToast('Profile updated');
   syncUserUI();
 }
@@ -730,39 +848,54 @@ function closeProfile() {
 function renderSidebar(activePage) {
   const isPro = LEARNOVA_USER.tier === 'pro';
   return `
-  <aside class="sidebar">
+  <aside class="sidebar" id="sidebar-main">
     <div class="sidebar-logo">Learnova</div>
     <div class="sidebar-section">Main</div>
     <a href="dashboard.html" class="sidebar-item${activePage==='dashboard'?' active':''}" data-page="dashboard.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
-      Dashboard
+      <span class="sidebar-label">Dashboard</span>
     </a>
     <a href="upload.html" class="sidebar-item${activePage==='upload'?' active':''}" data-page="upload.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M3 2h8l2 2v10H3V2z"/><path d="M9 2v3h3"/><path d="M5 7h6M5 10h4"/></svg>
-      Documents
+      <span class="sidebar-label">Documents</span>
     </a>
     <a href="module.html" class="sidebar-item${activePage==='module'?' active':''}" data-page="module.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M2 12V5l6-3 6 3v7"/><path d="M8 2v10"/><path d="M5 10h6"/></svg>
-      Learning
+      <span class="sidebar-label">Learning</span>
     </a>
     <a href="history.html" class="sidebar-item${activePage==='history'?' active':''}" data-page="history.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v4l2.5 1.5"/></svg>
-      History
+      <span class="sidebar-label">History</span>
     </a>
+    ${isPro ? `
+    <div class="sidebar-section">Pro</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      <span class="sidebar-label">Pro Features ✦</span>
+    </a>
+    <a href="pptx-session.html" class="sidebar-item${activePage==='pptx'?' active':''}" data-page="pptx-session.html">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><rect x="1" y="2" width="14" height="11" rx="1.5"/><path d="M5 6h4M5 9h6"/><circle cx="12" cy="6" r="1.5" fill="currentColor" stroke="none"/></svg>
+      <span class="sidebar-label">PPTX Sessions</span>
+    </a>` : `
+    <div class="sidebar-section">Upgrade</div>
+    <a href="pro.html" class="sidebar-item${activePage==='pro'?' active':''}" data-page="pro.html" style="color:var(--gold)">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M8 2l1.8 3.6L14 6.5l-3 2.9.7 4.1L8 11.5l-3.7 1.9.7-4.1L2 6.5l4.2-.9z"/></svg>
+      <span class="sidebar-label">Learnova Pro</span>
+    </a>`}
     ${LEARNOVA_USER.role === 'admin' ? `
     <div class="sidebar-section">Admin</div>
-    <a href="admin-users.html" class="sidebar-item${activePage==='admin-users'?' active':''}" data-page="admin-users.html">
+    <a href="admin-stats.html" class="sidebar-item${activePage==='admin-stats'?' active':''}" data-page="admin-stats.html">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M11 14v-1a3 3 0 0 0-3-3H5a3 3 0 0 0-3 3v1"/><circle cx="6.5" cy="5.5" r="2.5"/><path d="M14 7h-3M14 10h-3"/></svg>
-      Admin Panel
+      <span class="sidebar-label">Admin Panel</span>
     </a>` : ''}
     <div class="sidebar-section">Account</div>
     <button class="sidebar-item" onclick="openProfile()" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="5.5" r="2.5"/><path d="M3 13c0-2.76 2.24-5 5-5s5 2.24 5 5"/></svg>
-      Profile
+      <span class="sidebar-label">Profile</span>
     </button>
     <button class="sidebar-item" onclick="openSettings('accessibility')" style="width:100%;text-align:left;background:none;border:none;color:inherit">
       <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="8" cy="8" r="2"/><path d="M8 2v2M8 12v2M2 8h2M12 8h2"/></svg>
-      Settings
+      <span class="sidebar-label">Settings</span>
     </button>
     <div class="sidebar-bottom">
       <button class="sidebar-avatar sidebar-account-trigger" id="sidebar-account-trigger" type="button" onclick="toggleSidebarAccountMenu(event)" aria-haspopup="true" aria-expanded="false">
@@ -780,6 +913,56 @@ function renderSidebar(activePage) {
   </aside>`;
 }
 
+/**
+ * Toggle sidebar visibility.
+ * On narrow screens (≤760px) it acts as an overlay; on wider screens
+ * it collapses/expands the sidebar in place.
+ *
+ * Called from: hamburger button click in sidebar HTML.
+ *
+ * @param {Event} [e] - Optional click event (stopPropagation is called if present)
+ */
+function toggleSidebar(e){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  if(window.innerWidth<=760){
+    sidebar.classList.toggle('sidebar-overlay');
+    sidebar.classList.toggle('open');
+    hamburger&&hamburger.classList.toggle('is-active');
+    backdrop&&backdrop.classList.toggle('open');
+  }else{
+    sidebar.classList.toggle('sidebar-collapsed');
+  }
+  e&&e.stopPropagation&&e.stopPropagation();
+}
+
+/**
+ * Force-close the sidebar overlay (mobile mode).
+ * Resets all overlay-related classes on sidebar, hamburger, and backdrop.
+ *
+ * Called from: sidebar backdrop click, or navigation events.
+ */
+function closeSidebar(){
+  const sidebar=document.getElementById('sidebar-main');
+  const hamburger=document.querySelector('.sidebar-hamburger');
+  const backdrop=document.querySelector('.sidebar-backdrop');
+  if(!sidebar)return;
+  sidebar.classList.remove('sidebar-overlay','open');
+  hamburger&&hamburger.classList.remove('is-active');
+  backdrop&&backdrop.classList.remove('open');
+}
+
+// ── Document Ready & Global Event Listeners (User-Facing Pages) ──
+
+/**
+ * Bootstrap logic run once the DOM is ready on user-facing pages:
+ *   1. Load persisted theme/font preferences.
+ *   2. Highlight the current page's nav item in the sidebar.
+ *   3. Silently re-validate the user's tier from the backend so the UI
+ *      stays in sync even if the tier changed in the database.
+ */
 document.addEventListener('DOMContentLoaded', () => {
   loadPrefs();
   const page = location.pathname.split('/').pop() || 'dashboard.html';
@@ -807,11 +990,13 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+// Close the sidebar account menu when clicking outside the .sidebar-bottom area.
 document.addEventListener('click', (event) => {
   const bottom = event.target.closest('.sidebar-bottom');
   if (!bottom) closeSidebarAccountMenu();
 });
 
+// Close the sidebar account menu when pressing the Escape key.
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') closeSidebarAccountMenu();
 });
@@ -839,7 +1024,17 @@ function renderQuestionListMarkup(questions) {
 }
 
 /**
- * Ensure modal mounts for history detail and split views exist.
+ * Lazily create the modal container elements for history detail and split views.
+ *
+ * Each modal is created once (guarded by an existence check) and reused on
+ * subsequent opens. This avoids accumulating duplicate DOM nodes when the user
+ * opens/closes history items repeatedly.
+ *
+ * Created modals:
+ *   - #detail-modal  → single-panel quiz result detail
+ *   - #split-modal   → side-by-side summary + results view
+ *
+ * Called from: openHistoryDetail() and openHistorySplit()
  */
 function ensureHistoryModalMounts() {
   if (!document.getElementById('detail-modal')) {
@@ -1019,8 +1214,14 @@ function closeHistorySplit() {
 }
 
 /* ── Section: System Admin Page ── */
+// The entire System Admin panel is only active on admin-users.html.
+// It is bootstrapped via a separate DOMContentLoaded listener at the bottom of this file.
 
-// UI metadata used to keep title/subtitle and nav behavior in sync per section.
+/**
+ * UI metadata for each System Admin section.
+ * Controls the page title and subtitle text shown in the admin header,
+ * and drives the nav-button active-state logic in switchSysSection().
+ */
 const SYS_SECTIONS = {
   overview: {
     title: 'System Overview',
@@ -1040,7 +1241,19 @@ const SYS_SECTIONS = {
   }
 };
 
-// In-memory state for System Admin interactions and temporary UI selections.
+/**
+ * Central in-memory state object for all System Admin interactions.
+ *
+ * Holds:
+ *   - The authenticated admin user
+ *   - The full and filtered user list
+ *   - Current active section
+ *   - Target user IDs for role/delete operations
+ *   - Database collection data
+ *   - Security logs and filter state
+ *
+ * This object is mutated directly by admin UI event handlers.
+ */
 const SYS_STATE = {
   user: null,
   users: [],
@@ -1053,6 +1266,8 @@ const SYS_STATE = {
   collectionDocs: {},
   selectedDocs: new Set(),
   dbDeleteTarget: { collection: '', ids: [] },
+  apiHealthGroups: {},
+  openApiHealthGroup: '',
   logs: [],
   filteredLogs: [],
   securityView: 'activity'
@@ -1112,7 +1327,11 @@ function renderSystemAdminSidebar(activeSection) {
 }
 
 /**
- * Open the System Admin account menu in sidebar.
+ * Open the System Admin account menu in the admin sidebar.
+ * Toggles visibility: if the menu is already open, it closes instead.
+ *
+ * The menu displays the admin's name, email, and a sign-out button.
+ * Bound in bindSystemAdminEvents() to clicks on #sys-sidebar-account-trigger.
  */
 function openSysAccountMenu() {
   const trigger = document.getElementById('sys-sidebar-account-trigger');
@@ -1160,7 +1379,10 @@ function openSysAccountMenu() {
 }
 
 /**
- * Close the System Admin account menu and reset trigger state.
+ * Close the System Admin account menu, reset trigger aria-expanded,
+ * and remove the 'open' class from .sidebar-bottom.
+ *
+ * Called from: document click outside menu, Escape key handler, and logoutSystemAdmin().
  */
 function closeSysAccountMenu() {
   const mount = document.getElementById('sys-sidebar-account-mount');
@@ -1172,7 +1394,13 @@ function closeSysAccountMenu() {
 }
 
 /**
- * Sign out System Admin account and clear local auth state.
+ * Sign out the System Admin, clearing local auth state and redirecting to index.
+ *
+ * Delegates to the shared logoutUser() when available (covers token invalidation);
+ * otherwise performs a manual localStorage cleanup.
+ *
+ * Called from: the "Sign out" button in the System Admin account menu.
+ *
  * @returns {Promise<void>}
  */
 async function logoutSystemAdmin() {
@@ -1321,10 +1549,12 @@ function showSysLoading(sectionId) {
   if (sectionId === 'section-overview') {
     const statusGrid = document.getElementById('statusGrid');
     const statsGrid = document.getElementById('statsGrid');
-    const apiHealthList = document.getElementById('apiHealthList');
+    const apiHealthMenu = document.getElementById('apiHealthMenu');
+    const apiHealthDetail = document.getElementById('apiHealthDetail');
     if (statusGrid) statusGrid.innerHTML = loadingMarkup;
     if (statsGrid) statsGrid.innerHTML = loadingMarkup;
-    if (apiHealthList) apiHealthList.innerHTML = loadingMarkup;
+    if (apiHealthMenu) apiHealthMenu.innerHTML = loadingMarkup;
+    if (apiHealthDetail) apiHealthDetail.innerHTML = getApiHealthEmptyMarkup('Loading API availability...');
   }
   if (sectionId === 'section-users') {
     const tbody = document.getElementById('userTableBody');
@@ -1334,14 +1564,14 @@ function showSysLoading(sectionId) {
     const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
     if (menu) menu.innerHTML = loadingMarkup;
-    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading collections...</span></div>';
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Loading collections...');
     scheduleSysDbDetailHeightSync();
   }
   if (sectionId === 'section-security') {
     const menu = document.getElementById('securityFunctionMenu');
     const detail = document.getElementById('securityDetail');
     if (menu) menu.innerHTML = loadingMarkup;
-    if (detail) detail.innerHTML = '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">Loading security data...</span></div>';
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Loading security data...');
     scheduleSysSecurityDetailHeightSync();
   }
 }
@@ -1394,22 +1624,80 @@ function renderRealtimeStats(stats) {
 }
 
 /**
- * Render API health rows with latency and status icon.
- * @param {Array<{endpoint:string,ok:boolean,ms:number}>} requestRows
+ * Render API type selector buttons using the Database Manager layout.
  */
-function renderApiHealth(requestRows) {
-  const apiHealthList = document.getElementById('apiHealthList');
-  if (!apiHealthList) return;
-  apiHealthList.innerHTML = requestRows.map(row => {
-    const icon = row.ok
-      ? '<span class="api-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
-      : '<span class="api-error"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></span>';
-    return '<div class="api-row">'
-      + '<span class="api-endpoint">' + escapeHtml(row.endpoint) + '</span>'
-      + '<span class="api-time">' + row.ms + 'ms</span>'
-      + icon
+function renderApiHealthMenu() {
+  const menu = document.getElementById('apiHealthMenu');
+  if (!menu) return;
+  const sections = [
+    { key: 'user', label: 'User' },
+    { key: 'admin', label: 'Admin' },
+    { key: 'system_admin', label: 'System Admin' }
+  ];
+
+  menu.innerHTML = sections.map(section => {
+    const isOpen = SYS_STATE.openApiHealthGroup === section.key;
+    return '<button class="db-func-btn' + (isOpen ? ' active' : '') + '" type="button" data-expand-api-role="' + escapeHtml(section.key) + '">'
+      + '<span class="db-func-name">' + escapeHtml(section.label) + '</span>'
+      + '</button>';
+  }).join('');
+}
+
+/**
+ * Render a connected empty state inside the API Health card.
+ * @param {string} message
+ * @returns {string}
+ */
+function getApiHealthEmptyMarkup(message) {
+  return getConnectedDetailEmptyMarkup(message);
+}
+
+/**
+ * Open or collapse one API availability group.
+ * @param {string} role
+ */
+function expandApiHealthGroup(role) {
+  const detail = document.getElementById('apiHealthDetail');
+  if (!detail) return;
+
+  if (SYS_STATE.openApiHealthGroup === role) {
+    SYS_STATE.openApiHealthGroup = '';
+    renderApiHealthMenu();
+    detail.innerHTML = getApiHealthEmptyMarkup('Select an API type from the menu above to view availability.');
+    return;
+  }
+
+  SYS_STATE.openApiHealthGroup = role;
+  renderApiHealthMenu();
+  renderApiHealthDetails(role, SYS_STATE.apiHealthGroups[role] || []);
+}
+
+/**
+ * Render endpoint availability in the Database Manager detail panel style.
+ * @param {string} role
+ * @param {any[]} endpoints
+ */
+function renderApiHealthDetails(role, endpoints) {
+  const detail = document.getElementById('apiHealthDetail');
+  if (!detail) return;
+  const labels = { user: 'User', admin: 'Admin', system_admin: 'System Admin' };
+  const label = labels[role] || role;
+  const rows = endpoints.map(endpoint => {
+    return '<div class="doc-row api-health-row">'
+      + '<span class="api-method">' + escapeHtml(endpoint.method) + '</span>'
+      + '<span class="api-endpoint">' + escapeHtml(endpoint.path) + '</span>'
+      + '<span class="api-available">Available</span>'
+      + '<span class="api-ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></span>'
       + '</div>';
   }).join('');
+
+  detail.innerHTML = '<div class="sys-connected-detail">'
+    + '<div class="collection-detail-header">'
+    + '<span class="collection-detail-title">' + escapeHtml(label) + ' APIs - Available</span>'
+    + '<button class="btn btn-outline btn-sm" type="button" id="api-collapse-group">Collapse</button>'
+    + '</div>'
+    + '<div class="api-health-list">' + (rows || '<div class="doc-row"><span class="doc-content">No API endpoints</span></div>') + '</div>'
+    + '</div>';
 }
 
 /**
@@ -1418,10 +1706,11 @@ function renderApiHealth(requestRows) {
  */
 async function loadSystemOverview() {
   showSysLoading('section-overview');
-  const [healthReq, statsReq, logsReq] = await Promise.all([
+  const [healthReq, statsReq, logsReq, apiHealthReq] = await Promise.all([
     sysTimedFetch('/api/sysadmin/health'),
     sysTimedFetch('/api/sysadmin/stats'),
-    sysTimedFetch('/api/sysadmin/logs?page=1&limit=20')
+    sysTimedFetch('/api/sysadmin/logs?page=1&limit=20'),
+    sysTimedFetch('/api/sysadmin/api-health')
   ]);
 
   if (healthReq.ok) renderServiceStatus(healthReq.data);
@@ -1433,9 +1722,20 @@ async function loadSystemOverview() {
     if (statsGrid) statsGrid.innerHTML = '<div class="sys-loading">Failed to load stats</div>';
   }
 
-  renderApiHealth([healthReq, statsReq, logsReq]);
+  if (apiHealthReq.ok) {
+    SYS_STATE.apiHealthGroups = apiHealthReq.data.groups || {};
+    SYS_STATE.openApiHealthGroup = '';
+    renderApiHealthMenu();
+    expandApiHealthGroup('user');
+  }
+  else {
+    const apiHealthMenu = document.getElementById('apiHealthMenu');
+    const apiHealthDetail = document.getElementById('apiHealthDetail');
+    if (apiHealthMenu) apiHealthMenu.innerHTML = '<div class="sys-loading">Failed to load API health</div>';
+    if (apiHealthDetail) apiHealthDetail.innerHTML = getApiHealthEmptyMarkup('Unable to display API availability right now.');
+  }
 
-  if (!healthReq.ok || !statsReq.ok || !logsReq.ok) {
+  if (!healthReq.ok || !statsReq.ok || !logsReq.ok || !apiHealthReq.ok) {
     showToast('Failed to load some system overview data', 3200);
   }
 }
@@ -1613,7 +1913,7 @@ async function resetSysUserPassword(userId) {
     await sysAdminFetch('/api/admin/user/' + encodeURIComponent(userId) + '/reset-password', {
       method: 'POST'
     });
-    showToast('Password reset to Learnova@2026', 3000);
+    showToast('Password reset link sent to user email', 3000);
   } catch (_) {
     showToast('Failed to reset password', 3200);
   }
@@ -1747,7 +2047,7 @@ function syncSysDbDetailHeight() {
   detailContainer.style.minHeight = availableHeight + 'px';
   detailContainer.style.maxHeight = availableHeight + 'px';
 
-  const detailCard = detailContainer.querySelector('.collection-detail');
+  const detailCard = detailContainer.querySelector('.sys-connected-detail');
   let cardTargetHeight = availableHeight;
   if (detailCard) {
     const cardStyle = window.getComputedStyle(detailCard);
@@ -1794,7 +2094,7 @@ function syncSysSecurityDetailHeight() {
   detailContainer.style.minHeight = availableHeight + 'px';
   detailContainer.style.maxHeight = availableHeight + 'px';
 
-  const detailCard = detailContainer.querySelector('.collection-detail');
+  const detailCard = detailContainer.querySelector('.sys-connected-detail');
   let cardTargetHeight = availableHeight;
   if (detailCard) {
     const cardStyle = window.getComputedStyle(detailCard);
@@ -1827,8 +2127,8 @@ function scheduleSysSecurityDetailHeightSync() {
  * @param {string} message
  * @returns {string}
  */
-function getCollectionDetailEmptyMarkup(message) {
-  return '<div class="collection-detail collection-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
+function getConnectedDetailEmptyMarkup(message) {
+  return '<div class="sys-connected-detail-empty"><span class="collection-empty-text">' + escapeHtml(message) + '</span></div>';
 }
 
 /**
@@ -1864,7 +2164,7 @@ async function loadDatabase() {
       const menu = document.getElementById('dbFunctionMenu');
       const detail = document.getElementById('collectionDetail');
       if (menu) menu.innerHTML = '<div class="sys-loading">No collections available</div>';
-      if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('No data to display.');
+      if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('No data to display.');
       scheduleSysDbDetailHeightSync();
       return;
     }
@@ -1903,7 +2203,7 @@ async function loadDatabase() {
     const menu = document.getElementById('dbFunctionMenu');
     const detail = document.getElementById('collectionDetail');
     if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load collections</div>';
-    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display data right now.');
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Unable to display data right now.');
     showToast('Failed to load database', 3200);
     scheduleSysDbDetailHeightSync();
   }
@@ -1938,7 +2238,7 @@ function renderCollections(collections) {
 
   const detail = document.getElementById('collectionDetail');
   if (detail && !SYS_STATE.openCollection) {
-    detail.innerHTML = getCollectionDetailEmptyMarkup('Select a collection from the menu above to view data.');
+    detail.innerHTML = getConnectedDetailEmptyMarkup('Select a collection from the menu above to view data.');
   }
   scheduleSysDbDetailHeightSync();
 }
@@ -1960,7 +2260,7 @@ async function expandCollection(name) {
 
   SYS_STATE.openCollection = name;
   renderCollections(SYS_STATE.collections);
-  detail.innerHTML = '<div class="sys-loading">Loading collection...</div>';
+  detail.innerHTML = getConnectedDetailEmptyMarkup('Loading collection...');
   scheduleSysDbDetailHeightSync();
 
   try {
@@ -1968,7 +2268,7 @@ async function expandCollection(name) {
     SYS_STATE.collectionDocs[name] = data.items || [];
     renderCollectionDocs(name, SYS_STATE.collectionDocs[name]);
   } catch (_) {
-    detail.innerHTML = '<div class="sys-loading">Failed to load collection data</div>';
+    detail.innerHTML = getConnectedDetailEmptyMarkup('Failed to load collection data.');
     showToast('Failed to load collection', 3200);
   }
 }
@@ -2001,7 +2301,7 @@ function renderCollectionDocs(name, docs) {
     : estimateCollectionSize(docs, totalCount);
   const detailMeta = totalCount.toLocaleString() + ' total, ' + sizeText;
 
-  detail.innerHTML = '<div class="collection-detail">'
+  detail.innerHTML = '<div class="sys-connected-detail">'
     + '<div class="collection-detail-header">'
     + '<span class="collection-detail-title">' + escapeHtml(name) + ' - ' + loadedCount + ' documents loaded (' + escapeHtml(detailMeta) + ')</span>'
     + '<div style="display:flex;gap:8px;align-items:center">'
@@ -2337,8 +2637,11 @@ function renderAuditTrail(logs) {
 }
 
 /**
- * Get counts used by security view summaries.
- * @returns {{failed:number,activity:number,audit:number}}
+ * Aggregate counts for the three security sub-views.
+ * Used by the header summary badges (not currently rendered in the UI,
+ * but available for future status indicators).
+ *
+ * @returns {{failed:number, activity:number, audit:number}}
  */
 function getSecurityViewsMeta() {
   const failedCount = SYS_STATE.logs.filter(log => classifyLogType(log) === 'failed').length;
@@ -2383,7 +2686,7 @@ function renderSecurityDetail() {
   if (!detail) return;
 
   if (SYS_STATE.securityView === 'activity') {
-    detail.innerHTML = '<div class="collection-detail">'
+    detail.innerHTML = '<div class="sys-connected-detail">'
       + '<div class="collection-detail-header">'
       + '<span class="collection-detail-title">Activity Logs</span>'
       + '<div class="sys-card-actions">'
@@ -2410,7 +2713,7 @@ function renderSecurityDetail() {
   }
 
   if (SYS_STATE.securityView === 'audit') {
-    detail.innerHTML = '<div class="collection-detail">'
+    detail.innerHTML = '<div class="sys-connected-detail">'
       + '<div class="collection-detail-header">'
       + '<span class="collection-detail-title">Audit Trail - Admin Actions</span>'
       + '</div>'
@@ -2421,7 +2724,7 @@ function renderSecurityDetail() {
     return;
   }
 
-  detail.innerHTML = '<div class="collection-detail">'
+  detail.innerHTML = '<div class="sys-connected-detail">'
     + '<div class="collection-detail-header">'
     + '<span class="collection-detail-title">Failed Logins</span>'
     + '</div>'
@@ -2461,7 +2764,7 @@ async function loadSecurity() {
     const menu = document.getElementById('securityFunctionMenu');
     const detail = document.getElementById('securityDetail');
     if (menu) menu.innerHTML = '<div class="sys-loading" style="color:var(--red-soft)">Failed to load security functions</div>';
-    if (detail) detail.innerHTML = getCollectionDetailEmptyMarkup('Unable to display security data right now.');
+    if (detail) detail.innerHTML = getConnectedDetailEmptyMarkup('Unable to display security data right now.');
     scheduleSysSecurityDetailHeightSync();
   }
 }
@@ -2538,8 +2841,22 @@ function exportSysLogsCsv() {
 }
 
 /* -- System Admin: Events and Bootstrapping -- */
+
 /**
- * Bind all event listeners for System Admin interactions.
+ * Wire up all DOM event listeners for the System Admin panel.
+ *
+ * Handles:
+ *   - Window resize (re-sync detail panel heights)
+ *   - Sidebar navigation clicks (switchSysSection)
+ *   - Sidebar account menu toggle
+ *   - User table actions (role, reset password, delete)
+ *   - Database collection expand/collapse, document selection & deletion
+ *   - Security view switching, log filtering, CSV export
+ *   - Escape key to close all modals
+ *
+ * Called once during the System Admin bootstrap (DOMContentLoaded).
+ * Uses optional chaining (?.) so listeners are only attached when the
+ * corresponding DOM elements exist (safe for partial page loads).
  */
 function bindSystemAdminEvents() {
   window.addEventListener('resize', () => {
@@ -2665,6 +2982,20 @@ function bindSystemAdminEvents() {
     expandCollection(name);
   });
 
+  document.getElementById('apiHealthMenu')?.addEventListener('click', event => {
+    const btn = event.target.closest('[data-expand-api-role]');
+    if (!btn) return;
+    const role = btn.getAttribute('data-expand-api-role') || '';
+    if (!role) return;
+    expandApiHealthGroup(role);
+  });
+
+  document.getElementById('apiHealthDetail')?.addEventListener('click', event => {
+    if (event.target.closest('#api-collapse-group') && SYS_STATE.openApiHealthGroup) {
+      expandApiHealthGroup(SYS_STATE.openApiHealthGroup);
+    }
+  });
+
   document.getElementById('collectionDetail')?.addEventListener('input', event => {
     if (event.target && event.target.id === 'sys-detail-search') {
       filterCollectionDocs(event.target.value || '');
@@ -2746,12 +3077,14 @@ function bindSystemAdminEvents() {
   });
 }
 
-// System Admin bootstrap flow: verify role, render sidebar, bind events, load default section.
+// ── System Admin Bootstrap ──
+// Runs only on the System Admin page (detected by #system-admin-page).
+// Flow: verify role → render sidebar → bind all event listeners → load default section.
 document.addEventListener('DOMContentLoaded', async () => {
-  if (!isSystemAdminPage()) return;
+  if (!isSystemAdminPage()) return; // Bail out if not on the admin page.
 
   const user = await verifySysAdmin();
-  if (!user) return;
+  if (!user) return; // Redirect to index already happened inside verifySysAdmin().
 
   SYS_STATE.user = user;
 
@@ -2766,5 +3099,5 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (initialsSlot) initialsSlot.textContent = getInitials(user.name || 'System Admin');
 
   bindSystemAdminEvents();
-  switchSysSection('overview');
+  switchSysSection('overview'); // Start on the overview (default) section.
 });
