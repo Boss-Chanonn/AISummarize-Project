@@ -2,9 +2,9 @@
 routes/upload.py — Document Upload & Learning Package Generation
 =================================================================
 Handles file uploads (PDF, DOCX, TXT, PPTX) and text-paste submissions.
-Orchestrates a dual-Mac AI pipeline:
-  - Mac 1 (gpt-oss)   → summary generation (async via httpx or run_in_executor)
-  - Mac 2 (deepseek)   → quiz generation (background thread, polled via quiz-status)
+Orchestrates a two-model AI pipeline on one Ollama host:
+  - gpt-oss   → summary generation (async via httpx or run_in_executor)
+  - deepseek  → quiz generation (background thread, polled via quiz-status)
 Also includes PDF quality assessment, text extraction helpers, and a
 deterministic fallback payload when AI services are unavailable.
 
@@ -28,13 +28,13 @@ from backend.services.ollama_service import generate_learning_package
 from backend.services.ai_service import AIService
 from backend.services.schemas import SummaryRequest, QuizRequest, SummaryResponse
 
-# Shared AI service instance — Mac 1 for summary, Mac 2 for quiz
+# Shared AI service instance with separate summary and quiz model clients
 _ai_service = AIService()
 
 
 async def _async_summarize(doc_title: str, extracted_text: str):
     """
-    Call Mac 1 (gpt-oss) for summary using httpx async — avoids run_in_executor
+    Call the summary model using httpx async — avoids run_in_executor
     threading conflicts with Ollama's OLLAMA_NUM_PARALLEL=1 queue.
     Returns a SummaryResponse or raises on failure.
     """
@@ -92,12 +92,12 @@ Content: {text}"""
             if response_text:
                 break
             print(f"[summary] attempt {attempt+1} empty — retrying")
-            last_error = ValueError("Mac 1 returned empty response")
+            last_error = ValueError("Summary model returned an empty response")
         except Exception as e:
             print(f"[summary] attempt {attempt+1} error: {repr(e)} — retrying")
             last_error = e
     else:
-        raise last_error or ValueError("Mac 1 failed after 4 attempts")
+        raise last_error or ValueError("Summary model failed after 4 attempts")
 
     # Clean markdown fences
     import re as _re
@@ -172,7 +172,7 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
     try:
         t0 = _t.time()
         model = _ai_service.quiz_client.settings.model
-        print(f"[quiz] ⏳ Mac 2 generating quiz — model={model} doc={doc_title}")
+        print(f"[quiz] Quiz model generating — model={model} doc={doc_title}")
         quiz_response = _ai_service.generate_quiz(
             QuizRequest(title=doc_title, summary=summary_response,
                         question_count=8, difficulty="intermediate")
@@ -193,7 +193,7 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
             except Exception as _qe:
                 print(f"[quiz] skipping malformed question: {_qe}")
                 continue
-        print(f"[upload] ✅ Mac 2 quiz done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
+        print(f"[upload] Quiz model done — model={model} time={elapsed}s questions={len(quiz_data)} doc={doc_title}")
         _upload_quiz_jobs[job_id] = {"status": "done", "quiz": quiz_data, "error": None}
 
         # ── Persist quiz to MongoDB using pymongo sync client (thread-safe) ──
@@ -214,7 +214,7 @@ def _run_quiz_in_background(job_id: str, doc_title: str, summary_response, histo
         except Exception as save_err:
             print(f"[upload] ⚠️  Quiz generated but MongoDB save failed: {save_err}")
     except Exception as exc:
-        print(f"[upload] Mac 2 quiz failed: {repr(exc)}")
+        print(f"[upload] Quiz model failed: {repr(exc)}")
         _upload_quiz_jobs[job_id] = {"status": "error", "quiz": [], "error": str(exc)}
 
 # ── In-memory quiz job store (declaration repeated for module-level access) ───
@@ -516,9 +516,9 @@ async def _generate_ai_payload(
         )
         _summary_time = round(_time.time() - _t0, 1)
         summary_model = _ai_service.client.settings.model
-        print(f"[upload] ✅ Mac 1 summary done — model={summary_model} time={_summary_time}s doc={doc_title}")
+        print(f"[upload] Summary model done — model={summary_model} time={_summary_time}s doc={doc_title}")
     except Exception as e:
-        print(f"[upload] Mac 1 summary failed: {repr(e)} — trying legacy path")
+        print(f"[upload] Summary model failed: {repr(e)} — trying legacy path")
 
     # ── Step 2: Quiz on Mac 2 (deepseek) ────────────────────────────────────
     quiz_data = None
@@ -550,9 +550,9 @@ async def _generate_ai_payload(
                 }
                 for q in quiz_response.questions
             ]
-            print(f"[upload] ✅ Mac 2 quiz done — model={quiz_model} time={_quiz_time}s questions={len(quiz_data)} doc={doc_title}")
+            print(f"[upload] Quiz model done — model={quiz_model} time={_quiz_time}s questions={len(quiz_data)} doc={doc_title}")
         except Exception as e:
-            print(f"[upload] Mac 2 quiz failed: {repr(e)}")
+            print(f"[upload] Quiz model failed: {repr(e)}")
 
     # ── Step 3: Build payload if both succeeded ──────────────────────────────
     if summary_response and quiz_data:
@@ -770,12 +770,12 @@ async def upload_document(
     try:
         t0 = _t.time()
         model = _ai_service.client.settings.model
-        print(f"[summary] ⏳ Mac 1 summarising — model={model} doc={doc_title}")
+        print(f"[summary] Summary model running — model={model} doc={doc_title}")
         summary_response = await _async_summarize(doc_title, extracted_text)
         elapsed = round(_t.time() - t0, 1)
-        print(f"[upload] ✅ Mac 1 summary done — model={model} time={elapsed}s doc={doc_title}")
+        print(f"[upload] Summary model done — model={model} time={elapsed}s doc={doc_title}")
     except Exception as e:
-        print(f"[upload] Mac 1 summary failed: {repr(e)} — falling back to legacy")
+        print(f"[upload] Summary model failed: {repr(e)} — falling back to legacy")
 
     # ── Phase 2: Build ai_payload from summary ───────────────────────────────
     if summary_response:
@@ -826,7 +826,7 @@ async def upload_document(
             daemon=True,
         )
         t.start()
-        print(f"[upload] Mac 2 quiz queued — job_id={quiz_job_id}")
+        print(f"[upload] Quiz model queued — job_id={quiz_job_id}")
 
     # ── Phase 5: Return immediately (do NOT wait for quiz) ───────────────────
     # The response includes quizJobId for frontend polling, and quizReady=false

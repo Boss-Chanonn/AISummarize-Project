@@ -5,7 +5,7 @@ from typing import Any, Dict
 
 import httpx
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://100.116.106.17:11434")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
 OLLAMA_TIMEOUT_SECONDS = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
 OLLAMA_ENABLED = os.getenv("OLLAMA_ENABLED", "true").lower() == "true"
@@ -397,4 +397,3 @@ Be specific to the actual questions listed above. No markdown, only JSON.""".str
         recommendations = ["Review the summary again", "Re-read the sections you missed", "Practice with similar materials"]
 
     return {"strengths": strengths, "weaknesses": weaknesses, "recommendations": recommendations}
-

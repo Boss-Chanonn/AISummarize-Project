@@ -2,12 +2,13 @@
 ollama_client.py  —  Ollama HTTP client for local LLM inference
 ================================================================
 Provides a thin wrapper around Ollama's REST API (generate, chat, version).
-Supports two dedicated Mac machines:
-  - Mac 1 (172.16.40.120): gpt-oss model for summarisation
-  - Mac 2 (172.16.40.122): deepseek-r1:8b model for quiz generation
+Both model clients use the same Ollama host while keeping separate model and
+generation settings:
+  - gpt-oss model for summarisation
+  - deepseek-r1:8b model for quiz generation
 
 Cross-references:
-  - ai_service.py instantiates two OllamaClient instances (one for each Mac).
+  - ai_service.py instantiates one OllamaClient per model.
   - pptx_service.py uses OllamaClient for per-slide summarisation.
 """
 from __future__ import annotations
@@ -31,7 +32,7 @@ class OllamaSettings:
 
     Used as a base when no dedicated machine is configured.
     """
-    base_url: str = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434").rstrip("/")
+    base_url: str = os.getenv("OLLAMA_BASE_URL", "http://100.116.106.17:11434").rstrip("/")
     model: str = os.getenv("OLLAMA_MODEL", "gpt-oss:120b-cloud")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
@@ -40,8 +41,8 @@ class OllamaSettings:
 
 @dataclass(slots=True)
 class SummaryOllamaSettings:
-    """Mac 1 (172.16.40.120) — gpt-oss, handles summarisation & analysis."""
-    base_url: str = os.getenv("SUMMARY_OLLAMA_URL", "http://172.16.40.120:11434").rstrip("/")
+    """gpt-oss settings for summarisation and analysis."""
+    base_url: str = os.getenv("SUMMARY_OLLAMA_URL", "http://100.116.106.17:11434").rstrip("/")
     model: str = os.getenv("SUMMARY_MODEL", "gpt-oss:120b-cloud")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "120"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
@@ -50,8 +51,8 @@ class SummaryOllamaSettings:
 
 @dataclass(slots=True)
 class QuizOllamaSettings:
-    """Mac 2 (172.16.40.122) — deepseek-r1:8b, handles quiz generation (faster for structured output)."""
-    base_url: str = os.getenv("QUIZ_OLLAMA_URL", "http://172.16.40.122:11434").rstrip("/")
+    """deepseek-r1:8b settings for quiz generation."""
+    base_url: str = os.getenv("QUIZ_OLLAMA_URL", "http://100.116.106.17:11434").rstrip("/")
     model: str = os.getenv("QUIZ_MODEL", "deepseek-r1:8b")
     timeout_seconds: int = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "180"))
     temperature: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.2"))
@@ -63,10 +64,8 @@ class QuizOllamaSettings:
 class OllamaClient:
     """Low-level HTTP client for Ollama's /api/generate and /api/version endpoints.
 
-    Each instance targets a specific Ollama server (model + URL).
-    The two dedicated instances are:
-      - client (summary/analysis) → gpt-oss on Mac 1
-      - quiz_client (quiz gen)    → deepseek on Mac 2
+    Each instance targets a specific model and URL. The summary and quiz
+    clients may share one Ollama server.
     """
 
     def __init__(self, settings: OllamaSettings | SummaryOllamaSettings | QuizOllamaSettings | None = None) -> None:

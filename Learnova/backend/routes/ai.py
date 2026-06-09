@@ -1,9 +1,10 @@
 """
 routes/ai.py — AI Service Endpoints (Summarisation, Quiz, Analysis)
 ====================================================================
-Registers all AI endpoints on the main FastAPI app using a dual-Mac setup:
-  - Mac 1 (gpt-oss / SummaryOllamaSettings)   → summarisation, analysis, learning modules
-  - Mac 2 (deepseek / QuizOllamaSettings)      → quiz generation (including follow-up)
+Registers all AI endpoints on the main FastAPI app using two models hosted by
+one Ollama server:
+  - gpt-oss / SummaryOllamaSettings → summarisation, analysis, learning modules
+  - deepseek / QuizOllamaSettings   → quiz generation (including follow-up)
 
 Endpoints are synchronous (blocking) except for the combined
 POST /summarize-and-queue-quiz which fires quiz generation in a background task
@@ -14,7 +15,7 @@ HOW TO INTEGRATE — one edit in backend/main.py:
     app.include_router(ai_router, prefix="/api/ai", tags=["ai"])
 
 Cross-reference: routes/upload.py, routes/pptx.py, routes/history.py all delegate
-                 AI work to the same AIService or its dual-Mac clients.
+                 AI work to the same AIService and its model-specific clients.
 """
 from __future__ import annotations
 
@@ -50,10 +51,10 @@ from backend.services.schemas import (
 
 router = APIRouter()
 
-# ── Service (dual-Mac) ────────────────────────────────────────────────────────
+# ── Service (shared host, model-specific clients) ─────────────────────────────
 _service = AIService(
-    client=OllamaClient(SummaryOllamaSettings()),   # Mac 1 — gpt-oss     — summarise
-    quiz_client=OllamaClient(QuizOllamaSettings()), # Mac 2 — deepseek    — quiz
+    client=OllamaClient(SummaryOllamaSettings()),
+    quiz_client=OllamaClient(QuizOllamaSettings()),
 )
 
 # ── In-memory job store ───────────────────────────────────────────────────────
@@ -104,7 +105,7 @@ class QuizStatusResponse(BaseModel):
 
 # ── Background quiz job ───────────────────────────────────────────────────────
 def _run_quiz_job(job_id: str, payload: QuizRequest) -> None:
-    """Runs in the background — generates quiz on Mac 2, stores result in job store."""
+    """Run quiz generation in the background and store its result."""
     try:
         result = _service.generate_quiz(payload)
         _quiz_jobs[job_id] = {"status": "done", "result": result, "error": None}
@@ -114,10 +115,10 @@ def _run_quiz_job(job_id: str, payload: QuizRequest) -> None:
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
-# GET /health — check availability of both AI Macs
+# GET /health — check both model clients
 @router.get("/health")
 def ai_health() -> dict:
-    """GET /health — check both Macs independently and report status + model info."""
+    """Check both model clients and report status, model, and URL."""
     summary_status, quiz_status = "ok", "ok"
     try:
         _service.client.health()
@@ -155,20 +156,20 @@ async def summarize_and_queue_quiz(
     """
     POST /summarize-and-queue-quiz — two-phase AI pipeline.
 
-    Phase 1 (synchronous): Summarise on Mac 1 (gpt-oss). Blocks until complete.
-    Phase 2 (background):  Queue quiz generation on Mac 2 (deepseek). Returns
+    Phase 1 (synchronous): Summarise with gpt-oss. Blocks until complete.
+    Phase 2 (background):  Queue quiz generation with deepseek. Returns
                            a job_id for polling via GET /quiz-status/{job_id}.
 
     This is the preferred endpoint for the frontend's "AI Study" flow because
     the summary is needed immediately while the quiz can arrive later.
     """
-    # Step 1 — summarise on Mac 1 (blocks until done)
+    # Step 1 — summarise with the summary model (blocks until done)
     try:
         summary = _service.summarize(SummaryRequest(title=payload.title, text=payload.text))
     except Exception as exc:
         _handle(exc)
 
-    # Step 2 — queue quiz on Mac 2 as a FastAPI BackgroundTask
+    # Step 2 — queue the quiz model as a FastAPI BackgroundTask
     job_id = str(uuid.uuid4())
     _quiz_jobs[job_id] = {"status": "pending", "result": None, "error": None}
 

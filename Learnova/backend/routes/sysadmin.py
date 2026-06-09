@@ -79,7 +79,7 @@ async def system_health(current_user: dict = Depends(get_system_admin_user)):
         pass
     # Check Ollama
     ollama_ok = False
-    ollama_base = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+    ollama_base = os.getenv("OLLAMA_BASE_URL", "http://100.116.106.17:11434")
     try:
         async with httpx.AsyncClient(timeout=5) as c:
             r = await c.get(f"{ollama_base}/api/tags")

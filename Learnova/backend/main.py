@@ -294,8 +294,8 @@ def _check_ai_connections() -> None:
     """Check configured summary and quiz Ollama endpoints before serving work."""
     summary_settings = SummaryOllamaSettings()
     quiz_settings = QuizOllamaSettings()
-    _check_ollama_endpoint("Mac 1 summary", summary_settings.base_url, summary_settings.model)
-    _check_ollama_endpoint("Mac 2 quiz", quiz_settings.base_url, quiz_settings.model)
+    _check_ollama_endpoint("Summary model", summary_settings.base_url, summary_settings.model)
+    _check_ollama_endpoint("Quiz model", quiz_settings.base_url, quiz_settings.model)
 
 
 @app.on_event("startup")
