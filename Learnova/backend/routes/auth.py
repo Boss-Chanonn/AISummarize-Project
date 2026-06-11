@@ -351,7 +351,11 @@ async def login(request: Request, credentials: UserLogin):
     if user.get("status") == "inactive":
         return message_error(403, "Account is disabled. Contact an administrator.")
     if user.get("verified") is False:
-        return message_error(403, "Please verify your email before signing in.")
+        return message_error(
+            403,
+            "Please verify your email before signing in.",
+            code="EMAIL_NOT_VERIFIED",
+        )
     # ── Send welcome email on first sign-in ──
     if not user.get("welcomed"):
         try:
