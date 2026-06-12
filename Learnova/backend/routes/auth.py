@@ -125,13 +125,20 @@ async def forgot_password(body: dict):
         }}
     )
 
-    # Fire-and-forget reset email
+    # Lambda must wait for SMTP to finish before returning the response.
     try:
         from backend.services.email_service import send_reset_password_email
-        import asyncio
-        asyncio.ensure_future(send_reset_password_email(email, user.get("name", "User"), reset_token))
-    except Exception:
-        pass
+        email_sent = await send_reset_password_email(
+            email,
+            user.get("name", "User"),
+            reset_token,
+        )
+        print(f"[auth.forgot_password] recipient={email} email_sent={email_sent}")
+    except Exception as error:
+        print(
+            f"[auth.forgot_password] recipient={email} "
+            f"type={type(error).__name__} error={error}"
+        )
 
     return {"message": "If that email is registered, a reset link has been sent."}
 

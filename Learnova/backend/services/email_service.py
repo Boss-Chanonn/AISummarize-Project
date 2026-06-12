@@ -18,6 +18,7 @@ Cross-references:
 from __future__ import annotations
 
 import os
+import socket
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -37,7 +38,12 @@ SMTP_PASS = os.getenv("SMTP_PASS", "")
 
 # ── Core send function ────────────────────────────────────────────────────────
 
-async def _send_email(to_email: str, subject: str, html: str) -> bool:
+async def _send_email(
+    to_email: str,
+    subject: str,
+    html: str,
+    smtp_timeout=socket._GLOBAL_DEFAULT_TIMEOUT,
+) -> bool:
     """Send an email via Gmail SMTP.
 
     Runs the SMTP call in a thread executor to avoid blocking the async event loop.
@@ -47,6 +53,7 @@ async def _send_email(to_email: str, subject: str, html: str) -> bool:
         to_email: Recipient email address.
         subject:  Email subject line.
         html:     HTML body content.
+        smtp_timeout: Optional SMTP connection timeout in seconds.
 
     Returns:
         True if the email was sent successfully, False otherwise.
@@ -64,7 +71,7 @@ async def _send_email(to_email: str, subject: str, html: str) -> bool:
         loop = asyncio.get_running_loop()
 
         def _send():
-            with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=smtp_timeout) as server:
                 server.starttls()
                 server.login(SMTP_USER, SMTP_PASS)
                 server.sendmail(EMAIL_FROM, [to_email], msg.as_string())
@@ -72,8 +79,8 @@ async def _send_email(to_email: str, subject: str, html: str) -> bool:
         await loop.run_in_executor(None, _send)
         print(f"[email] ✅ Sent to {to_email}")
         return True
-    except Exception as e:
-        print(f"[email] ❌ Failed to send to {to_email}: {e}")
+    except Exception as error:
+        print(f"[email] ❌ Failed to send to {to_email}: {error}")
         return False
 
 
@@ -421,7 +428,7 @@ async def send_reset_password_email(user_email: str, user_name: str, reset_token
 </body>
 </html>"""
     subject = "Reset your Learnova password"
-    return await _send_email(user_email, subject, html)
+    return await _send_email(user_email, subject, html, smtp_timeout=15)
 
 
 def _build_pro_welcome_email_html(name: str, plan_type: str) -> str:
