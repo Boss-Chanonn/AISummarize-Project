@@ -14,8 +14,8 @@ set -euo pipefail
 # ────────────────────────────────────────────────────────────────────────────
 
 # ── CONFIG — fill these in ────────────────────────────────────────────────────
-AWS_REGION="ap-southeast-2"         # your AWS region
-ECR_REPO="learnova-app"             # ECR repository name
+AWS_REGION="ap-southeast-2"         # your AWS region (same as where ECR repo lives)
+ECR_REPO="aisummarizeproject"       # ECR repository name
 ECR_ACCOUNT="123456789012"          # your AWS account ID
 
 LAMBDA_FUNCTION="learnova-api"      # Lambda function name (for Lambda deploy)
@@ -66,9 +66,23 @@ else
     --function-name "${LAMBDA_FUNCTION}" \
     --image-uri "${ECR_URI}/${ECR_REPO}:latest" \
     --region "${AWS_REGION}" \
-    --output json \
-    | jq '{FunctionArn, LastUpdateStatus, State}'
-  echo "✅ Lambda deploy triggered. Image: ${ECR_URI}/${ECR_REPO}:latest"
+    --output json
+  echo "✅ ECS deploy triggered. Image: ${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}"
+else
+  echo "🚀 Deploying to Lambda — updating function ${LAMBDA_FUNCTION}..."
+  UPDATE_RESULT=$(aws lambda update-function-code \
+    --function-name "${LAMBDA_FUNCTION}" \
+    --image-uri "${ECR_URI}/${ECR_REPO}:latest" \
+    --region "${AWS_REGION}" \
+    --output json 2>&1) || true
+  # Check if update succeeded
+  ECHOED_ARN=$(echo "$UPDATE_RESULT" | grep -o '"FunctionArn":"[^"]*"' | head -1)
+  if [ -n "$ECHOED_ARN" ]; then
+    echo "✅ Lambda deploy triggered."
+  else
+    echo "⚠️  Lambda update result:"
+    echo "$UPDATE_RESULT"
+  fi
 fi
 
 echo ""
