@@ -114,6 +114,33 @@ let quizMode = false, currentQ = 0, answers = [], answered = false;
 
 // ── Quiz data management ───────────────────────────────────────────────────────
 /**
+ * Convert quiz questions from any backend/frontend shape into the legacy
+ * q/opts/correct format used by this page's quiz renderer.
+ *
+ * @param {object} question  Raw quiz question from upload/history/localStorage
+ * @param {number} index     Question index for fallback labels
+ * @returns {{q: string, opts: string[], correct: number, explanation: string, topic: string}}
+ */
+function normalizeQuizQuestion(question, index) {
+  const raw = question && typeof question === 'object' ? question : {};
+  const rawOptions = Array.isArray(raw.opts) ? raw.opts : (Array.isArray(raw.options) ? raw.options : []);
+  const opts = rawOptions.slice(0, 4).map(option => String(option || '').trim() || 'Option');
+  while (opts.length < 4) opts.push('Option ' + String.fromCharCode(65 + opts.length));
+
+  const rawCorrect = raw.correct !== undefined ? raw.correct : raw.correct_index;
+  let correct = Number.parseInt(rawCorrect, 10);
+  if (!Number.isInteger(correct) || correct < 0 || correct >= opts.length) correct = 0;
+
+  return {
+    q: String(raw.q || raw.question || `Question ${index + 1}`).trim() || `Question ${index + 1}`,
+    opts,
+    correct,
+    explanation: String(raw.explanation || 'Review the summary for the reasoning behind this answer.'),
+    topic: String(raw.topic || 'General')
+  };
+}
+
+/**
  * Normalise and store quiz questions from upload or history responses.
  * Also synchronises currentDoc's quiz references for downstream rendering.
  *
@@ -121,13 +148,25 @@ let quizMode = false, currentQ = 0, answers = [], answered = false;
  * @returns {object[]}  The stored quiz data array
  */
 function setQuizData(questions) {
-  quizData = Array.isArray(questions) ? questions : [];
+  quizData = Array.isArray(questions) ? questions.map(normalizeQuizQuestion) : [];
   if (currentDoc) {
     currentDoc.quizData = quizData;
     currentDoc.quizFull = quizData;
     currentDoc.total = quizData.length || currentDoc.total || 8;
   }
   return quizData;
+}
+
+/**
+ * Return the currently visible quiz mount so button state changes do not hit
+ * stale duplicated markup left behind by panel transition animations.
+ *
+ * @returns {HTMLElement}
+ */
+function getQuizMount() {
+  const curtain = document.getElementById('curtain-panel');
+  if (curtain && curtain.classList.contains('curtain-visible')) return curtain;
+  return document.getElementById('right-panel') || document;
 }
 
 /* ── Upload UI Helpers ─────────────────────────────────────────────────────── */
@@ -1253,14 +1292,14 @@ function renderQuestion(direction='forward') {
         <span style="font-size:11px;color:var(--cream-25)">${quizData.length - currentQ - 1} remaining</span>
       </div>
       <div class="quiz-q-prog"><div class="quiz-q-prog-fill" style="width:${pct}%"></div></div>
-      <div class="quiz-question">${q.q}</div>
+      <div class="quiz-question">${escapeHtml(q.q)}</div>
       <div class="quiz-options">
-        ${q.opts.map((o,i) => `<button class="quiz-opt" onclick="selectAnswer(${i})" id="opt-${i}"><span class="opt-letter">${'ABCD'[i]}</span>${o}</button>`).join('')}
+        ${q.opts.map((o,i) => `<button type="button" class="quiz-opt" onclick="selectAnswer(${i})" id="opt-${i}"><span class="opt-letter">${'ABCD'[i]}</span>${escapeHtml(o)}</button>`).join('')}
       </div>
       <div class="quiz-feedback-inline" id="qfeedback"></div>
       <div class="quiz-nav">
-        <button class="btn" onclick="skipQuestion()" id="btn-skip" style="font-size:12px">Skip</button>
-        <button class="btn btn-primary" id="btn-next" style="display:none" onclick="nextQuestion()">
+        <button type="button" class="btn" onclick="skipQuestion()" id="btn-skip" style="font-size:12px">Skip</button>
+        <button type="button" class="btn btn-primary" id="btn-next" style="display:none" onclick="nextQuestion()">
           ${currentQ+1 < quizData.length ? 'Next question →' : 'See results →'}
         </button>
       </div>
@@ -1287,19 +1326,29 @@ function renderQuestion(direction='forward') {
  */
 function selectAnswer(i) {
   if (answered) return;
-  answered = true;
   const q = quizData[currentQ];
+  if (!q || !Array.isArray(q.opts)) {
+    showToast('Quiz question is not ready — please try again');
+    return;
+  }
+  answered = true;
   answers.push({ chosen: i, correct: q.correct });
-  const fb = document.getElementById('qfeedback');
-  document.querySelectorAll('.quiz-opt').forEach((el,j) => {
+  const mount = getQuizMount();
+  const fb = mount.querySelector('#qfeedback');
+  mount.querySelectorAll('.quiz-opt').forEach((el,j) => {
+    if (j === i) el.classList.add('selected');
     if (j === q.correct) el.classList.add('correct');
     else if (j === i && i !== q.correct) el.classList.add('wrong');
     el.style.pointerEvents = 'none';
   });
-  if (i === q.correct) { fb.className='quiz-feedback-inline correct'; fb.textContent='Correct — '+q.explanation; }
-  else { fb.className='quiz-feedback-inline wrong'; fb.textContent='Incorrect. '+q.explanation; }
-  document.getElementById('btn-skip').style.display = 'none';
-  document.getElementById('btn-next').style.display = 'inline-flex';
+  if (fb) {
+    if (i === q.correct) { fb.className='quiz-feedback-inline correct'; fb.textContent='Correct — '+q.explanation; }
+    else { fb.className='quiz-feedback-inline wrong'; fb.textContent='Incorrect. '+q.explanation; }
+  }
+  const skipBtn = mount.querySelector('#btn-skip');
+  const nextBtn = mount.querySelector('#btn-next');
+  if (skipBtn) skipBtn.style.display = 'none';
+  if (nextBtn) nextBtn.style.display = 'inline-flex';
 }
 
 /**
@@ -1307,7 +1356,14 @@ function selectAnswer(i) {
  * and advancing to the next question or results.
  */
 function skipQuestion() {
-  answers.push({ chosen: -1, correct: quizData[currentQ].correct });
+  if (answered) return;
+  const q = quizData[currentQ];
+  if (!q) {
+    showToast('Quiz question is not ready — please try again');
+    return;
+  }
+  answered = true;
+  answers.push({ chosen: -1, correct: q.correct });
   nextQuestion();
 }
 
