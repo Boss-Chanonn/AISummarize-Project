@@ -57,15 +57,6 @@ if [ "$DEPLOY_TARGET" = "ecs" ]; then
     --service "${ECS_SERVICE}" \
     --force-new-deployment \
     --region "${AWS_REGION}" \
-    --output json \
-    | jq '.service.serviceArn, .service.deployments[0].rolloutState'
-  echo "✅ ECS deploy triggered. Image: ${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}"
-else
-  echo "🚀 Deploying to Lambda — updating function ${LAMBDA_FUNCTION}..."
-  aws lambda update-function-code \
-    --function-name "${LAMBDA_FUNCTION}" \
-    --image-uri "${ECR_URI}/${ECR_REPO}:latest" \
-    --region "${AWS_REGION}" \
     --output json
   echo "✅ ECS deploy triggered. Image: ${ECR_URI}/${ECR_REPO}:${IMAGE_TAG}"
 else
@@ -75,7 +66,6 @@ else
     --image-uri "${ECR_URI}/${ECR_REPO}:latest" \
     --region "${AWS_REGION}" \
     --output json 2>&1) || true
-  # Check if update succeeded
   ECHOED_ARN=$(echo "$UPDATE_RESULT" | grep -o '"FunctionArn":"[^"]*"' | head -1)
   if [ -n "$ECHOED_ARN" ]; then
     echo "✅ Lambda deploy triggered."
