@@ -59,6 +59,22 @@ class QuizOllamaSettings:
     num_predict: int = int(os.getenv("QUIZ_NUM_PREDICT", os.getenv("OLLAMA_NUM_PREDICT", "1400")))
 
 
+# ── Bridge settings (EC2 → Tailscale → Mac) ─────────────────────────────────
+
+@dataclass(slots=True)
+class BridgeSettings:
+    """EC2 bridge server that proxies requests to Macs over Tailscale.
+
+    When running on AWS Lambda (which cannot reach Tailscale private IPs),
+    set the BRIDGE_URL env var to the EC2 bridge server's public address.
+    The bridge forwards requests to the appropriate Mac running Ollama.
+    """
+    base_url: str = os.getenv("BRIDGE_URL", "").rstrip("/")
+    timeout_seconds: int = int(os.getenv("BRIDGE_TIMEOUT_SECONDS", "300"))
+    summary_endpoint: str = "/summary"
+    quiz_endpoint: str = "/quiz"
+
+
 # ── HTTP Client ────────────────────────────────────────────────────────────────
 
 class OllamaClient:
@@ -172,6 +188,74 @@ class OllamaClient:
             ) from exc
         except json.JSONDecodeError as exc:
             raise OllamaError("Ollama returned invalid JSON from its HTTP API.") from exc
+
+
+# ── Bridge Client (EC2 proxy for Lambda) ────────────────────────────────────
+
+class BridgeClient:
+    """HTTP client for the EC2 bridge server that proxies to Macs over Tailscale.
+
+    The bridge exposes /summary and /quiz endpoints. Each accepts
+    ``{"prompt": "..."}``, forwards to the correct Mac running Ollama,
+    and returns the same JSON format as Ollama's ``/api/generate``.
+
+    Use this client when running on AWS Lambda, which cannot reach
+    Tailscale private IPs directly.
+
+    Provides ``generate_json(prompt)`` for compatibility with ``OllamaClient``,
+    so ``AIService._generate_structured()`` works unchanged.
+    """
+
+    def __init__(self, settings: BridgeSettings | None = None, endpoint: str = "/summary") -> None:
+        self.settings = settings or BridgeSettings()
+        self._endpoint = endpoint
+
+    def generate_json(self, prompt: str) -> dict:
+        """Send a prompt via the EC2 bridge (compatible with OllamaClient interface).
+
+        The bridge returns the same JSON format as Ollama's ``/api/generate``,
+        so the ``response`` field parsing in ``_generate_structured()`` works unchanged.
+        """
+        return self._post(self._endpoint, prompt)
+
+    def health(self) -> dict:
+        """Check bridge server health."""
+        return self._get("/health")
+
+    def _post(self, path: str, prompt: str) -> dict:
+        data = json.dumps({"prompt": prompt}).encode("utf-8")
+        req = request.Request(
+            f"{self.settings.base_url}{path}",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        try:
+            with request.urlopen(req, timeout=self.settings.timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except error.URLError as exc:
+            raise OllamaError(
+                f"Failed to reach bridge at {self.settings.base_url}{path}. "
+                "Confirm the EC2 bridge server is running."
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise OllamaError("Bridge returned invalid JSON.") from exc
+
+    def _get(self, path: str) -> dict:
+        req = request.Request(
+            f"{self.settings.base_url}{path}",
+            headers={"Content-Type": "application/json"},
+            method="GET",
+        )
+        try:
+            with request.urlopen(req, timeout=self.settings.timeout_seconds) as response:
+                return json.loads(response.read().decode("utf-8"))
+        except error.URLError as exc:
+            raise OllamaError(
+                f"Failed to reach bridge at {self.settings.base_url}{path}."
+            ) from exc
+        except json.JSONDecodeError as exc:
+            raise OllamaError("Bridge returned invalid JSON.") from exc
 
 
 def _repair_truncated_json(text: str) -> str:

@@ -25,7 +25,7 @@ from urllib.request import Request, urlopen
 
 from pydantic import BaseModel, ValidationError
 
-from .ollama_client import OllamaClient, OllamaError, SummaryOllamaSettings, QuizOllamaSettings
+from .ollama_client import OllamaClient, OllamaError, SummaryOllamaSettings, QuizOllamaSettings, BridgeClient, BridgeSettings
 from .schemas import (
     AnalyzeResultsRequest,
     AnalyzeResultsResponse,
@@ -92,17 +92,23 @@ class AIService:
 
     def __init__(
         self,
-        client: OllamaClient | None = None,
-        quiz_client: OllamaClient | None = None,
+        client: OllamaClient | BridgeClient | None = None,
+        quiz_client: OllamaClient | BridgeClient | None = None,
     ) -> None:
-        """Initialise with two optional Ollama clients.
+        """Initialise with two optional clients.
 
-        If not provided, defaults are created:
-          - client:      SummaryOllamaSettings() → gpt-oss on Mac 1
-          - quiz_client: QuizOllamaSettings()    → deepseek-r1:8b on Mac 2
+        If not provided, checks BRIDGE_URL env var:
+          - If set: uses BridgeClient to route through the EC2 bridge.
+          - If not set: uses OllamaClient pointing directly to Macs via Tailscale.
         """
-        self.client      = client      or OllamaClient(SummaryOllamaSettings())  # Mac 1 — gpt-oss
-        self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())     # Mac 2 — deepseek
+        bridge_url = os.getenv("BRIDGE_URL", "").strip()
+        if bridge_url:
+            bridge_settings = BridgeSettings()
+            self.client      = client      or BridgeClient(bridge_settings, endpoint="/summary")
+            self.quiz_client = quiz_client or BridgeClient(bridge_settings, endpoint="/quiz")
+        else:
+            self.client      = client      or OllamaClient(SummaryOllamaSettings())
+            self.quiz_client = quiz_client or OllamaClient(QuizOllamaSettings())
 
     # ── Public API ────────────────────────────────────────────────────────────
 
