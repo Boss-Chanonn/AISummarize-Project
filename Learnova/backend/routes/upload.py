@@ -59,6 +59,19 @@ Fill in all fields based on this document.
 Title: {doc_title}
 Content: {text}"""
 
+    # ── Bridge mode: route through EC2 bridge instead of direct Tailscale ──
+    bridge_url = os.getenv("BRIDGE_URL", "").strip()
+    if bridge_url:
+        async with httpx.AsyncClient(timeout=300) as client:
+            resp = await client.post(f"{bridge_url}/summary", json={"prompt": prompt})
+            resp.raise_for_status()
+            raw = resp.json()
+            response_text = raw.get("response", "")
+            if not response_text:
+                raise ValueError("Bridge returned empty response")
+            parsed = _json.loads(response_text)
+            return SummaryResponse.model_validate(parsed)
+
     payload = {
         "model": settings.model,
         "prompt": prompt,

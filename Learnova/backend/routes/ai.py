@@ -26,12 +26,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from backend.services.ai_service import AIService
-from backend.services.ollama_client import (
-    OllamaClient,
-    OllamaError,
-    SummaryOllamaSettings,
-    QuizOllamaSettings,
-)
+from backend.services.ollama_client import OllamaError
 from backend.services.schemas import (
     AnalyzeResultsRequest,
     AnalyzeResultsResponse,
@@ -51,11 +46,8 @@ from backend.services.schemas import (
 
 router = APIRouter()
 
-# ── Service (shared host, model-specific clients) ─────────────────────────────
-_service = AIService(
-    client=OllamaClient(SummaryOllamaSettings()),
-    quiz_client=OllamaClient(QuizOllamaSettings()),
-)
+# ── Service (auto-detects bridge mode via BRIDGE_URL env var) ─────────────────
+_service = AIService()
 
 # ── In-memory job store ───────────────────────────────────────────────────────
 # Each entry: { "status": "pending"|"done"|"error", "result": QuizResponse|None, "error": str|None }

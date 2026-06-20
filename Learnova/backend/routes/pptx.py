@@ -28,7 +28,7 @@ from pydantic import BaseModel
 
 from backend.database.db import DATABASE_NAME, MONGO_URL, db
 from backend.middleware.auth_middleware import get_current_user
-from backend.services.ollama_client import OllamaClient, QuizOllamaSettings, SummaryOllamaSettings
+from backend.services.ollama_client import OllamaError
 from backend.services.pptx_service import (
     all_slides_covered,
     build_range_summary_response,
@@ -44,11 +44,8 @@ router = APIRouter()
 # ── MongoDB collection ────────────────────────────────────────────────────────
 pptx_collection = db["pptx_documents"]
 
-# ── AI service (dual-Mac) ─────────────────────────────────────────────────────
-_service = AIService(
-    client=OllamaClient(SummaryOllamaSettings()),
-    quiz_client=OllamaClient(QuizOllamaSettings()),
-)
+# ── AI service (auto-detects bridge mode via BRIDGE_URL env var) ─────────────
+_service = AIService()
 
 # ── In-memory quiz job store (same pattern as ai.py) ─────────────────────────
 _quiz_jobs: dict[str, dict[str, Any]] = {}

@@ -25,11 +25,12 @@ Cross-references:
 from __future__ import annotations
 
 import io
+import os
 from dataclasses import dataclass, field
 
 from pptx import Presentation  # pip install python-pptx
 
-from backend.services.ollama_client import OllamaClient, OllamaError, SummaryOllamaSettings
+from backend.services.ollama_client import OllamaClient, OllamaError, SummaryOllamaSettings, BridgeClient, BridgeSettings
 from backend.services.schemas import SummaryResponse
 
 
@@ -283,7 +284,7 @@ def summarise_all_slides(
     slides: list[SlideText],
     client: OllamaClient | None = None,
 ) -> list[SlideSummary]:
-    """Summarise every slide via Mac 1 (gpt-oss).
+    """Summarise every slide via Mac 1 (gpt-oss) or EC2 bridge.
 
     Called once at PPTX upload time — the results are stored in MongoDB
     so that subsequent quiz sessions can slice cached summaries without
@@ -292,12 +293,16 @@ def summarise_all_slides(
     Args:
         pptx_title: Title of the presentation.
         slides:     List of SlideText objects from extract_slides().
-        client:     Optional OllamaClient; creates a default one if not provided.
+        client:     Optional OllamaClient or BridgeClient; creates a default one if not provided.
 
     Returns:
         List of SlideSummary objects in slide order (same length as input).
     """
-    active_client = client or OllamaClient(SummaryOllamaSettings())
+    if client is None:
+        bridge_url = os.getenv("BRIDGE_URL", "").strip()
+        client = BridgeClient(BridgeSettings(), endpoint="/summary") if bridge_url else OllamaClient(SummaryOllamaSettings())
+    active_client = client
+    return [_summarise_slide(active_client, pptx_title, slide) for slide in slides]
     return [_summarise_slide(active_client, pptx_title, slide) for slide in slides]
 
 

@@ -17,7 +17,7 @@ window.LEARNOVA_CONFIG = {
 
   // ── API / Backend Settings ──
   api: {
-    baseUrl: '',                              // Same origin in local and production
+    baseUrl: 'https://shc2y4ibzth4nds4chr2b5fdse0dgzti.lambda-url.ap-southeast-2.on.aws',                              // Lambda Function URL
     questionCount: 6,                         // Default number of quiz questions per round
     followUpQuestionCount: 6                  // Default number of follow-up quiz questions
   },

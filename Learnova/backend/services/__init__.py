@@ -1,6 +1,6 @@
 # Learnova AI services package
 from .ai_service import AIService
-from .ollama_client import OllamaClient, OllamaError, OllamaSettings
+from .ollama_client import OllamaClient, OllamaError, OllamaSettings, BridgeClient, BridgeSettings
 from .schemas import (
     AnalyzeResultsRequest,
     AnalyzeResultsResponse,
@@ -23,6 +23,8 @@ __all__ = [
     "OllamaClient",
     "OllamaError",
     "OllamaSettings",
+    "BridgeClient",
+    "BridgeSettings",
     "AnalyzeResultsRequest",
     "AnalyzeResultsResponse",
     "CompareProgressRequest",

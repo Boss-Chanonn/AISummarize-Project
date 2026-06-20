@@ -45,7 +45,7 @@ import os
 from urllib import error as url_error
 from urllib import request as url_request
 
-from backend.services.ollama_client import QuizOllamaSettings, SummaryOllamaSettings
+from backend.services.ollama_client import QuizOllamaSettings, SummaryOllamaSettings, BridgeSettings
 from backend.services.email_service import send_weekly_reports_to_all
 from backend.middleware.auth_middleware import get_current_user
 
@@ -291,11 +291,16 @@ def _check_ollama_endpoint(label: str, base_url: str, model: str) -> None:
 
 
 def _check_ai_connections() -> None:
-    """Check configured summary and quiz Ollama endpoints before serving work."""
-    summary_settings = SummaryOllamaSettings()
-    quiz_settings = QuizOllamaSettings()
-    _check_ollama_endpoint("Summary model", summary_settings.base_url, summary_settings.model)
-    _check_ollama_endpoint("Quiz model", quiz_settings.base_url, quiz_settings.model)
+    """Check configured summary and quiz endpoints before serving work."""
+    bridge_url = os.getenv("BRIDGE_URL", "").strip()
+    if bridge_url:
+        bridge_settings = BridgeSettings()
+        _check_ollama_endpoint("Bridge server", bridge_settings.base_url, "")
+    else:
+        summary_settings = SummaryOllamaSettings()
+        quiz_settings = QuizOllamaSettings()
+        _check_ollama_endpoint("Summary model", summary_settings.base_url, summary_settings.model)
+        _check_ollama_endpoint("Quiz model", quiz_settings.base_url, quiz_settings.model)
 
 
 @app.on_event("startup")
