@@ -1,5 +1,31 @@
 /* ── Admin Sidebar — shared component for all admin pages ── */
 
+/* -- Group: Preferences Bootstrap -- */
+/**
+ * Apply persisted visual preferences on standalone admin pages.
+ * Admin pages do not load app.js, so they need their own early bootstrap to
+ * stay in sync with the theme chosen elsewhere in the app.
+ */
+function applyAdminTheme(theme) {
+  const nextTheme = theme || localStorage.getItem('ln_theme') || 'light';
+  if (nextTheme === 'dark') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', nextTheme);
+  localStorage.setItem('ln_theme', nextTheme);
+}
+
+/**
+ * Apply persisted font-size preference on standalone admin pages.
+ */
+function applyAdminFontSize(size) {
+  const nextSize = size || localStorage.getItem('ln_fontsize') || 'default';
+  if (nextSize === 'default') document.documentElement.removeAttribute('data-fontsize');
+  else document.documentElement.setAttribute('data-fontsize', nextSize);
+  localStorage.setItem('ln_fontsize', nextSize);
+}
+
+applyAdminTheme();
+applyAdminFontSize();
+
 /* -- Group: JWT Guard and Globals -- */
 const TOKEN = localStorage.getItem('token');
 const _stored = JSON.parse(localStorage.getItem('user') || 'null');
@@ -377,7 +403,7 @@ async function _adminSaveProfile() {
  * Open admin accessibility modal with theme swatches.
  */
 function openAdminAccessibility() {
-  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const saved_theme = localStorage.getItem('ln_theme') || 'light';
   const THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
   const LABELS = { dark:'Dark', light:'Light', 'high-contrast':'High contrast', deuteranopia:'Deuteranopia', protanopia:'Protanopia', tritanopia:'Tritanopia' };
   const DOTS = { dark:['#0A0A0A','#C8B89A','#6B9E6B'], light:['#F7F5F2','#7A5C38','#2E6E2E'], 'high-contrast':['#000000','#FFD700','#00DD00'], deuteranopia:['#0A0A0A','#E8B84B','#5B9BD5'], protanopia:['#0A0A0A','#5FB8FF','#FFCC00'], tritanopia:['#0A0A0A','#FF6E6E','#E8A0D0'] };
@@ -387,9 +413,7 @@ function openAdminAccessibility() {
 
     // Keep theme switching logic in a named string so the inline handler remains maintainable.
     const applyThemeOnClick = '(function(themeId,el){'
-      + 'if(themeId===\'dark\')document.documentElement.removeAttribute(\'data-theme\');'
-      + 'else document.documentElement.setAttribute(\'data-theme\',themeId);'
-      + 'localStorage.setItem(\'ln_theme\',themeId);'
+      + 'applyAdminTheme(themeId);'
       + 'document.querySelectorAll(\'.theme-swatch\').forEach(function(swatch){swatch.classList.remove(\'selected\')});'
       + 'el.classList.add(\'selected\');'
       + '})(\'' + id + '\',this)';

@@ -1265,7 +1265,7 @@ const SYS_STATE = {
   openCollection: '',
   collectionDocs: {},
   selectedDocs: new Set(),
-  dbDeleteTarget: { collection: '', ids: [] },
+  dbDeleteTarget: { collection: '', ids: [], mode: 'selected' },
   apiHealthGroups: {},
   openApiHealthGroup: '',
   logs: [],
@@ -2263,9 +2263,36 @@ async function expandCollection(name) {
   detail.innerHTML = getConnectedDetailEmptyMarkup('Loading collection...');
   scheduleSysDbDetailHeightSync();
 
+  await refreshCollectionDocs(name);
+}
+
+/**
+ * Reload the selected collection directly from the backend without toggling
+ * the expanded/collapsed UI state.
+ * @param {string} name
+ * @returns {Promise<void>}
+ */
+async function refreshCollectionDocs(name) {
+  const detail = document.getElementById('collectionDetail');
+  if (!detail) return;
+
   try {
     const data = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(name) + '?page=1&limit=20');
     SYS_STATE.collectionDocs[name] = data.items || [];
+    const total = Number(data.total || 0);
+    const existing = SYS_STATE.collections.find(item => item.name === name);
+    const nextInfo = {
+      name,
+      total,
+      size: estimateCollectionSize(data.items || [], total),
+      preview: data.items || []
+    };
+    if (existing) {
+      Object.assign(existing, nextInfo);
+    } else {
+      SYS_STATE.collections.push(nextInfo);
+    }
+    renderCollections(SYS_STATE.collections);
     renderCollectionDocs(name, SYS_STATE.collectionDocs[name]);
   } catch (_) {
     detail.innerHTML = getConnectedDetailEmptyMarkup('Failed to load collection data.');
@@ -2314,7 +2341,7 @@ function renderCollectionDocs(name, docs) {
     + '<input class="detail-search" id="sys-detail-search" type="text" placeholder="Search by content...">'
     + '<div class="sys-collection-actions">'
     + '<button class="btn btn-outline btn-sm" type="button" id="sys-delete-selected" disabled>Delete Selected (<span id="sys-delete-count">0</span>)</button>'
-    + '<button class="btn btn-danger btn-sm" type="button" id="sys-clear-all">Clear All (' + loadedCount + ')</button>'
+    + '<button class="btn btn-danger btn-sm" type="button" id="sys-clear-all"' + (totalCount ? '' : ' disabled') + '>Clear All (' + totalCount.toLocaleString() + ')</button>'
     + '</div>'
     + '</div>'
     + '</div>';
@@ -2341,13 +2368,13 @@ function updateDeleteSelectedBtn() {
  * @param {'all'|'selected'} mode
  */
 function openSysDbDeleteModal(collection, ids, mode) {
-  SYS_STATE.dbDeleteTarget = { collection, ids };
+  SYS_STATE.dbDeleteTarget = { collection, ids, mode };
   const title = document.getElementById('sysDbDeleteTitle');
   const msg = document.getElementById('sysDbDeleteMsg');
   if (title) title.textContent = mode === 'all' ? 'Clear All Documents' : 'Delete Selected Documents';
   if (msg) {
     if (mode === 'all') {
-      msg.innerHTML = 'This will permanently delete all <strong>' + ids.length + '</strong> loaded documents from <strong>' + escapeHtml(collection) + '</strong>. This cannot be undone.';
+      msg.innerHTML = 'This will permanently delete every clearable document in <strong>' + escapeHtml(collection) + '</strong> from MongoDB. This cannot be undone.';
     } else {
       msg.innerHTML = 'Delete <strong>' + ids.length + '</strong> selected document' + (ids.length !== 1 ? 's' : '') + ' from <strong>' + escapeHtml(collection) + '</strong>? This cannot be undone.';
     }
@@ -2359,7 +2386,7 @@ function openSysDbDeleteModal(collection, ids, mode) {
  * Close database delete-confirmation modal.
  */
 function closeSysDbDeleteModal() {
-  SYS_STATE.dbDeleteTarget = { collection: '', ids: [] };
+  SYS_STATE.dbDeleteTarget = { collection: '', ids: [], mode: 'selected' };
   document.getElementById('sysDbDeleteOverlay')?.classList.remove('open');
 }
 
@@ -2368,19 +2395,25 @@ function closeSysDbDeleteModal() {
  * @returns {Promise<void>}
  */
 async function deleteSelectedDocs() {
-  const { collection, ids } = SYS_STATE.dbDeleteTarget;
-  if (!collection || !ids.length) return;
+  const { collection, ids, mode } = SYS_STATE.dbDeleteTarget;
+  if (!collection || (mode !== 'all' && !ids.length)) return;
   const confirmBtn = document.getElementById('sysDbDeleteConfirmBtn');
   if (confirmBtn) confirmBtn.disabled = true;
   try {
-    const result = await sysAdminFetch('/api/sysadmin/db/' + encodeURIComponent(collection) + '/documents', {
-      method: 'DELETE',
-      body: JSON.stringify({ ids })
-    });
+    const endpoint = mode === 'all'
+      ? '/api/sysadmin/db/' + encodeURIComponent(collection) + '/documents/all'
+      : '/api/sysadmin/db/' + encodeURIComponent(collection) + '/documents';
+    const requestOptions = mode === 'all'
+      ? { method: 'DELETE' }
+      : { method: 'DELETE', body: JSON.stringify({ ids }) };
+    const result = await sysAdminFetch(endpoint, requestOptions);
     closeSysDbDeleteModal();
-    showToast('Deleted ' + (result.deleted || ids.length) + ' document' + (ids.length !== 1 ? 's' : ''), 2800);
+    const deletedCount = Number(result.deleted || 0);
+    const skippedText = result.skipped ? ' (' + result.skipped + ' protected)' : '';
+    showToast('Deleted ' + deletedCount + ' document' + (deletedCount !== 1 ? 's' : '') + skippedText, 2800);
     SYS_STATE.selectedDocs = new Set();
-    await expandCollection(collection);
+    SYS_STATE.openCollection = collection;
+    await refreshCollectionDocs(collection);
   } catch (err) {
     showToast(err.message || 'Failed to delete', 3200);
   } finally {
@@ -3051,10 +3084,10 @@ function bindSystemAdminEvents() {
     }
     const clearAllBtn = event.target.closest('#sys-clear-all');
     if (clearAllBtn) {
-      const allDocs = SYS_STATE.collectionDocs[SYS_STATE.openCollection] || [];
-      const allIds = allDocs.map(d => String(d._id || '')).filter(Boolean);
-      if (!allIds.length) { showToast('No documents loaded', 2800); return; }
-      openSysDbDeleteModal(SYS_STATE.openCollection, allIds, 'all');
+      const collectionInfo = SYS_STATE.collections.find(item => item.name === SYS_STATE.openCollection);
+      const totalCount = collectionInfo ? Number(collectionInfo.total || 0) : 0;
+      if (!totalCount) { showToast('No documents to clear', 2800); return; }
+      openSysDbDeleteModal(SYS_STATE.openCollection, [], 'all');
     }
   });
 

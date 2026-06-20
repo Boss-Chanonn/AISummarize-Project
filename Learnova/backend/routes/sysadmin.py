@@ -59,6 +59,7 @@ _API_HEALTH_CATALOG = {
         {"method": "GET", "path": "/api/sysadmin/db/{collection_name}"},
         {"method": "PUT", "path": "/api/sysadmin/users/{user_id}/status"},
         {"method": "DELETE", "path": "/api/sysadmin/db/{collection_name}/documents"},
+        {"method": "DELETE", "path": "/api/sysadmin/db/{collection_name}/documents/all"},
     ],
 }
 
@@ -231,3 +232,32 @@ async def delete_documents(
     col = db[collection_name]
     result = await col.delete_many({"_id": {"$in": oids}})
     return {"deleted": result.deleted_count}
+
+
+@router.delete("/db/{collection_name}/documents/all")
+@limiter.limit("5/minute")
+async def clear_collection_documents(
+    request: Request,
+    collection_name: str,
+    current_user: dict = Depends(get_system_admin_user)
+):
+    """Clear all documents from one allowed collection with system-admin safeguards."""
+    allowed = {"users", "history", "system_logs", "token_blocklist"}
+    if collection_name not in allowed:
+        return message_error(400, "Collection not accessible")
+
+    col = db[collection_name]
+
+    # Safety: never delete system_admin accounts or the current admin through Clear All.
+    if collection_name == "users":
+        current_user_id = str(current_user.get("_id", ""))
+        query = {
+            "role": {"$ne": "system_admin"},
+            "_id": {"$ne": ObjectId(current_user_id)} if ObjectId.is_valid(current_user_id) else {"$exists": True},
+        }
+        result = await col.delete_many(query)
+        skipped = await col.count_documents({})
+        return {"deleted": result.deleted_count, "skipped": skipped}
+
+    result = await col.delete_many({})
+    return {"deleted": result.deleted_count, "skipped": 0}
