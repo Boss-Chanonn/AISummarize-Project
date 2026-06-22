@@ -544,7 +544,7 @@ function renderResources() {
   document.getElementById('res-list').innerHTML = resources.map(r => `
     <div class="res-card${r.completed ? ' completed' : r.scheduled ? ' scheduled' : ''}" data-id="${r.id}">
       ${isYouTubeUrl(r.url)
-        ? `<div class="res-thumb t-video" style="cursor:pointer" onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')" title="Play video">
+        ? `<div class="res-thumb t-video" style="cursor:pointer" onclick="openYtModal('${r.url.replace(/'/g,"\\'")}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')" title="Play video">
             <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="13.5" fill="rgba(200,184,154,0.18)" stroke="rgba(200,184,154,0.3)"/><path d="M11.5 9.5l9 4.5-9 4.5V9.5z" fill="#C8B89A"/></svg>
             <div class="thumb-label">Play video</div>
            </div>`
