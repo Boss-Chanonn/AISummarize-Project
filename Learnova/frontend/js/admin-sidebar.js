@@ -10,6 +10,14 @@ if (!TOKEN || !_stored || !['admin', 'system_admin'].includes(_stored.role)) {
 
 const AUTH = { Authorization: 'Bearer ' + TOKEN };
 
+/* -- Theme init (admin pages don't load app.js) -- */
+const savedTheme = localStorage.getItem('ln_theme') || 'light';
+if (savedTheme === 'dark') {
+  document.documentElement.removeAttribute('data-theme');
+} else {
+  document.documentElement.setAttribute('data-theme', savedTheme);
+}
+
 /* -- Group: Navigation Model -- */
 let _ADMIN_NAV = [
   {
