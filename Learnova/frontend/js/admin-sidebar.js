@@ -377,7 +377,7 @@ async function _adminSaveProfile() {
  * Open admin accessibility modal with theme swatches.
  */
 function openAdminAccessibility() {
-  const saved_theme = localStorage.getItem('ln_theme') || 'dark';
+  const saved_theme = localStorage.getItem('ln_theme') || 'light';
   const THEMES = ['dark','light','high-contrast','deuteranopia','protanopia','tritanopia'];
   const LABELS = { dark:'Dark', light:'Light', 'high-contrast':'High contrast', deuteranopia:'Deuteranopia', protanopia:'Protanopia', tritanopia:'Tritanopia' };
   const DOTS = { dark:['#0A0A0A','#C8B89A','#6B9E6B'], light:['#F7F5F2','#7A5C38','#2E6E2E'], 'high-contrast':['#000000','#FFD700','#00DD00'], deuteranopia:['#0A0A0A','#E8B84B','#5B9BD5'], protanopia:['#0A0A0A','#5FB8FF','#FFCC00'], tritanopia:['#0A0A0A','#FF6E6E','#E8A0D0'] };
