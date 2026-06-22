@@ -561,7 +561,7 @@ function renderResources() {
             <div class="res-title">
               ${isYouTubeUrl(r.url)
                 ? `<span class="res-title-link" style="cursor:pointer"
-                     onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">${escapeHtml(r.title)}</span>`
+                     onclick="openYtModal('${r.url.replace(/'/g,"\\'")}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">${escapeHtml(r.title)}</span>`
                 : `<a class="res-title-link" href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer">${escapeHtml(r.title)}</a>`
               }
             </div>
@@ -582,10 +582,10 @@ function renderResources() {
           </div>
           <div class="res-actions">
             ${isYouTubeUrl(r.url)
-              ? `<button class="sched-btn link-btn" type="button"
-                   onclick="openYtModal('${r.url}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">
-                   <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M4.5 4l4 2-4 2V4z" fill="currentColor" stroke="none"/></svg>
-                   Watch video
+               ? `<button class="sched-btn link-btn" type="button"
+                    onclick="openYtModal('${r.url.replace(/'/g,"\\'")}','${escapeHtml(r.title).replace(/'/g,"\\'")}','${escapeHtml(r.topicKey||'').replace(/'/g,"\\'")}','${escapeHtml(r.source||'').replace(/'/g,"\\'")}','${r.duration||''}')">
+                    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.1"><circle cx="6" cy="6" r="4.5"/><path d="M4.5 4l4 2-4 2V4z" fill="currentColor" stroke="none"/></svg>
+                    Watch video
                  </button>`
               : `<a class="sched-btn link-btn"
                    href="${escapeHtml(r.url || '#')}" target="_blank" rel="noopener noreferrer">
