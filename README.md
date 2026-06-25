@@ -1,198 +1,104 @@
-# Learnova — AI Learning Platform
+# Learnova (Final)
 
-An AI-powered learning platform that summarises uploaded documents, generates quizzes, and provides personalised study recommendations.
+Learnova is an AI-powered learning platform for uploading documents, generating summaries/quizzes, and tracking study progress.
 
-Built with **FastAPI** + **MongoDB Atlas** + **Ollama (LLaMA 3)** + **Docker**.
+## What You Need
 
----
+- Docker Desktop (must be running)
+- MongoDB Atlas connection string
+- Ollama endpoint/model (local or remote)
 
-## Tech Stack
+## Fastest Way To Run
 
-| Layer | Technology |
-|-------|-----------|
-| Backend | FastAPI (Python 3.10) |
-| Frontend | HTML / CSS / Vanilla JS (served by FastAPI) |
-| Database | MongoDB Atlas (cloud) |
-| AI | Ollama — llama3:latest |
-| Auth | JWT + bcrypt + token blocklist |
-| Container | Docker + Docker Compose |
-
----
-
-## Prerequisites
-
-Before running this project you need:
-
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
-- [Ollama](https://ollama.com) installed on your machine (for local AI)
-- A [MongoDB Atlas](https://www.mongodb.com/atlas) account with a free cluster
-
----
-
-## Quick Start (For Anyone Running This Project)
-
-### Step 1 — Download the project files
-
-You need two files in the same folder:
-- `docker-compose.yml`
-- `.env` (you must create this — see Step 2)
-
-### Step 2 — Create your `.env` file
-
-Create a file named `.env` in the same folder as `docker-compose.yml`.
-Copy the template below and fill in your own values:
-
-```env
-MONGO_URL=mongodb+srv://YOUR_USERNAME:YOUR_PASSWORD@cluster0.xxxxx.mongodb.net/?appName=Cluster0
-DATABASE_NAME=learnova
-SECRET_KEY=replace-this-with-a-long-random-string-at-least-32-chars
-ALLOWED_ORIGINS=http://localhost:8000
-OLLAMA_ENABLED=true
-OLLAMA_BASE_URL=http://host.docker.internal:11434
-OLLAMA_MODEL=llama3:latest
-OLLAMA_TIMEOUT_SECONDS=300
-```
-
-> **MONGO_URL** — Get this from MongoDB Atlas → your cluster → Connect → Drivers
->
-> **SECRET_KEY** — Type any long random string, e.g. `x7k!mP2qL9nR4vZ0wT8uA3cE6fH1jB5y`
->
-> **Never share your `.env` file with anyone.**
-
-### Step 3 — Pull the AI model (first time only)
-
-Make sure Ollama is running on your machine, then open a terminal and run:
+From the project root:
 
 ```bash
-ollama pull llama3:latest
+./run.sh
 ```
 
-This downloads the LLaMA 3 model (~4.7 GB). You only need to do this once.
+This command will:
 
-### Step 4 — Start the application
+1. Check Docker + Docker Compose availability
+2. Check `.env` in `Learnova/`
+3. Build and start the app container
+4. Show useful URLs
 
-Open a terminal in the folder containing `docker-compose.yml` and run:
+## First-Time Setup
+
+1. Make scripts executable (one time):
 
 ```bash
-docker-compose up -d
+chmod +x run.sh Learnova/run.sh
 ```
 
-Docker will automatically download the application image and start it.
-Wait about 10–15 seconds for startup to complete.
-
-### Step 5 — Open in browser
-
-Go to: **http://localhost:8000**
-
-You should see the Learnova landing page. Register an account and start uploading documents.
-
-### Stopping the application
+2. Create env file (if not created yet):
 
 ```bash
-docker-compose down
+cp Learnova/.env.example Learnova/.env
 ```
 
----
+3. Edit `Learnova/.env` and set required values:
 
-## For Developers — Running from Source
+- `MONGO_URL`
+- `SECRET_KEY`
+- `OLLAMA_BASE_URL`
+- `OLLAMA_MODEL`
 
-### Clone and set up
+Recommended local defaults are already included in `.env.example`.
+
+## Script Commands
+
+Main entrypoint (from root):
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/learnova.git
-cd learnova/Learnova
+./run.sh [command]
 ```
 
-Create your `.env` file as described in Step 2 above.
+Available commands:
 
-### Build and run with Docker
+- `up` (default): build + start project
+- `down`: stop project
+- `restart`: restart containers
+- `logs`: follow app logs
+- `status`: show container status
+- `doctor`: check prerequisites and env
+- `help`: show command usage
+
+You can also run the same commands directly in `Learnova/`:
 
 ```bash
-# First time (or after changing requirements.txt)
-docker-compose up --build -d
-
-# Subsequent runs
-docker-compose up -d
+cd Learnova
+./run.sh up
 ```
 
-### View logs
+## URLs
+
+- App: http://localhost:8000
+- Swagger API docs: http://localhost:8000/docs
+- Health check: http://localhost:8000/api/health
+
+## Typical Workflow
+
+Start project:
 
 ```bash
-docker logs learnova-app-1 -f
+./run.sh
 ```
 
----
+Check logs:
 
-## Project Structure
-
-```
-Learnova/
-├── backend/
-│   ├── main.py                  ← FastAPI app entry point
-│   ├── routes/
-│   │   ├── auth.py              ← Register, login, logout, profile
-│   │   ├── upload.py            ← Document upload + AI processing
-│   │   ├── history.py           ← History CRUD + quiz submission
-│   │   ├── content.py           ← Results + learning modules
-│   │   ├── user.py              ← User profile stats
-│   │   ├── admin.py             ← Admin management routes
-│   │   └── sysadmin.py          ← System health + logs
-│   ├── services/
-│   │   └── ollama_service.py    ← AI summary, quiz, analysis generation
-│   ├── middleware/
-│   │   ├── auth_middleware.py   ← JWT verification + RBAC
-│   │   └── security.py         ← Security headers middleware
-│   ├── models/
-│   │   └── user.py              ← Pydantic models
-│   └── database/
-│       └── db.py                ← MongoDB Atlas connection
-├── frontend/
-│   ├── landing.html             ← Public landing page
-│   ├── index.html               ← Dashboard
-│   ├── upload.html              ← Upload & AI summarise
-│   ├── history.html             ← Document history
-│   ├── results.html             ← Quiz results
-│   ├── module.html              ← Learning modules
-│   ├── css/style.css
-│   └── js/
-│       ├── app.js
-│       ├── animations.js
-│       └── mock-api.js
-├── docker-compose.yml
-├── Dockerfile
-├── requirements.txt
-└── .env                         ← Not committed — create your own
+```bash
+./run.sh logs
 ```
 
----
+Stop project:
 
-## API Overview
+```bash
+./run.sh down
+```
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/auth/register` | Create account |
-| POST | `/api/auth/login` | Login, returns JWT |
-| POST | `/api/auth/logout` | Invalidate token |
-| GET | `/api/user/profile` | Dashboard stats |
-| POST | `/api/upload` | Upload file, get AI summary + quiz |
-| GET | `/api/history` | All uploaded documents |
-| POST | `/api/history/{id}/submit-quiz` | Submit quiz answers |
-| GET | `/api/results?id=` | Quiz results + analysis |
-| GET | `/api/modules?historyId=` | Learning module links |
+## Notes
 
-Full API docs available at: **http://localhost:8000/docs**
-
----
-
-## Environment Variables Reference
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `MONGO_URL` | ✅ | MongoDB Atlas connection string |
-| `DATABASE_NAME` | ✅ | Database name (default: `learnova`) |
-| `SECRET_KEY` | ✅ | JWT signing secret — use a strong random string |
-| `OLLAMA_ENABLED` | ✅ | Set `true` to enable AI, `false` to use fallback |
-| `OLLAMA_BASE_URL` | ✅ | Ollama URL — `http://host.docker.internal:11434` |
-| `OLLAMA_MODEL` | ✅ | Model name — `llama3:latest` |
-| `OLLAMA_TIMEOUT_SECONDS` | ✅ | AI request timeout — `300` recommended |
-| `ALLOWED_ORIGINS` | ✅ | CORS origins — `http://localhost:8000` |
+- If dependencies changed, `up` already rebuilds images.
+- If `.env` changed, run `./run.sh restart`.
+- Keep `.env` private and never commit secrets.

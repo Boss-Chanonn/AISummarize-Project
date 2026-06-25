@@ -122,6 +122,7 @@ Files: landing.html (DOB), upload.html (FormData + submit-quiz), results.html, h
 | 2026-05-14 | Simplified SETUP.md for Mac/Windows | Faster onboarding with minimal essential steps |
 | 2026-05-14 | Added Ollama service to docker-compose | app + ollama start together and use gpt-oss:120b-cloud |
 | 2026-05-26 | Added FEATURES_AND_FUNCTIONALITIES.md | Assignment-ready summary of user roles, tiers, and system functions |
+| 2026-06-25 | Finalized root README and added one-command run scripts (`/run.sh`, `Learnova/run.sh`) | Simplify project startup and operations for final handoff |
 
 ---
 
